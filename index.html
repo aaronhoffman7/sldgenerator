@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lightbox Solar SLD Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--surface:#181c27;--surface2:#1e2335;--border:#2a3050;
+  --accent:#f5c842;--accent2:#3d8ef8;--text:#e8eaf0;--muted:#7a84a0;
+  --green:#4fd98e;--dc:#f5c842;--ac:#3d8ef8;
+  --font:'Avenir Next','Avenir',sans-serif;--mono:'Avenir Next','Avenir',sans-serif;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--surface);flex-shrink:0}
+header h1{font-size:18px;font-weight:600}
+header span{font-size:13px;color:var(--muted);font-family:var(--mono)}
+.hbtns{margin-left:auto;display:flex;gap:8px}
+.hbtn{font-size:12px;font-family:var(--mono);padding:7px 16px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s}
+.hbtn:hover{border-color:var(--accent);color:var(--accent)}
+.hbtn.primary{background:var(--accent);color:#000;border-color:var(--accent);font-weight:500}
+.hbtn.primary:hover{opacity:.85}
+.app{display:flex;flex:1;overflow:hidden}
+aside{width:270px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto}
+aside::-webkit-scrollbar{width:4px}
+aside::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.section{border-bottom:1px solid var(--border);padding:13px 15px}
+.stitle{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px;margin-top:8px}
+label:first-of-type{margin-top:0}
+input[type=text],input[type=number],select{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:12px;padding:5px 8px;border-radius:4px;outline:none;transition:border-color .15s}
+input:focus,select:focus{border-color:var(--accent2)}
+select option{background:var(--surface2)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.row2 label{margin-top:0}
+.trow{display:flex;align-items:center;justify-content:space-between;margin-top:9px}
+.trow span{font-size:11px;color:var(--muted)}
+.tog{position:relative;width:30px;height:17px;flex-shrink:0;cursor:pointer}
+.tog input{opacity:0;width:0;height:0;position:absolute}
+.ttrack{position:absolute;inset:0;background:var(--border);border-radius:9px;transition:background .2s}
+.tthumb{position:absolute;top:2px;left:2px;width:13px;height:13px;background:#fff;border-radius:50%;transition:transform .2s;pointer-events:none}
+.tog input:checked~.ttrack{background:var(--accent2)}
+.tog input:checked~.ttrack .tthumb{transform:translateX(13px)}
+main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.canvas-wrap{flex:1;overflow:auto;padding:20px;background:#e8eaf0}
+.canvas-wrap::-webkit-scrollbar{width:5px;height:5px}
+.canvas-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+#sld-svg{display:block;background:#ffffff;border-radius:8px;border:1px solid #c8ccdc}
+.sbar{height:28px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:18px;flex-shrink:0}
+.stat{font-size:10px;font-family:var(--mono);color:var(--muted)}
+.stat b{color:var(--green);font-weight:500}
+.stat.w b{color:var(--accent)}
+.crow{font-size:10px;color:var(--muted);margin-top:9px}
+.cval{font-size:11px;color:var(--text);font-family:var(--mono);margin-top:2px}
+.cnote{font-size:9px;color:var(--muted);margin-top:10px;line-height:1.5}
+.cwarn{font-size:10px;color:#f5a742;margin-top:4px}
+.cok{font-size:10px;color:#4fd98e;margin-top:4px}
+</style>
+</head>
+<body>
+<header>
+  <img src="logo.png" style="height:40px;width:auto;display:block;">
+  <h1>Single Line Diagram Generator</h1>
+  <span>Solar + Battery Storage</span>
+  <div class="hbtns">
+    <button class="hbtn" onclick="exportSVG()">Export SVG</button>
+    <button class="hbtn primary" onclick="exportPDF()">&#8595; Download PDF</button>
+  </div>
+</header>
+<div class="app">
+<aside>
+  <div class="section">
+    <div class="stitle">Project</div>
+    <label>System type</label>
+    <select id="sysType" onchange="render()"><option value="residential">Residential</option><option value="commercial">Commercial</option></select>
+    <label>Project name / address</label>
+    <input type="text" id="projName" value="123 Main Street" oninput="render()">
+    <label>AHJ / designer note</label>
+    <input type="text" id="designer" value="Conceptual Drawing — Not for Construction" oninput="render()">
+  </div>
+  <div class="section">
+    <div class="stitle">PV Array</div>
+    <label>System size (kW DC)</label>
+    <input type="number" id="systemKw" placeholder="e.g. 10" step="0.1" min="0.1" oninput="systemKwChanged()">
+    <div id="system-kw-note" class="cnote"></div>
+    <div class="row2">
+      <div><label>Strings</label><input type="number" id="strings" value="2" min="1" max="500" oninput="stringsChanged()"></div>
+      <div><label>Mods/string</label><input type="number" id="mods" value="12" min="1" max="40" oninput="modsChanged()"></div>
+    </div>
+    <div class="row2">
+      <div><label>Module Wp</label><input type="number" id="modW" value="400" min="50" max="700" oninput="modWChanged()"></div>
+      <div><label>Voc (V)</label><input type="number" id="voc" value="49.0" step="0.1" oninput="vocChanged()"></div>
+    </div>
+    <div class="row2">
+      <div><label>Isc (A)</label><input type="number" id="isc" value="10.2" step="0.1" oninput="render()"></div>
+    </div>
+    <label>Module make / model</label>
+    <input type="text" id="modModel" value="REC Alpha 400W" oninput="render()">
+  </div>
+  <div class="section">
+    <div class="stitle">String Combiner</div>
+    <div class="trow"><span>Include combiner box</span><label class="tog"><input type="checkbox" id="hasCombiner" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <label>Max DC voltage rating</label>
+    <select id="combV" onchange="combVChanged()"><option value="600">600 VDC</option><option value="1000" selected>1000 VDC</option><option value="1500">1500 VDC</option></select>
+    <label>String fuse (A)</label>
+    <input type="number" id="combFuse" value="15" min="5" max="60" oninput="render()">
+    <div id="fuse-check" class="cnote"></div>
+  </div>
+  <div class="section">
+    <div class="stitle">Inverter</div>
+    <label>Type</label>
+    <select id="invType" onchange="render()">
+      <option value="string">String inverter</option>
+      <option value="hybrid">Hybrid (DC-coupled battery)</option>
+      <option value="micro">Microinverters</option>
+      <option value="central">Central inverter</option>
+    </select>
+    <div class="row2">
+      <div><label>DC/AC ratio</label><input type="number" id="dcAcRatio" value="1.20" step="0.01" min="0.5" max="2.0" oninput="dcAcRatioChanged()"></div>
+    </div>
+    <div class="row2">
+      <div><label>Unit size (kW)</label><input type="number" id="invKw" value="10" min="1" max="500" oninput="invKwChanged()"></div>
+      <div><label>Output voltage</label>
+        <select id="invV" onchange="render()">
+          <option value="240VAC 1ph">240VAC 1ph</option>
+          <option value="208VAC 3ph">208VAC 3ph</option>
+          <option value="480VAC 3ph">480VAC 3ph</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2">
+      <div><label>Qty (parallel)</label><input type="number" id="invCount" value="1" min="1" max="20" oninput="render()"></div>
+    </div>
+    <label>Make / model</label>
+    <input type="text" id="invModel" value="SMA Sunny Boy 10.0" oninput="render()">
+  </div>
+  <div class="section">
+    <div class="stitle">Battery Storage</div>
+    <div class="trow"><span>Include battery</span><label class="tog"><input type="checkbox" id="hasBatt" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <label>Coupling</label>
+    <select id="battCouple" onchange="render()"><option value="ac">AC-coupled</option><option value="dc">DC-coupled</option></select>
+    <div class="row2">
+      <div><label>Power (kW)</label><input type="number" id="battKw" value="5" step="0.1" min="0.1" max="5000" oninput="render()"></div>
+      <div><label>Capacity (kWh)</label><input type="number" id="battKwh" value="13.5" step="0.1" min="1" max="2000" oninput="render()"></div>
+    </div>
+    <div id="batt-calc" class="cnote"></div>
+    <div class="row2">
+      <div><label>Voltage</label>
+        <select id="battV" onchange="battVChanged()">
+          <option value="24VDC">24 VDC (low-voltage)</option>
+          <option value="48VDC" selected>48 VDC (low-voltage)</option>
+          <option value="51.2VDC">51.2 VDC (LFP nominal)</option>
+          <option value="~350–400VDC">~350–400 VDC (Tesla Powerwall)</option>
+          <option value="~400VDC">~400 VDC (Enphase IQ)</option>
+          <option value="~450VDC">~450 VDC (Franklin aPower)</option>
+          <option value="HV 100–500VDC">HV 100–500 VDC (SolarEdge)</option>
+          <option value="HV 400VDC">HV 400 VDC (Generac PWRcell)</option>
+          <option value="HV 500VDC">HV 500 VDC (LG RESU Prime)</option>
+        </select>
+      </div>
+      <div><label>Chemistry</label>
+        <select id="battChem" onchange="render()"><option value="LFP">LiFePO4 (LFP)</option><option value="NMC">NMC Li-ion</option><option value="Lead-Acid">Lead-Acid</option></select>
+      </div>
+    </div>
+    <div class="row2">
+      <div><label>Make / model</label><input type="text" id="battModel" value="Tesla Powerwall 2" oninput="render()"></div>
+      <div><label>Container qty</label><input type="number" id="battQty" value="1" min="1" max="100" oninput="render()"></div>
+    </div>
+    <div class="row2">
+      <div><label>PCS rating (kVA)</label><input type="number" id="pcsKva" value="5" step="0.1" min="0.1" max="5000" oninput="render()"></div>
+    </div>
+    <label>Interconnection standard</label>
+    <select id="interconnStd" onchange="render()">
+      <option value="IEEE 1547-2018">IEEE 1547-2018</option>
+      <option value="IEEE 1547-2003">IEEE 1547-2003</option>
+      <option value="UL 9540">UL 9540</option>
+      <option value="Rule 21">Rule 21 (CA)</option>
+      <option value="PREPA">PREPA</option>
+    </select>
+  </div>
+  <div class="section">
+    <div class="stitle">Utility &amp; POI</div>
+    <div class="row2">
+      <div><label>Utility name</label><input type="text" id="utilityName" value="Utility" oninput="render()"></div>
+      <div><label>POI voltage (kV)</label><input type="number" id="poiKv" value="0.48" step="0.001" min="0.1" max="500" oninput="render()"></div>
+    </div>
+    <div class="trow"><span>MV step-up transformer</span><label class="tog"><input type="checkbox" id="hasMvXfmr" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div id="mvxfmr-fields" style="display:none">
+      <div class="row2">
+        <div><label>Transformer kVA</label><input type="number" id="mvKva" value="1000" step="100" min="100" oninput="render()"></div>
+        <div><label>Qty</label><input type="number" id="mvQty" value="1" min="1" max="20" oninput="render()"></div>
+      </div>
+      <div class="row2">
+        <div><label>Primary (kV)</label><input type="number" id="mvPriKv" value="13.8" step="0.1" oninput="render()"></div>
+        <div><label>Secondary (V)</label><input type="number" id="mvSecV" value="480" step="10" oninput="render()"></div>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="stitle">Service &amp; Protection</div>
+    <div class="row2">
+      <div><label>Panel size (A)</label>
+        <select id="panelA" onchange="render()"><option value="20">20A</option><option value="40">40A</option><option value="60">60A</option><option value="80">80A</option><option value="100">100A</option><option value="200" selected>200A</option><option value="300">300A</option><option value="400">400A</option><option value="500">500A</option><option value="600">600A</option><option value="700">700A</option><option value="800">800A</option><option value="900">900A</option><option value="1000">1000A</option><option value="1100">1100A</option><option value="1200">1200A</option><option value="1300">1300A</option><option value="1400">1400A</option><option value="1500">1500A</option><option value="1600">1600A</option><option value="1700">1700A</option><option value="1800">1800A</option><option value="1900">1900A</option><option value="2000">2000A</option></select>
+      </div>
+    </div>
+    <div class="row2">
+      <div><label>Solar breaker (A)</label><input type="number" id="solarBreaker" value="40" min="10" max="400" oninput="render()">
+        <div id="breaker-check" class="cok"></div></div>
+    </div>
+    <div id="backfeed-check" class="cwarn" style="margin-top:6px"></div>
+    <div class="trow"><span>Rapid shutdown (RSD)</span><label class="tog"><input type="checkbox" id="hasRSD" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div class="trow"><span>Production meter</span><label class="tog"><input type="checkbox" id="hasMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div class="trow"><span>Show grounding</span><label class="tog"><input type="checkbox" id="hasGnd" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+  </div>
+  <div class="section">
+    <div class="stitle">Conduit Sizing</div>
+    <div class="crow">String / source circuit (per string)</div>
+    <div class="cval" id="c-str">--</div>
+    <div class="crow">DC output circuit (combiner → inverter)</div>
+    <div class="cval" id="c-dc">--</div>
+    <div class="crow">AC output circuit (inverter → panel)</div>
+    <div class="cval" id="c-ac">--</div>
+    <div class="cnote">Cu THWN-2 · 75 °C ampacity · EMT 40% fill · EGC per NEC 250.122</div>
+  </div>
+</aside>
+<main>
+  <div class="canvas-wrap"><svg id="sld-svg"></svg></div>
+  <div class="sbar">
+    <span class="stat">Array: <b id="s-kw">--</b></span>
+    <span class="stat">String Voc: <b id="s-voc">--</b></span>
+    <span class="stat">Array Isc: <b id="s-isc">--</b></span>
+    <span class="stat w">Battery: <b id="s-batt">--</b></span>
+    <span class="stat">NEC 690 max Voc: <b id="s-nec">--</b></span>
+  </div>
+</main>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const gv=id=>$(id)?$(id).value:'';
+const gc=id=>$(id)?$(id).checked:false;
+
+// NEC Table 310.15(B)(16) — copper THWN-2, 75°C column
+const WIRE_AMP=[
+  {awg:'14',amps:15,area:0.0097},{awg:'12',amps:20,area:0.0133},
+  {awg:'10',amps:30,area:0.0211},{awg:'8', amps:50,area:0.0366},
+  {awg:'6', amps:65,area:0.0507},{awg:'4', amps:85,area:0.0824},
+  {awg:'3', amps:100,area:0.0973},{awg:'2',amps:115,area:0.1158},
+  {awg:'1', amps:130,area:0.1562},{awg:'1/0',amps:150,area:0.1855},
+  {awg:'2/0',amps:175,area:0.2223},{awg:'3/0',amps:200,area:0.2679},
+  {awg:'4/0',amps:230,area:0.3237}
+];
+// NEC Ch.9 Table 4 — EMT, 40% fill (in²)
+const EMT_FILL=[
+  {size:'½"',f:0.122},{size:'¾"',f:0.213},{size:'1"',f:0.346},
+  {size:'1¼"',f:0.598},{size:'1½"',f:0.814},{size:'2"',f:1.342},
+  {size:'2½"',f:1.847},{size:'3"',f:2.829},{size:'4"',f:4.754}
+];
+function wireFor(a){return WIRE_AMP.find(w=>w.amps>=a)||WIRE_AMP[WIRE_AMP.length-1];}
+function conduitFor(n,wireArea){const tot=n*wireArea;return(EMT_FILL.find(c=>c.f>=tot)||EMT_FILL[EMT_FILL.length-1]).size;}
+
+function vals(){
+  return{
+    sysType:gv('sysType'),projName:gv('projName'),designer:gv('designer'),
+    strings:Math.max(1,+gv('strings')||1),mods:Math.max(1,+gv('mods')||1),
+    modW:+gv('modW')||400,voc:+gv('voc')||49,isc:+gv('isc')||10.2,
+    modModel:gv('modModel'),
+    hasCombiner:gc('hasCombiner'),combV:+gv('combV')||1000,combFuse:+gv('combFuse')||15,
+    invType:gv('invType'),invKw:+gv('invKw')||10,invCount:Math.max(1,+gv('invCount')||1),invV:gv('invV'),invModel:gv('invModel'),
+    hasBatt:gc('hasBatt'),battCouple:gv('battCouple'),battKwh:+gv('battKwh')||13.5,
+    battKw:+gv('battKw')||5,battQty:Math.max(1,+gv('battQty')||1),pcsKva:+gv('pcsKva')||5,
+    battV:gv('battV'),battChem:gv('battChem'),battModel:gv('battModel'),
+    interconnStd:gv('interconnStd')||'IEEE 1547-2018',
+    utilityName:gv('utilityName')||'Utility',poiKv:+gv('poiKv')||0.48,
+    hasMvXfmr:gc('hasMvXfmr'),mvKva:+gv('mvKva')||1000,mvQty:Math.max(1,+gv('mvQty')||1),
+    mvPriKv:+gv('mvPriKv')||13.8,mvSecV:+gv('mvSecV')||480,
+    panelA:+gv('panelA')||200,busbarA:+gv('busbarA')||(+gv('panelA')||200),solarBreaker:+gv('solarBreaker')||40,
+    hasRSD:gc('hasRSD'),hasMeter:gc('hasMeter'),hasGnd:gc('hasGnd')
+  };
+}
+
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+// IEC-style PV string symbol: rect with diagonal, +/- terminals top & bottom
+// cx,cy = center of module body; w,h = symbol size
+// Returns SVG markup + the Y coordinate of the bottom terminal tip
+function pvStringSymbol(cx, cy, w, h, idx) {
+  const x = cx - w/2, y = cy - h/2;
+  const termLen = 5;
+  let s = '';
+  // body
+  s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="#fef9d0" stroke="#a08800" stroke-width="1"/>`;
+  // diagonal (IEC PV cell symbol)
+  s += `<line x1="${x+3}" y1="${y+h-3}" x2="${x+w-3}" y2="${y+3}" stroke="#a08800" stroke-width="0.8" opacity="0.7"/>`;
+  // + terminal (top)
+  s += `<line x1="${cx}" y1="${y}" x2="${cx}" y2="${y-termLen}" stroke="#a08800" stroke-width="1.2"/>`;
+  // - terminal (bottom)
+  s += `<line x1="${cx}" y1="${y+h}" x2="${cx}" y2="${y+h+termLen}" stroke="#a08800" stroke-width="1.2"/>`;
+  // string label
+  s += `<text x="${cx}" y="${cy+1}" style="fill:#7a5a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle" dominant-baseline="central">S${idx}</text>`;
+  return { svg: s, topTermY: y - termLen, botTermY: y + h + termLen };
+}
+
+// Render the full PV array section with strings arranged horizontally.
+// Returns { svg, botY } where botY is the Y of the negative bus (output connection).
+function renderPVArray(v, cx, startY) {
+  const nStr = v.strings;
+  const renderCount = Math.min(nStr, 6); // cap at 6 for horizontal display
+  const modW = 58, modH = 42, gap = 12;
+  const termLen = 5; // matches pvStringSymbol terminal length
+
+  const totalWidth = renderCount * modW + (renderCount - 1) * gap;
+  const firstCX = cx - totalWidth / 2 + modW / 2;
+  const modCY = startY + modH / 2; // all strings share the same vertical center
+
+  let s = '';
+
+  // Dashed grouping envelope — spans from above top terminal to below bottom terminal
+  const envPad = 14;
+  const envX = cx - totalWidth / 2 - envPad;
+  const envY = startY - termLen - envPad;
+  const envW = totalWidth + envPad * 2;
+  const envH = modH + termLen * 2 + envPad * 2;
+
+  s += `<rect x="${envX}" y="${envY}" width="${envW}" height="${envH}" rx="6" fill="#fefce8" stroke="#c0a000" stroke-width="1" stroke-dasharray="4 3"/>`;
+
+  // Array label above envelope
+  const arrayKw = (v.strings * v.mods * v.modW / 1000).toFixed(2);
+  s += `<text x="${cx}" y="${envY - 16}" style="fill:#1a2040;font-family:'Avenir Next','Avenir',sans-serif;font-size:13px;font-weight:500" text-anchor="middle">PV Array</text>`;
+  s += `<text x="${cx}" y="${envY - 4}" style="fill:#4a5580;font-family:'Avenir Next','Avenir',sans-serif;font-size:10px" text-anchor="middle">${v.strings} Strings · ${v.mods} Mods/string · ${arrayKw} kWp · ${v.modModel}</text>`;
+
+  // Draw each string symbol horizontally, all at the same CY
+  const cxArr = [], topBusY_ref = [], botBusY_ref = [];
+  for (let i = 0; i < renderCount; i++) {
+    const modCX = firstCX + i * (modW + gap);
+    const sym = pvStringSymbol(modCX, modCY, modW, modH, i + 1);
+    s += sym.svg;
+    cxArr.push(modCX);
+    topBusY_ref.push(sym.topTermY);
+    botBusY_ref.push(sym.botTermY);
+  }
+
+  // All modules at same CY → all terminal tips share the same Y
+  const topBusY = topBusY_ref[0];
+  const botBusY = botBusY_ref[0];
+
+  // Positive bus: horizontal line across all + terminal tips
+  if (renderCount > 1) {
+    s += `<line x1="${cxArr[0]}" y1="${topBusY}" x2="${cxArr[renderCount - 1]}" y2="${topBusY}" stroke="#a08800" stroke-width="1.5"/>`;
+  }
+  // Negative bus: horizontal line across all − terminal tips
+  if (renderCount > 1) {
+    s += `<line x1="${cxArr[0]}" y1="${botBusY}" x2="${cxArr[renderCount - 1]}" y2="${botBusY}" stroke="#a08800" stroke-width="1.5"/>`;
+  }
+
+  // If more strings than displayed, show note below envelope
+  if (nStr > renderCount) {
+    s += `<text x="${cx}" y="${envY + envH + 12}" style="fill:#4a5580;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px" text-anchor="middle">(showing ${renderCount} of ${nStr} strings)</text>`;
+  }
+
+  // Output wire drops from center of negative bus (cx is the horizontal midpoint)
+  return { svg: s, botY: botBusY, envRightX: envX + envW };
+}
+
+function compBox(x,y,w,h,fill,stroke,title,sub1,sub2){
+  let s=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
+  const lines=[title,sub1,sub2].filter(Boolean);
+  const lh=14,total=lines.length*lh;
+  let ty=y+h/2-total/2+lh*0.75;
+  lines.forEach((l,i)=>{const cls=i===0?'sld-lbl':'sld-sub';s+=`<text x="${x+w/2}" y="${ty+i*lh}" class="${cls}" text-anchor="middle">${esc(l)}</text>`;});
+  return s;
+}
+function wireDC(x1,y1,x2,y2){return`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#c9a10a" stroke-width="2" stroke-dasharray="7 3"/>`;}
+function wireAC(x1,y1,x2,y2){return`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#3d8ef8" stroke-width="2.5"/>`;}
+function pathAC(d){return`<path d="${d}" stroke="#3d8ef8" stroke-width="2.5" fill="none"/>`;}
+function pathDC(d){return`<path d="${d}" stroke="#c9a10a" stroke-width="2" stroke-dasharray="7 3" fill="none"/>`;}
+function gndSym(x,y){return`<line x1="${x}" y1="${y}" x2="${x}" y2="${y+12}" stroke="#8090b8" stroke-width="1.2"/><line x1="${x-12}" y1="${y+12}" x2="${x+12}" y2="${y+12}" stroke="#8090b8" stroke-width="1.5"/><line x1="${x-8}" y1="${y+17}" x2="${x+8}" y2="${y+17}" stroke="#8090b8" stroke-width="1"/><line x1="${x-4}" y1="${y+22}" x2="${x+4}" y2="${y+22}" stroke="#8090b8" stroke-width="0.7"/><text x="${x}" y="${y+33}" class="sld-note" text-anchor="middle">GND</text>`;}
+function meterCircle(cx,cy){return`<circle cx="${cx}" cy="${cy}" r="15" fill="#f5f7fc" stroke="#a0aac8" stroke-width="1"/><text x="${cx}" y="${cy-2}" class="sld-note" text-anchor="middle">kWh</text><text x="${cx}" y="${cy+10}" class="sld-note" text-anchor="middle">MTR</text>`;}
+function wlabel(x,y,txt,ac,anchor='middle'){const col=ac?'#3d8ef8':'#c9a10a';return`<text x="${x}" y="${y}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="${anchor}">${esc(txt)}</text>`;}
+function discBox(x,y,w,h,fill,stroke,label,sub){
+  let s=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="5" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
+  const mx=x+w/2,my=y+h/2;
+  s+=`<line x1="${mx-8}" y1="${my+5}" x2="${mx+8}" y2="${my-5}" stroke="${stroke}" stroke-width="1.5"/>`;
+  s+=`<circle cx="${mx-8}" cy="${my+5}" r="2" fill="${stroke}"/>`;
+  s+=`<circle cx="${mx+8}" cy="${my-5}" r="2" fill="${stroke}"/>`;
+  s+=`<text x="${mx}" y="${y+10}" class="sld-note" text-anchor="middle">${esc(label)}</text>`;
+  if(sub)s+=`<text x="${mx}" y="${y+h-5}" class="sld-note" text-anchor="middle">${esc(sub)}</text>`;
+  return s;
+}
+
+function toggleMvFields(){
+  const el=document.getElementById('mvxfmr-fields');
+  if(el) el.style.display=document.getElementById('hasMvXfmr').checked?'block':'none';
+}
+document.addEventListener('DOMContentLoaded',function(){
+  const cb=document.getElementById('hasMvXfmr');
+  if(cb) cb.addEventListener('change',toggleMvFields);
+});
+function stringsChanged(){
+  const strings = +document.getElementById('strings').value;
+  const mps = +document.getElementById('mods').value;
+  const modW = +document.getElementById('modW').value || 400;
+  if(strings > 0 && mps > 0){
+    const actual = (strings * mps * modW / 1000).toFixed(2);
+    document.getElementById('systemKw').value = actual;
+    const note = document.getElementById('system-kw-note');
+    note.textContent = `${strings} strings × ${mps} mods = ${strings*mps} modules · ${actual} kW DC`;
+  }
+  render();
+}
+function modsChanged(){
+  const systemKw = +document.getElementById('systemKw').value;
+  const modW = +document.getElementById('modW').value || 400;
+  const mps = +document.getElementById('mods').value;
+  if(systemKw > 0 && mps > 0){
+    const totalMods = Math.round(systemKw * 1000 / modW);
+    const strings = Math.max(1, Math.round(totalMods / mps));
+    document.getElementById('strings').value = strings;
+    const actual = (strings * mps * modW / 1000).toFixed(2);
+    const note = document.getElementById('system-kw-note');
+    note.textContent = `${strings} strings × ${mps} mods = ${strings*mps} modules · ${actual} kW DC`;
+    if(Math.abs(+actual - systemKw) > 0.5) note.textContent += ` (nearest fit)`;
+  }
+  render();
+}
+function modWChanged(){
+  if(+document.getElementById('systemKw').value > 0) systemKwChanged();
+  else render();
+}
+function systemKwChanged(){
+  const systemKw = +document.getElementById('systemKw').value;
+  const modW = +document.getElementById('modW').value || 400;
+  const voc = +document.getElementById('voc').value || 49;
+  const combV = +document.getElementById('combV').value || 1000;
+  const dcAcRatio = +document.getElementById('dcAcRatio').value || 1.2;
+  const invKw = +document.getElementById('invKw').value || 10;
+  if(!systemKw || systemKw <= 0){ render(); return; }
+  const totalMods = Math.round(systemKw * 1000 / modW);
+  // Max mods/string: NEC 690.7 worst-case Voc × 1.25 must not exceed equipment rating
+  const maxMpsByVoltage = Math.floor(combV / (voc * 1.25));
+  const mps = Math.min(Math.max(1, maxMpsByVoltage), 40);
+  const strings = Math.max(1, Math.round(totalMods / mps));
+  document.getElementById('strings').value = strings;
+  document.getElementById('mods').value = mps;
+  const actual = (strings * mps * modW / 1000).toFixed(2);
+  const note = document.getElementById('system-kw-note');
+  note.textContent = `${strings} strings × ${mps} mods/string = ${strings*mps} modules · ${actual} kW DC · max ${mps} mods @ ${combV}VDC`;
+  if(Math.abs(+actual - systemKw) > 0.5)
+    note.textContent += ` (nearest fit)`;
+  // Auto-fill inverter count from DC/AC ratio
+  const totalAcKw = systemKw / dcAcRatio;
+  const invCount = Math.max(1, Math.round(totalAcKw / invKw));
+  document.getElementById('invCount').value = invCount;
+  render();
+}
+function combVChanged(){
+  if(+document.getElementById('systemKw').value > 0) systemKwChanged();
+  else render();
+}
+function vocChanged(){
+  if(+document.getElementById('systemKw').value > 0) systemKwChanged();
+  else render();
+}
+function dcAcRatioChanged(){
+  if(+document.getElementById('systemKw').value > 0) systemKwChanged();
+  else render();
+}
+function invKwChanged(){
+  if(+document.getElementById('systemKw').value > 0) systemKwChanged();
+  else render();
+}
+const BATT_PRESETS = {
+  '24VDC':         { model: '',                       chem: 'LFP' },
+  '48VDC':         { model: '',                       chem: 'LFP' },
+  '51.2VDC':       { model: '',                       chem: 'LFP' },
+  '~350–400VDC':   { model: 'Tesla Powerwall 2',      chem: 'NMC' },
+  '~400VDC':       { model: 'Enphase IQ Battery 5P',  chem: 'LFP' },
+  '~450VDC':       { model: 'Franklin aPower 2',      chem: 'LFP' },
+  'HV 100–500VDC': { model: 'SolarEdge Home Battery', chem: 'LFP' },
+  'HV 400VDC':     { model: 'Generac PWRcell',        chem: 'NMC' },
+  'HV 500VDC':     { model: 'LG RESU Prime',          chem: 'NMC' },
+};
+function battVChanged(){
+  const v = gv('battV');
+  const p = BATT_PRESETS[v];
+  if(p){
+    if(p.model) $('battModel').value = p.model;
+    $('battChem').value = p.chem;
+  }
+  render();
+}
+function render(){
+  const v=vals();
+  const arrayKw=(v.strings*v.mods*v.modW/1000).toFixed(2);
+  const stringVoc=(v.mods*v.voc).toFixed(1);
+  const arrayIsc=(v.strings*v.isc).toFixed(1);
+  const necVoc=(parseFloat(stringVoc)*1.25).toFixed(0);
+  const invVolts=v.invV.startsWith('240')?240:v.invV.startsWith('208')?208:480;
+  const invAC=((v.invKw*v.invCount*1000)/(invVolts*(v.invV.includes('3ph')?1.732:1))).toFixed(1);
+  $('s-kw').textContent=arrayKw+' kW DC';
+  $('s-voc').textContent=stringVoc+' V';
+  $('s-isc').textContent=arrayIsc+' A';
+  if(v.hasBatt){
+    const dur=(v.battKwh/v.battKw).toFixed(1);
+    const cRate=(v.battKw/v.battKwh).toFixed(2);
+    $('s-batt').textContent=`${v.battKw} kW · ${v.battKwh} kWh · ${dur}h · C/${(1/cRate).toFixed(1)}`;
+    $('batt-calc').textContent=`Duration: ${dur} h  ·  C-rate: ${cRate}C  ·  ${v.interconnStd}`;
+  } else {
+    $('s-batt').textContent='None';
+    $('batt-calc').textContent='';
+  }
+  $('s-nec').textContent=necVoc+' V';
+
+  const SVG_W=1100, CX=220, BW=160, BX=CX-BW/2, BATTCX=580;
+  const W=26; // standard wire length between all components
+  let el=[];
+
+  el.push(`<defs><style>
+    .sld-lbl{fill:#1a2040;font-family:'Avenir Next','Avenir',sans-serif;font-size:13px;font-weight:500}
+    .sld-sub{fill:#4a5580;font-family:'Avenir Next','Avenir',sans-serif;font-size:11px}
+    .sld-note{fill:#707890;font-family:'Avenir Next','Avenir',sans-serif;font-size:10px}
+    .sld-title{fill:#1a2040;font-family:'Avenir Next','Avenir',sans-serif;font-size:14px;font-weight:600}
+    .sld-head{fill:#4a5580;font-family:'Avenir Next','Avenir',sans-serif;font-size:11px;font-weight:600;letter-spacing:.08em}
+  </style></defs>`);
+
+  // Title block
+  const LOGO_W=80, LOGO_H=32, LOGO_X=SVG_W-22-LOGO_W, LOGO_Y=18;
+  el.push(`<rect x="10" y="10" width="${SVG_W-20}" height="48" rx="5" fill="#f5f7fc" stroke="#d0d5e8" stroke-width="0.8"/>`);
+  el.push(`<text x="22" y="31" class="sld-title">${esc(v.projName)}</text>`);
+  el.push(`<text x="22" y="48" class="sld-note">${esc(v.sysType.toUpperCase())} &bull; ${esc(v.designer)} &bull; ${esc(v.utilityName)} &bull; POI: ${v.poiKv} kV</text>`);
+  el.push(`<image href="${LOGO_B64}" x="${LOGO_X}" y="${LOGO_Y}" width="${LOGO_W}" height="${LOGO_H}" preserveAspectRatio="xMidYMid meet"/>`);
+  const battSummary=v.hasBatt?`${v.battKw} kW / ${v.battKwh} kWh BESS`:'No Storage';
+  el.push(`<text x="${LOGO_X-10}" y="31" class="sld-sub" text-anchor="end">${arrayKw} kW PV &bull; ${battSummary}</text>`);
+  el.push(`<text x="${LOGO_X-10}" y="48" class="sld-note" text-anchor="end">Generated ${new Date().toLocaleDateString()}</text>`);
+
+  // ── PV Array ──────────────────────────────────────────────────────────────
+  const PV_START_Y = 140; // top of first module body
+  const pv = renderPVArray(v, CX, PV_START_Y);
+  el.push(pv.svg);
+
+  // Wire annotation beside the output
+  let y = pv.botY;
+  el.push(wlabel(pv.envRightX + 12, y - 4, `Voc=${stringVoc}V  Isc=${arrayIsc}A`, false, 'start'));
+
+  // Gap wire before next component
+  el.push(wireDC(CX, y, CX, y + W)); y += W;
+
+  // RSD
+  if(v.hasRSD){
+    el.push(compBox(CX-100,y,200,34,'#f5f7fc','#a0aac8','Rapid Shutdown Disconnect','NEC 690.12'));
+    y+=34;
+    el.push(wireDC(CX,y,CX,y+W)); y+=W;
+  }
+
+  // Combiner
+  if(v.hasCombiner){
+    el.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8','String Combiner',`${v.combV} VDC max`,`${v.strings} inputs · ${v.combFuse}A fuse`));
+    y+=54;
+    el.push(wireDC(CX,y,CX,y+W)); y+=W;
+  }
+
+  // DC Disconnect
+  el.push(discBox(BX+15,y,BW-30,46,'#f5f7fc','#a0aac8','DC Disconnect',`${v.combV} VDC · ${Math.ceil(arrayIsc*1.25)}A`));
+  y+=46;
+
+  // Inverter
+  el.push(wireDC(CX,y,CX,y+W));
+  el.push(wlabel(CX+10,y+W/2,'DC',false));
+  y+=W;
+  const invFill=v.invType==='hybrid'?'#ebf8f3':'#edf2ff';
+  const invStroke=v.invType==='hybrid'?'#1e8a60':'#3a6bc0';
+  const invLabel=v.invType==='hybrid'?'Hybrid Inverter':v.invType==='micro'?'Microinverters':v.invType==='central'?'Central Inverter':v.invCount>1?'String Inverters':'String Inverter';
+  const totalInvKw=(v.invKw*v.invCount).toFixed(1).replace(/\.0$/,'');
+  const invSub=v.invCount>1?`${v.invCount}× ${v.invKw} kW = ${totalInvKw} kW · ${v.invV}`:`${v.invKw} kW · ${v.invV}`;
+  // Stack effect for multiple inverters
+  if(v.invCount>1){
+    const shadows=Math.min(v.invCount-1,2);
+    for(let i=shadows;i>0;i--){
+      el.push(`<rect x="${CX-100+i*5}" y="${y+i*5}" width="200" height="64" rx="6" fill="${invFill}" stroke="${invStroke}" stroke-width="0.8" opacity="${0.45}"/>`);
+    }
+  }
+  el.push(compBox(CX-100,y,200,64,invFill,invStroke,invLabel,invSub,v.invModel));
+  const itx=CX+100-4,ity=y+21;
+  el.push(`<polygon points="${itx},${ity} ${itx},${ity+22} ${itx+20},${ity+11}" fill="${invFill}" stroke="${invStroke}" stroke-width="1.2"/>`);
+  const invBot=y+64; y=invBot;
+
+  // Battery branch
+  let battBotY=invBot;
+  if(v.hasBatt){
+    const dur=(v.battKwh/v.battKw).toFixed(1);
+    const cRate=(v.battKw/v.battKwh).toFixed(2);
+    const qtyLabel=v.battQty>1?`${v.battQty}× `:'';
+    const BW2=190, BX2=BATTCX-BW2/2;
+    const contH=130; // total container height
+    const divY=58;   // where PCS section ends / battery section begins
+
+  if(v.battCouple==='ac'){
+    // Tap off the AC bus wire below the inverter — BESS is parallel on the AC bus
+    const acTapY = invBot + Math.round(W/2); // midpoint of AC wire below inverter
+    const contTop = acTapY - 20;             // container top: connection enters PCS section
+    // Horizontal AC branch from bus wire to container
+    el.push(pathAC(`M ${CX} ${acTapY} H ${BX2}`));
+    el.push(wlabel((CX+BX2)/2, acTapY-8, 'AC', true));
+    // "BESS Container" label centered above the rect
+    el.push(`<text x="${BATTCX}" y="${contTop-4}" class="sld-note" text-anchor="middle" style="fill:#1e8a60;font-weight:600">${qtyLabel}BESS Container</text>`);
+    // Outer container rect
+    el.push(`<rect x="${BX2}" y="${contTop}" width="${BW2}" height="${contH}" rx="7" fill="#ebf8f3" stroke="#1e8a60" stroke-width="1.5"/>`);
+    // Divider line
+    el.push(`<line x1="${BX2+10}" y1="${contTop+divY}" x2="${BX2+BW2-10}" y2="${contTop+divY}" stroke="#1e8a60" stroke-width="0.8" stroke-dasharray="4 2"/>`);
+    // PCS section
+    el.push(`<text x="${BATTCX}" y="${contTop+16}" class="sld-lbl" text-anchor="middle">PCS / Inverter</text>`);
+    el.push(`<text x="${BATTCX}" y="${contTop+30}" class="sld-sub" text-anchor="middle">${v.battKw} kW / ${v.pcsKva} kVA</text>`);
+    el.push(`<text x="${BATTCX}" y="${contTop+43}" class="sld-sub" text-anchor="middle">${v.battModel}</text>`);
+    // Battery section
+    const bankY=contTop+divY;
+    el.push(`<text x="${BATTCX}" y="${bankY+18}" class="sld-lbl" text-anchor="middle">Battery Bank</text>`);
+    el.push(`<text x="${BATTCX}" y="${bankY+32}" class="sld-sub" text-anchor="middle">${v.battKwh} kWh · ${dur}h · C${cRate}C</text>`);
+    el.push(`<text x="${BATTCX}" y="${bankY+46}" class="sld-sub" text-anchor="middle">${v.battChem} · ${v.battV}</text>`);
+    battBotY=contTop+contH;
+  }
+  if(v.battCouple==='dc'){
+    // Connect from the vertical DC bus wire (above inverter), not from inverter side
+    const dcConnY = invBot - 64 - Math.round(W/2); // midpoint of DC wire segment above inverter
+    const contTop = dcConnY - 22; // container top so connection enters PCS section
+    const bY = contTop + 10; // bY used for text positioning (10px padding from top)
+    el.push(`<line x1="${CX}" y1="${dcConnY}" x2="${BX2}" y2="${dcConnY}" stroke="#c9a10a" stroke-width="2" stroke-dasharray="7 3"/>`);
+    el.push(wlabel((CX+BX2)/2, dcConnY-8, 'DC', false));
+    el.push(`<text x="${BATTCX}" y="${contTop-4}" class="sld-note" text-anchor="middle" style="fill:#1e8a60;font-weight:600">${qtyLabel}BESS Container</text>`);
+    el.push(`<rect x="${BX2}" y="${contTop}" width="${BW2}" height="${contH}" rx="7" fill="#ebf8f3" stroke="#1e8a60" stroke-width="1.5"/>`);
+    el.push(`<line x1="${BX2+10}" y1="${contTop+divY}" x2="${BX2+BW2-10}" y2="${contTop+divY}" stroke="#1e8a60" stroke-width="0.8" stroke-dasharray="4 2"/>`);
+    el.push(`<text x="${BATTCX}" y="${contTop+16}" class="sld-lbl" text-anchor="middle">PCS / Inverter</text>`);
+    el.push(`<text x="${BATTCX}" y="${contTop+30}" class="sld-sub" text-anchor="middle">${v.battKw} kW / ${v.pcsKva} kVA</text>`);
+    el.push(`<text x="${BATTCX}" y="${contTop+43}" class="sld-sub" text-anchor="middle">${v.battModel}</text>`);
+    const bankY=contTop+divY;
+    el.push(`<text x="${BATTCX}" y="${bankY+18}" class="sld-lbl" text-anchor="middle">Battery Bank</text>`);
+    el.push(`<text x="${BATTCX}" y="${bankY+32}" class="sld-sub" text-anchor="middle">${v.battKwh} kWh · ${dur}h · C${cRate}C</text>`);
+    el.push(`<text x="${BATTCX}" y="${bankY+46}" class="sld-sub" text-anchor="middle">${v.battChem} · ${v.battV}</text>`);
+  }
+  }
+
+  // AC Disconnect
+  el.push(wireAC(CX,y,CX,y+W));
+  el.push(wlabel(CX+10,y+W/2,'AC',true));
+  y+=W;
+  el.push(discBox(BX+15,y,BW-30,46,'#edf2ff','#3a6bc0','AC Disconnect',`${v.invV} · ${Math.ceil(+invAC*1.25)}A`));
+  y+=46;
+
+  // Production meter
+  if(v.hasMeter){
+    el.push(wireAC(CX,y,CX,y+W)); y+=W;
+    el.push(meterCircle(CX,y+14));
+    el.push(wlabel(CX+52,y+15,'Prod. Meter',true));
+    y+=28;
+  }
+
+  // Main panel
+  el.push(wireAC(CX,y,CX,y+W)); y+=W;
+  const panelSub=v.busbarA!==v.panelA?`${v.panelA}A main · ${v.busbarA}A busbar · ${v.invV}`:`${v.panelA}A · ${v.invV}`;
+  el.push(compBox(BX,y,BW,64,'#f0eaff','#6b45c0','Main Service Panel',panelSub,`Solar backfeed: ${v.solarBreaker}A`));
+  const panelBot=y+64; y=panelBot;
+
+  // Utility meter
+  el.push(wireAC(CX,y,CX,y+W)); y+=W;
+  el.push(meterCircle(CX,y+14));
+  el.push(wlabel(CX+58,y+15,'Utility Meter',true));
+  y+=28;
+  el.push(wireAC(CX,y,CX,y+W)); y+=W;
+  el.push(compBox(CX-100,y,200,44,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,'27/59/81/25A · OV/UV/OF/UF/Sync'));
+  y+=44;
+
+  // MV step-up transformer
+  if(v.hasMvXfmr){
+    el.push(wireAC(CX,y,CX,y+W)); y+=W;
+    const mvLabel=`${v.mvQty>1?v.mvQty+'× ':''}${v.mvKva} kVA Pad-Mount Transformer`;
+    const mvSub=`${v.mvSecV}V / ${v.mvPriKv} kV · 3Φ 60Hz`;
+    el.push(compBox(CX-100,y,200,54,'#fff8ec','#c07a00',mvLabel,mvSub,'NEMA 3R · Oil-Cooled'));
+    y+=54;
+  }
+
+  // POI marker
+  const poiLabel=v.poiKv>=1?`${v.poiKv} kV`:`${(v.poiKv*1000).toFixed(0)}V`;
+  el.push(wireAC(CX,y,CX,y+W)); y+=W;
+  el.push(compBox(BX,y,BW,36,'#f5f7fc','#a0aac8','GRID',poiLabel+' · '+esc(v.utilityName)));
+  [0,1,2].forEach(i=>{const lx=BX+BW-24,ly=y+10+i*8;el.push(`<line x1="${lx}" y1="${ly}" x2="${lx+16}" y2="${ly}" stroke="#a0aac8" stroke-width="${2-i*0.5}"/>`);});
+  y+=36;
+
+  // Grounding
+  if(v.hasGnd){
+    const gx=BX-50;
+    el.push(`<line x1="${BX}" y1="${panelBot-31}" x2="${gx+12}" y2="${panelBot-31}" stroke="#8090b8" stroke-width="1"/>`);
+    el.push(`<line x1="${gx+12}" y1="${panelBot-31}" x2="${gx+12}" y2="${panelBot-20}" stroke="#8090b8" stroke-width="1"/>`);
+    el.push(gndSym(gx+12,panelBot-20));
+    el.push(wlabel(gx-8,panelBot-38,'GEC',false));
+  }
+
+  // Legend
+  const LX=SVG_W-175, LY=70;
+  el.push(`<rect x="${LX}" y="${LY}" width="155" height="122" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
+  el.push(`<text x="${LX+12}" y="${LY+16}" class="sld-head">LEGEND</text>`);
+  el.push(`<line x1="${LX+12}" y1="${LY+30}" x2="${LX+44}" y2="${LY+30}" stroke="#c9a10a" stroke-width="2" stroke-dasharray="7 3"/>`);
+  el.push(`<text x="${LX+50}" y="${LY+33}" class="sld-note">DC conductor</text>`);
+  el.push(`<line x1="${LX+12}" y1="${LY+48}" x2="${LX+44}" y2="${LY+48}" stroke="#3d8ef8" stroke-width="2.5"/>`);
+  el.push(`<text x="${LX+50}" y="${LY+51}" class="sld-note">AC conductor</text>`);
+  // PV string symbol in legend
+  el.push(`<rect x="${LX+11}" y="${LY+62}" width="24" height="14" rx="2" fill="#fef9d0" stroke="#a08800" stroke-width="1"/>`);
+  el.push(`<line x1="${LX+14}" y1="${LY+74}" x2="${LX+32}" y2="${LY+64}" stroke="#a08800" stroke-width="0.8"/>`);
+  el.push(`<text x="${LX+50}" y="${LY+73}" class="sld-note">PV string</text>`);
+  el.push(`<circle cx="${LX+23}" cy="${LY+91}" r="10" fill="#f5f7fc" stroke="#a0aac8" stroke-width="1"/>`);
+  el.push(`<text x="${LX+50}" y="${LY+94}" class="sld-note">Meter</text>`);
+  el.push(`<line x1="${LX+16}" y1="${LY+117}" x2="${LX+30}" y2="${LY+107}" stroke="#a0aac8" stroke-width="1.5"/>`);
+  el.push(`<circle cx="${LX+16}" cy="${LY+117}" r="2" fill="#a0aac8"/><circle cx="${LX+30}" cy="${LY+107}" r="2" fill="#a0aac8"/>`);
+  el.push(`<text x="${LX+50}" y="${LY+114}" class="sld-note">Disconnect switch</text>`);
+
+  // NEC calcs box
+  const NY=LY+134;
+  el.push(`<rect x="${LX}" y="${NY}" width="155" height="76" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
+  el.push(`<text x="${LX+12}" y="${NY+15}" class="sld-head">NEC 690 CALCS</text>`);
+  el.push(`<text x="${LX+12}" y="${NY+30}" class="sld-note">String Voc:    ${stringVoc} V</text>`);
+  el.push(`<text x="${LX+12}" y="${NY+43}" class="sld-note">Max sys Voc:   ${necVoc} V (x1.25)</text>`);
+  el.push(`<text x="${LX+12}" y="${NY+56}" class="sld-note">Array Isc:     ${arrayIsc} A</text>`);
+  el.push(`<text x="${LX+12}" y="${NY+69}" class="sld-note">Inv output:    ${invAC} A</text>`);
+
+  const totalH=Math.max(y+30, battBotY+30, 620);
+  const svg=$('sld-svg');
+  svg.setAttribute('width',SVG_W);
+  svg.setAttribute('height',totalH);
+  svg.setAttribute('viewBox',`0 0 ${SVG_W} ${totalH}`);
+  svg.innerHTML=el.join('\n');
+
+  // ── Conduit sizing ────────────────────────────────────────────────────────
+  // String/source circuit: Isc × 1.25 (690.8A) × 1.25 (690.8B) = × 1.5625
+  const strA = v.isc * 1.5625;
+  const strW = wireFor(strA);
+  $('c-str').textContent = `#${strW.awg} AWG · ${conduitFor(3, strW.area)} EMT  (${strA.toFixed(1)} A req.)`;
+
+  // DC output circuit: arrayIsc × 1.5625
+  const dcA = parseFloat(arrayIsc) * 1.5625;
+  const dcW = wireFor(dcA);
+  $('c-dc').textContent = `#${dcW.awg} AWG · ${conduitFor(3, dcW.area)} EMT  (${dcA.toFixed(1)} A req.)`;
+
+  // AC output circuit: invAC × 1.25 (continuous duty per 690.8B)
+  const acA = parseFloat(invAC) * 1.25;
+  const acW = wireFor(acA);
+  const acConductors = v.invV.includes('3ph') ? 4 : 3; // L1,L2,(L3),EGC
+  const perInvLabel = v.invCount > 1 ? ` · ×${v.invCount} runs` : '';
+  $('c-ac').textContent = `#${acW.awg} AWG · ${conduitFor(acConductors, acW.area)} EMT${perInvLabel}  (${acA.toFixed(1)} A req.)`;
+
+  // ── NEC 705.12(D)(2) backfeed breaker validation ──────────────────────────
+  // Max solar = (busbar × 120%) − main breaker
+  const maxBackfeed = Math.floor(v.busbarA * 1.20) - v.panelA;
+  const bcEl = $('breaker-check');
+  const bfEl = $('backfeed-check');
+  if(maxBackfeed <= 0){
+    bcEl.className='cwarn'; bcEl.textContent=`⚠ No headroom — busbar ≤ main breaker`;
+    bfEl.className='cwarn'; bfEl.textContent=`⚠ Busbar rating must exceed main breaker for backfeed`;
+  } else if(v.solarBreaker > maxBackfeed){
+    bcEl.className='cwarn'; bcEl.textContent=`⚠ Max per NEC 705.12(D)(2): ${maxBackfeed}A`;
+    bfEl.className='cwarn'; bfEl.textContent=`⚠ Solar breaker exceeds 120% rule (max ${maxBackfeed}A: ${v.busbarA}A busbar × 120% − ${v.panelA}A main)`;
+  } else {
+    bcEl.className='cok'; bcEl.textContent=`✓ NEC 705.12(D)(2): max ${maxBackfeed}A`;
+    bfEl.textContent='';
+  }
+
+  // ── Combiner fuse minimum per NEC 690.8(A)+(B) ───────────────────────────
+  const minFuse = Math.ceil(v.isc * 1.5625);
+  const fuseEl = $('fuse-check');
+  if(v.hasCombiner){
+    if(v.combFuse < minFuse){
+      fuseEl.style.color='#f5a742';
+      fuseEl.textContent=`⚠ NEC 690.8 min: ${minFuse}A`;
+    } else {
+      fuseEl.style.color='var(--muted)';
+      fuseEl.textContent=`NEC 690.8 min: ${minFuse}A ✓`;
+    }
+  } else { fuseEl.textContent=''; }
+}
+
+function exportSVG(){
+  const v=vals();
+  const svg=$('sld-svg');
+  const hdr='<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n';
+  const blob=new Blob([hdr+svg.outerHTML],{type:'image/svg+xml'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=(v.projName||'sld').replace(/[^a-z0-9]/gi,'_')+'_SLD.svg';
+  a.click();
+}
+
+function exportPDF(){
+  const v=vals();
+  const svg=$('sld-svg');
+  const W=svg.viewBox.baseVal.width||svg.width.baseVal.value;
+  const H=svg.viewBox.baseVal.height||svg.height.baseVal.value;
+
+  const svgClone=svg.cloneNode(true);
+  svgClone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  const svgData=new XMLSerializer().serializeToString(svgClone);
+  const blob=new Blob([svgData],{type:'image/svg+xml;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+
+  const img=new Image();
+  img.onload=function(){
+    const scale=2;
+    const canvas=document.createElement('canvas');
+    canvas.width=W*scale; canvas.height=H*scale;
+    const ctx=canvas.getContext('2d');
+    ctx.scale(scale,scale);
+    ctx.fillStyle='#ffffff';
+    ctx.fillRect(0,0,W,H);
+    ctx.drawImage(img,0,0,W,H);
+    URL.revokeObjectURL(url);
+
+    function finish(){
+      const {jsPDF}=window.jspdf;
+      const pdf=new jsPDF({orientation:W>=H?'landscape':'portrait',unit:'px',format:[W,H],hotfixes:['px_scaling']});
+      pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,W,H);
+      pdf.save((v.projName||'sld').replace(/[^a-z0-9]/gi,'_')+'_SLD.pdf');
+    }
+
+    // Draw logo directly on canvas — SVG-as-image sandboxing blocks <image> elements
+    if(LOGO_B64 && LOGO_B64 !== 'logo.png'){
+      const LOGO_W=80, LOGO_H=32, SVG_W=1100;
+      const logoImg=new Image();
+      logoImg.onload=function(){
+        ctx.drawImage(logoImg, SVG_W-22-LOGO_W, 18, LOGO_W, LOGO_H);
+        finish();
+      };
+      logoImg.onerror=finish;
+      logoImg.src=LOGO_B64;
+    } else { finish(); }
+  };
+  img.src=url;
+}
+
+let LOGO_B64 = 'logo.png';
+render();
+(function loadLogo(){
+  fetch('logo.png')
+    .then(r => r.blob())
+    .then(blob => {
+      const reader = new FileReader();
+      reader.onload = function(){ LOGO_B64 = reader.result; render(); };
+      reader.readAsDataURL(blob);
+    })
+    .catch(function(){ render(); });
+})();
+</script>
+</body>
+</html>
