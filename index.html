@@ -90,14 +90,14 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <div><label>Mods/string</label><input type="number" id="mods" value="12" min="1" max="40" oninput="modsChanged()"></div>
     </div>
     <div class="row2">
-      <div><label>Module Wp</label><input type="number" id="modW" value="400" min="50" max="700" oninput="modWChanged()"></div>
-      <div><label>Voc (V)</label><input type="number" id="voc" value="49.0" step="0.1" oninput="vocChanged()"></div>
+      <div><label>Module Wp</label><input type="number" id="modW" value="550" min="50" max="700" oninput="modWChanged()"></div>
+      <div><label>Voc (V)</label><input type="number" id="voc" value="49.9" step="0.1" oninput="vocChanged()"></div>
     </div>
     <div class="row2">
       <div><label>Isc (A)</label><input type="number" id="isc" value="10.2" step="0.1" oninput="render()"></div>
     </div>
     <label>Module make / model</label>
-    <input type="text" id="modModel" value="REC Alpha 400W" oninput="render()">
+    <input type="text" id="modModel" value="JA Solar 550W" oninput="render()">
   </div>
   <div class="section">
     <div class="stitle">String Combiner</div>
@@ -281,7 +281,7 @@ function vals(){
   return{
     sysType:gv('sysType'),projName:gv('projName'),designer:gv('designer'),
     strings:Math.max(1,+gv('strings')||1),mods:Math.max(1,+gv('mods')||1),
-    modW:+gv('modW')||400,voc:+gv('voc')||49,isc:+gv('isc')||10.2,
+    modW:+gv('modW')||550,voc:+gv('voc')||49.9,isc:+gv('isc')||10.2,
     modModel:gv('modModel'),
     hasCombiner:gc('hasCombiner'),combV:+gv('combV')||1000,combFuse:+gv('combFuse')||15,
     invType:gv('invType'),invKw:+gv('invKw')||10,invCount:Math.max(1,+gv('invCount')||1),invV:gv('invV'),invModel:gv('invModel'),
@@ -417,7 +417,7 @@ document.addEventListener('DOMContentLoaded',function(){
 function stringsChanged(){
   const strings = +document.getElementById('strings').value;
   const mps = +document.getElementById('mods').value;
-  const modW = +document.getElementById('modW').value || 400;
+  const modW = +document.getElementById('modW').value || 550;
   if(strings > 0 && mps > 0){
     const actual = (strings * mps * modW / 1000).toFixed(2);
     document.getElementById('systemKw').value = actual;
@@ -428,7 +428,7 @@ function stringsChanged(){
 }
 function modsChanged(){
   const systemKw = +document.getElementById('systemKw').value;
-  const modW = +document.getElementById('modW').value || 400;
+  const modW = +document.getElementById('modW').value || 550;
   const mps = +document.getElementById('mods').value;
   if(systemKw > 0 && mps > 0){
     const totalMods = Math.round(systemKw * 1000 / modW);
@@ -447,8 +447,8 @@ function modWChanged(){
 }
 function systemKwChanged(){
   const systemKw = +document.getElementById('systemKw').value;
-  const modW = +document.getElementById('modW').value || 400;
-  const voc = +document.getElementById('voc').value || 49;
+  const modW = +document.getElementById('modW').value || 550;
+  const voc = +document.getElementById('voc').value || 49.9;
   const combV = +document.getElementById('combV').value || 1000;
   const dcAcRatio = +document.getElementById('dcAcRatio').value || 1.2;
   const invKw = +document.getElementById('invKw').value || 10;
