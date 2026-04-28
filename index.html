@@ -130,6 +130,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
         </select>
       </div>
     </div>
+    <div id="inv-ac-calc" class="cnote" style="margin-top:6px"></div>
     <div class="row2">
       <div><label>Qty (parallel)</label><input type="number" id="invCount" value="1" min="1" max="20" oninput="render()"></div>
     </div>
@@ -270,6 +271,11 @@ const EMT_FILL=[
 ];
 function wireFor(a){return WIRE_AMP.find(w=>w.amps>=a)||WIRE_AMP[WIRE_AMP.length-1];}
 function conduitFor(n,wireArea){const tot=n*wireArea;return(EMT_FILL.find(c=>c.f>=tot)||EMT_FILL[EMT_FILL.length-1]).size;}
+
+const STANDARD_BREAKERS=[15,20,25,30,35,40,45,50,60,70,80,90,100,110,125,150,175,200,225,250,300,350,400,450,500,600,700,800,1000,1200,1600,2000];
+const PANEL_SIZES=[20,40,60,80,100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000];
+function nextStandardBreaker(minA){return STANDARD_BREAKERS.find(b=>b>=minA)||STANDARD_BREAKERS[STANDARD_BREAKERS.length-1];}
+function nextPanelSize(minA){return PANEL_SIZES.find(p=>p>=minA)||PANEL_SIZES[PANEL_SIZES.length-1];}
 
 function vals(){
   return{
@@ -508,7 +514,15 @@ function render(){
   const arrayIsc=(v.strings*v.isc).toFixed(1);
   const necVoc=(parseFloat(stringVoc)*1.25).toFixed(0);
   const invVolts=v.invV.startsWith('240')?240:v.invV.startsWith('208')?208:480;
-  const invAC=((v.invKw*v.invCount*1000)/(invVolts*(v.invV.includes('3ph')?1.732:1))).toFixed(1);
+  const is3ph=v.invV.includes('3ph');
+  const invAC=((v.invKw*v.invCount*1000)/(invVolts*(is3ph?1.732:1))).toFixed(1);
+  const perInvRaw=(v.invKw*1000)/(invVolts*(is3ph?1.732:1));
+  $('inv-ac-calc').textContent=`${v.invKw} kW @ ${v.invV} = ${perInvRaw.toFixed(1)} A · ×1.25 = ${(perInvRaw*1.25).toFixed(1)} A min.`;
+  // Auto-fill solar breaker and panel size
+  const recBreaker=nextStandardBreaker(Math.ceil(parseFloat(invAC)*1.25));
+  $('solarBreaker').value=recBreaker;
+  const recPanel=nextPanelSize(Math.ceil(recBreaker*5));
+  $('panelA').value=recPanel;
   $('s-kw').textContent=arrayKw+' kW DC';
   $('s-voc').textContent=stringVoc+' V';
   $('s-isc').textContent=arrayIsc+' A';
@@ -654,7 +668,7 @@ function render(){
   el.push(wireAC(CX,y,CX,y+W));
   el.push(wlabel(CX+10,y+W/2,'AC',true));
   y+=W;
-  el.push(discBox(BX+15,y,BW-30,46,'#edf2ff','#3a6bc0','AC Disconnect',`${v.invV} · ${Math.ceil(+invAC*1.25)}A`));
+  el.push(discBox(BX+15,y,BW-30,46,'#edf2ff','#3a6bc0','AC Disconnect',`${v.invV} · ${recBreaker}A`));
   y+=46;
 
   // Production meter
@@ -667,8 +681,8 @@ function render(){
 
   // Main panel
   el.push(wireAC(CX,y,CX,y+W)); y+=W;
-  const panelSub=v.busbarA!==v.panelA?`${v.panelA}A main · ${v.busbarA}A busbar · ${v.invV}`:`${v.panelA}A · ${v.invV}`;
-  el.push(compBox(BX,y,BW,64,'#f0eaff','#6b45c0','Main Service Panel',panelSub,`Solar backfeed: ${v.solarBreaker}A`));
+  const panelSub=`${recPanel}A · ${v.invV}`;
+  el.push(compBox(BX,y,BW,64,'#f0eaff','#6b45c0','Main Service Panel',panelSub,`Solar backfeed: ${recBreaker}A`));
   const panelBot=y+64; y=panelBot;
 
   // Utility meter
@@ -775,16 +789,13 @@ function render(){
   }
 
   // ── NEC 705.12(D)(2) backfeed breaker validation ──────────────────────────
-  // Max solar = (busbar × 120%) − main breaker
-  const maxBackfeed = Math.floor(v.busbarA * 1.20) - v.panelA;
+  // Max solar = (panel × 120%) − panel = panel × 20%
+  const maxBackfeed = Math.floor(recPanel * 1.20) - recPanel;
   const bcEl = $('breaker-check');
   const bfEl = $('backfeed-check');
-  if(maxBackfeed <= 0){
-    bcEl.className='cwarn'; bcEl.textContent=`⚠ No headroom — busbar ≤ main breaker`;
-    bfEl.className='cwarn'; bfEl.textContent=`⚠ Busbar rating must exceed main breaker for backfeed`;
-  } else if(v.solarBreaker > maxBackfeed){
+  if(recBreaker > maxBackfeed){
     bcEl.className='cwarn'; bcEl.textContent=`⚠ Max per NEC 705.12(D)(2): ${maxBackfeed}A`;
-    bfEl.className='cwarn'; bfEl.textContent=`⚠ Solar breaker exceeds 120% rule (max ${maxBackfeed}A: ${v.busbarA}A busbar × 120% − ${v.panelA}A main)`;
+    bfEl.className='cwarn'; bfEl.textContent=`⚠ Solar breaker ${recBreaker}A exceeds 120% rule (max ${maxBackfeed}A: ${recPanel}A × 120% − ${recPanel}A main)`;
   } else {
     bcEl.className='cok'; bcEl.textContent=`✓ NEC 705.12(D)(2): max ${maxBackfeed}A`;
     bfEl.textContent='';
