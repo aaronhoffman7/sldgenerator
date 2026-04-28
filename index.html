@@ -100,7 +100,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <input type="text" id="modModel" value="JA Solar 550W" oninput="render()">
   </div>
   <div class="section">
-    <div class="stitle">String Combiner</div>
+    <div class="stitle">String Combiner(s)</div>
     <div class="trow"><span>Include combiner box</span><label class="tog"><input type="checkbox" id="hasCombiner" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <label>Max DC voltage rating</label>
     <select id="combV" onchange="combVChanged()"><option value="600">600 VDC</option><option value="1000" selected>1000 VDC</option><option value="1500">1500 VDC</option></select>
@@ -318,7 +318,7 @@ function pvStringSymbol(cx, cy, w, h, idx) {
   s += `<line x1="${cx}" y1="${y+h}" x2="${cx}" y2="${y+h+termLen}" stroke="#a08800" stroke-width="1.2"/>`;
   // string label — rotated to sit above the diagonal line
   const angle = Math.atan2(-(h-6), (w-6)) * 180 / Math.PI;
-  s += `<text transform="translate(${cx},${cy}) rotate(${angle.toFixed(1)}) translate(0,-5)" style="fill:#7a5a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px" text-anchor="middle" dominant-baseline="middle">S${idx}</text>`;
+  s += `<text transform="translate(${cx},${cy}) rotate(${angle.toFixed(1)}) translate(0,-5)" style="fill:#7a5a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px" text-anchor="middle" dominant-baseline="middle">String ${idx}</text>`;
   return { svg: s, topTermY: y - termLen, botTermY: y + h + termLen };
 }
 
@@ -592,7 +592,7 @@ function render(){
 
   // Combiner
   if(v.hasCombiner){
-    el.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8','String Combiner',`${v.combV} VDC max`,`${v.strings} inputs · ${v.combFuse}A fuse`));
+    el.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8','String Combiner(s)',`${v.combV} VDC max`,`${v.strings} inputs · ${v.combFuse}A fuse`));
     y+=54;
     el.push(wireDC(CX,y,CX,y+W)); y+=W;
   }
