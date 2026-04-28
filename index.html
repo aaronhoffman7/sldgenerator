@@ -224,6 +224,17 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="cval" id="c-ac">--</div>
     <div class="cnote">Cu THWN-2 · 75 °C ampacity · EMT 40% fill · EGC per NEC 250.122</div>
   </div>
+  <div class="section">
+    <div class="stitle">Roof → Electrical Room</div>
+    <div class="trow"><span>AC combiner on roof</span><label class="tog"><input type="checkbox" id="hasAcCombiner" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div id="roof-branch-row" style="display:none">
+      <div class="crow">Inv → combiner (per inverter)</div>
+      <div class="cval" id="c-roof-branch">--</div>
+    </div>
+    <div class="crow" id="c-roof-main-lbl">Direct runs (inverters → elec. room)</div>
+    <div class="cval" id="c-roof-main">--</div>
+    <div class="cnote">Cu THWN-2 · 75 °C · EMT 40% fill</div>
+  </div>
 </aside>
 <main>
   <div class="canvas-wrap"><svg id="sld-svg"></svg></div>
@@ -739,12 +750,29 @@ function render(){
   const dcW = wireFor(dcA);
   $('c-dc').textContent = `#${dcW.awg} AWG · ${conduitFor(3, dcW.area)} EMT  (${dcA.toFixed(1)} A req.)`;
 
-  // AC output circuit: invAC × 1.25 (continuous duty per 690.8B)
-  const acA = parseFloat(invAC) * 1.25;
-  const acW = wireFor(acA);
+  // AC output circuit: per-inverter sizing (NEC 690.8B continuous × 1.25)
   const acConductors = v.invV.includes('3ph') ? 4 : 3; // L1,L2,(L3),EGC
+  const perInvAcA = (v.invKw * 1000) / (invVolts * (v.invV.includes('3ph') ? 1.732 : 1)) * 1.25;
+  const perInvAcW = wireFor(perInvAcA);
+  const totalAcA = parseFloat(invAC) * 1.25; // total combined, used for AC combiner sizing
+  const totalAcW = wireFor(totalAcA);
   const perInvLabel = v.invCount > 1 ? ` · ×${v.invCount} runs` : '';
-  $('c-ac').textContent = `#${acW.awg} AWG · ${conduitFor(acConductors, acW.area)} EMT${perInvLabel}  (${acA.toFixed(1)} A req.)`;
+  $('c-ac').textContent = `#${perInvAcW.awg} AWG · ${conduitFor(acConductors, perInvAcW.area)} EMT${perInvLabel}  (${perInvAcA.toFixed(1)} A req.)`;
+
+  // ── Roof → Electrical Room conduit ───────────────────────────────────────
+  const hasAcCombiner = gc('hasAcCombiner');
+  const roofBranchRow = $('roof-branch-row');
+  const roofMainLbl = $('c-roof-main-lbl');
+  if(hasAcCombiner){
+    roofBranchRow.style.display = 'block';
+    $('c-roof-branch').textContent = `#${perInvAcW.awg} AWG · ${conduitFor(acConductors, perInvAcW.area)} EMT · ×${v.invCount} runs  (${perInvAcA.toFixed(1)} A req.)`;
+    roofMainLbl.textContent = 'Combiner → elec. room (single run)';
+    $('c-roof-main').textContent = `#${totalAcW.awg} AWG · ${conduitFor(acConductors, totalAcW.area)} EMT  (${totalAcA.toFixed(1)} A req.)`;
+  } else {
+    roofBranchRow.style.display = 'none';
+    roofMainLbl.textContent = v.invCount > 1 ? `Direct runs (×${v.invCount} inverters → elec. room)` : 'Direct run (inverter → elec. room)';
+    $('c-roof-main').textContent = `#${perInvAcW.awg} AWG · ${conduitFor(acConductors, perInvAcW.area)} EMT${perInvLabel}  (${perInvAcA.toFixed(1)} A req.)`;
+  }
 
   // ── NEC 705.12(D)(2) backfeed breaker validation ──────────────────────────
   // Max solar = (busbar × 120%) − main breaker
