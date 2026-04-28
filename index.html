@@ -316,8 +316,9 @@ function pvStringSymbol(cx, cy, w, h, idx) {
   s += `<line x1="${cx}" y1="${y}" x2="${cx}" y2="${y-termLen}" stroke="#a08800" stroke-width="1.2"/>`;
   // - terminal (bottom)
   s += `<line x1="${cx}" y1="${y+h}" x2="${cx}" y2="${y+h+termLen}" stroke="#a08800" stroke-width="1.2"/>`;
-  // string label
-  s += `<text x="${cx}" y="${cy+1}" style="fill:#7a5a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle" dominant-baseline="central">S${idx}</text>`;
+  // string label — rotated to sit above the diagonal line
+  const angle = Math.atan2(-(h-6), (w-6)) * 180 / Math.PI;
+  s += `<text transform="translate(${cx},${cy}) rotate(${angle.toFixed(1)}) translate(0,-5)" style="fill:#7a5a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px" text-anchor="middle" dominant-baseline="middle">S${idx}</text>`;
   return { svg: s, topTermY: y - termLen, botTermY: y + h + termLen };
 }
 
