@@ -132,14 +132,14 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     </div>
     <div id="inv-ac-calc" class="cnote" style="margin-top:6px"></div>
     <div class="row2">
-      <div><label>Qty (parallel)</label><input type="number" id="invCount" value="1" min="1" max="20" oninput="render()"></div>
+      <div><label>Qty (parallel)</label><input type="number" id="invCount" value="1" min="1" max="20" oninput="invCountChanged()"></div>
     </div>
     <label>Make / model</label>
     <input type="text" id="invModel" value="SMA Sunny Boy 10.0" oninput="render()">
   </div>
   <div class="section">
     <div class="stitle">Battery Storage</div>
-    <div class="trow"><span>Include battery</span><label class="tog"><input type="checkbox" id="hasBatt" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div class="trow"><span>Include battery</span><label class="tog"><input type="checkbox" id="hasBatt" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <label>Coupling</label>
     <select id="battCouple" onchange="render()"><option value="ac">AC-coupled</option><option value="dc">DC-coupled</option></select>
     <div class="row2">
@@ -465,10 +465,11 @@ function systemKwChanged(){
   note.textContent = `${strings} strings × ${mps} mods/string = ${strings*mps} modules · ${actual} kW DC · max ${mps} mods @ ${combV}VDC`;
   if(Math.abs(+actual - systemKw) > 0.5)
     note.textContent += ` (nearest fit)`;
-  // Auto-fill inverter count from DC/AC ratio
+  // Auto-fill inverter unit size from count and DC/AC ratio
+  const invCount = Math.max(1, +document.getElementById('invCount').value || 1);
   const totalAcKw = systemKw / dcAcRatio;
-  const invCount = Math.max(1, Math.round(totalAcKw / invKw));
-  document.getElementById('invCount').value = invCount;
+  const unitKw = Math.round((totalAcKw / invCount) * 10) / 10;
+  document.getElementById('invKw').value = unitKw;
   render();
 }
 function combVChanged(){
@@ -484,6 +485,9 @@ function dcAcRatioChanged(){
   else render();
 }
 function invKwChanged(){
+  render();
+}
+function invCountChanged(){
   if(+document.getElementById('systemKw').value > 0) systemKwChanged();
   else render();
 }
