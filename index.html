@@ -140,7 +140,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   </div>
   <div class="section">
     <div class="stitle">Battery Storage</div>
-    <div class="trow"><span>Include battery</span><label class="tog"><input type="checkbox" id="hasBatt" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div class="trow"><span>Include battery</span><label class="tog"><input type="checkbox" id="hasBatt" onchange="toggleBattFields();render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div id="batt-fields" style="display:none">
     <label>Coupling</label>
     <select id="battCouple" onchange="render()"><option value="ac">AC-coupled</option><option value="dc">DC-coupled</option></select>
     <div class="row2">
@@ -181,6 +182,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <option value="Rule 21">Rule 21 (CA)</option>
       <option value="PREPA">PREPA</option>
     </select>
+    </div>
   </div>
   <div class="section">
     <div class="stitle">Utility &amp; POI</div>
@@ -225,7 +227,10 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="cval" id="c-dc">--</div>
     <div class="crow">AC output circuit (inverter → panel)</div>
     <div class="cval" id="c-ac">--</div>
+    <div class="crow">PV communications (inverter → DAS)</div>
+    <div class="cval" id="c-comm">--</div>
     <div class="cnote">Cu THWN-2 · 75 °C ampacity · EMT 40% fill · EGC per NEC 250.122</div>
+    <div class="cnote">Comms: Cat6 · NEC Art. 800 / 725 Class 2 · EMT 40% fill</div>
   </div>
   <div class="section">
     <div class="stitle">Roof → Electrical Room</div>
@@ -236,7 +241,9 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     </div>
     <div class="crow" id="c-roof-main-lbl">Direct runs (inverters → elec. room)</div>
     <div class="cval" id="c-roof-main">--</div>
-    <div class="cnote">Cu THWN-2 · 75 °C · EMT 40% fill</div>
+    <div class="crow">PV communications (inverter → DAS)</div>
+    <div class="cval" id="c-roof-comm">--</div>
+    <div class="cnote">Cu THWN-2 · 75 °C · EMT 40% fill · Comms: NEC Art. 800 / 725 Class 2</div>
   </div>
 </aside>
 <main>
@@ -412,6 +419,10 @@ function discBox(x,y,w,h,fill,stroke,label,sub){
 function toggleMvFields(){
   const el=document.getElementById('mvxfmr-fields');
   if(el) el.style.display=document.getElementById('hasMvXfmr').checked?'block':'none';
+}
+function toggleBattFields(){
+  const el=document.getElementById('batt-fields');
+  if(el) el.style.display=document.getElementById('hasBatt').checked?'block':'none';
 }
 document.addEventListener('DOMContentLoaded',function(){
   const cb=document.getElementById('hasMvXfmr');
@@ -785,6 +796,16 @@ function render(){
   const perInvLabel = v.invCount > 1 ? ` · ×${v.invCount} runs` : '';
   $('c-ac').textContent = `#${perInvAcW.awg} AWG · ${conduitFor(acConductors, perInvAcW.area)} EMT${perInvLabel}  (${perInvAcA.toFixed(1)} A req.)`;
 
+  // ── PV communications conduit (NEC Art. 800 / 725 Class 2) ───────────────
+  // Cat6: ~0.275" OD → cross-section area = π(0.1375)² ≈ 0.0594 in²
+  // Star topology: one Cat6 run per inverter to DAS / network switch
+  // RS-485 Modbus daisy-chain alternative always needs only 1 cable → ½" EMT
+  const CAT6_AREA = 0.0594;
+  const commRuns = v.invCount;
+  const commConduit = conduitFor(commRuns, CAT6_AREA);
+  const commText = `Cat6 · ×${commRuns} cable${commRuns > 1 ? 's' : ''} · ${commConduit} EMT  (NEC 800/725 Cl.2)`;
+  $('c-comm').textContent = commText;
+
   // ── Roof → Electrical Room conduit ───────────────────────────────────────
   const hasAcCombiner = gc('hasAcCombiner');
   const roofBranchRow = $('roof-branch-row');
@@ -799,6 +820,7 @@ function render(){
     roofMainLbl.textContent = v.invCount > 1 ? `Direct runs (×${v.invCount} inverters → elec. room)` : 'Direct run (inverter → elec. room)';
     $('c-roof-main').textContent = `#${perInvAcW.awg} AWG · ${conduitFor(acConductors, perInvAcW.area)} EMT${perInvLabel}  (${perInvAcA.toFixed(1)} A req.)`;
   }
+  $('c-roof-comm').textContent = commText;
 
   // ── NEC 705.12(D)(2) backfeed breaker validation ──────────────────────────
   // Max solar = (panel × 120%) − panel = panel × 20%
