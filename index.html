@@ -489,6 +489,10 @@ function saveProject(){
   const key = SLD_KEY_PREFIX + ts;
   const record = { name, savedBy, date, timestamp: ts, inputs: collectInputState() };
   localStorage.setItem(key, JSON.stringify(record));
+  // Save DAE XML separately (may be large; fail gracefully)
+  if(_lastDaeXml){
+    try { localStorage.setItem(key + '_dae', _lastDaeXml); } catch(e){ console.warn('DAE XML too large for localStorage'); }
+  }
   closeSaveModal();
   renderProjectsList();
 }
@@ -497,7 +501,7 @@ function getSavedProjects(){
   const list = [];
   for(let i = 0; i < localStorage.length; i++){
     const k = localStorage.key(i);
-    if(!k.startsWith(SLD_KEY_PREFIX)) continue;
+    if(!k.startsWith(SLD_KEY_PREFIX) || k.endsWith('_dae')) continue;
     try { list.push({ key: k, ...JSON.parse(localStorage.getItem(k)) }); } catch(e){}
   }
   return list.sort((a,b) => b.timestamp - a.timestamp);
@@ -526,13 +530,21 @@ function renderProjectsList(){
 function loadProject(key){
   const data = JSON.parse(localStorage.getItem(key) || 'null');
   if(!data) return;
+  // restoreInputState sets _daeDismissed before renderDaePreview is called,
+  // so the ColladaLoader callback will correctly hide dismissed components.
   restoreInputState(data.inputs);
+  const xml = localStorage.getItem(key + '_dae');
+  if(xml){
+    _lastDaeXml = xml;
+    renderDaePreview(xml); // _daeDismissed already set by restoreInputState
+  }
   closeProjectsModal();
 }
 
 function deleteProject(key){
   if(!confirm('Delete this saved project?')) return;
   localStorage.removeItem(key);
+  localStorage.removeItem(key + '_dae');
   renderProjectsList();
 }
 
@@ -729,6 +741,8 @@ function skpFileDrop(e){
   if(f) skpFileSelected(f);
 }
 
+let _lastDaeXml = null;
+
 function skpFileSelected(file){
   if(!file) return;
   const ext = file.name.split('.').pop().toLowerCase();
@@ -738,8 +752,13 @@ function skpFileSelected(file){
   }
   $('skp-results').innerHTML = `<div class="cnote">Reading ${file.name}…</div>`;
   $('dae-overlay').style.display = 'none';
+  _daeDismissed = new Set(); // reset dismissed only on fresh file upload
   const reader = new FileReader();
-  reader.onload = e => { parseDaeText(e.target.result); renderDaePreview(e.target.result); };
+  reader.onload = e => {
+    _lastDaeXml = e.target.result;
+    parseDaeText(_lastDaeXml);
+    renderDaePreview(_lastDaeXml);
+  };
   reader.readAsText(file);
 }
 
@@ -938,7 +957,8 @@ function renderDaePreview(xmlText){
   if(_daeAnimFrame){ cancelAnimationFrame(_daeAnimFrame); _daeAnimFrame=null; }
   if(_daeRenderer){ _daeRenderer.dispose(); _daeRenderer=null; }
   _daeScene = null; _daeCamera = null; _daeControls = null;
-  _daeDismissed = new Set();
+  // _daeDismissed is NOT reset here — it's reset in skpFileSelected (fresh upload)
+  // or pre-populated by restoreInputState (project load)
 
   const wrap = $('dae-overlay');
   const canvas = $('skp-preview-canvas');
