@@ -927,9 +927,9 @@ function render(){
     el.push(wlabel(gx-8,panelBot-38,'GEC',false));
   }
 
-  // Legend
-  const LX=SVG_W-175, LY=70;
-  el.push(`<rect x="${LX}" y="${LY}" width="155" height="122" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
+  // Legend + NEC box share the same column width
+  const LX=SVG_W-240, LY=82, NW=225;
+  el.push(`<rect x="${LX}" y="${LY}" width="${NW}" height="122" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
   el.push(`<text x="${LX+12}" y="${LY+16}" class="sld-head">LEGEND</text>`);
   el.push(`<line x1="${LX+12}" y1="${LY+30}" x2="${LX+44}" y2="${LY+30}" stroke="#c9a10a" stroke-width="2" stroke-dasharray="7 3"/>`);
   el.push(`<text x="${LX+50}" y="${LY+33}" class="sld-note">DC conductor</text>`);
@@ -977,7 +977,6 @@ function render(){
 
   // NEC calcs box
   const NY=LY+134;
-  const NW=160;
   if(v.hasArr2){
     el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="172" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
     el.push(`<text x="${LX+NW/2}" y="${NY+13}" class="sld-head" text-anchor="middle">NEC 690 CALCS</text>`);
@@ -995,7 +994,7 @@ function render(){
     el.push(`<line x1="${LX+6}" y1="${NY+98}" x2="${LX+NW-6}" y2="${NY+98}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+109}" style="fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600;letter-spacing:.06em">TOTALS</text>`);
     el.push(`<text x="${LX+10}" y="${NY+121}" class="sld-note">DC: ${totalKwDc.toFixed(2)} kW  ·  AC: ${totalAcKw.toFixed(1)} kW</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+133}" class="sld-note">AC output: ${totalInvAcA.toFixed(1)} A  (×1.25 = ${recBreakerMin.toFixed(1)} A)</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+133}" class="sld-note">AC out: ${totalInvAcA.toFixed(1)} A  (×1.25 = ${recBreakerMin.toFixed(1)} A)</text>`);
     el.push(`<text x="${LX+10}" y="${NY+145}" class="sld-note">Roof: ${roofConduitSvgLine()}</text>`);
     el.push(`<text x="${LX+10}" y="${NY+157}" class="sld-note">Breaker: ${recBreaker}A  Panel: ${recPanel}A</text>`);
   } else {
