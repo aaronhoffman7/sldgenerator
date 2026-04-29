@@ -79,7 +79,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   <div class="section">
     <div class="stitle">Project</div>
     <label>System type</label>
-    <select id="sysType" onchange="render()"><option value="residential">Residential</option><option value="commercial">Commercial</option></select>
+    <select id="sysType" onchange="render()"><option value="residential">Residential</option><option value="commercial" selected>Commercial</option></select>
     <label>Project name / address</label>
     <input type="text" id="projName" value="123 Main Street" oninput="render()">
     <label>AHJ / designer note</label>
@@ -793,12 +793,14 @@ function render(){
 
   // Title block
   const LOGO_W=80, LOGO_H=32, LOGO_X=SVG_W-22-LOGO_W, LOGO_Y=18;
-  el.push(`<rect x="10" y="10" width="${SVG_W-20}" height="48" rx="5" fill="#f5f7fc" stroke="#d0d5e8" stroke-width="0.8"/>`);
-  el.push(`<text x="22" y="31" class="sld-title">${esc(v.projName)}</text>`);
-  el.push(`<text x="22" y="48" class="sld-note">${esc(v.sysType.toUpperCase())} &bull; ${esc(v.designer)} &bull; ${esc(v.utilityName)} &bull; POI: ${v.poiKv} kV</text>`);
+  el.push(`<rect x="10" y="10" width="${SVG_W-20}" height="52" rx="5" fill="#f5f7fc" stroke="#d0d5e8" stroke-width="0.8"/>`);
+  el.push(`<text x="22" y="27" class="sld-title">${esc(v.projName)}</text>`);
+  el.push(`<text x="22" y="40" style="fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:11px;font-weight:500">Single Line Diagram — Solar PV</text>`);
+  el.push(`<text x="22" y="53" class="sld-note">${esc(v.sysType.toUpperCase())} &bull; ${esc(v.designer)} &bull; ${esc(v.utilityName)} &bull; POI: ${v.poiKv} kV</text>`);
   el.push(`<image href="${LOGO_B64}" x="${LOGO_X}" y="${LOGO_Y}" width="${LOGO_W}" height="${LOGO_H}" preserveAspectRatio="xMidYMid meet"/>`);
-  const battSummary=v.hasBatt?`${v.battKw} kW / ${v.battKwh} kWh BESS`:'No Storage';
-  el.push(`<text x="${LOGO_X-10}" y="31" class="sld-sub" text-anchor="end">${v.hasArr2?totalKwDc.toFixed(2):arrayKw} kW PV &bull; ${battSummary}</text>`);
+  const battSummary=v.hasBatt?`${v.battKw} kW / ${v.battKwh} kWh BESS`:'';
+  const kwSummary=`${v.hasArr2?totalKwDc.toFixed(2):arrayKw} kW PV`;
+  el.push(`<text x="${LOGO_X-10}" y="31" class="sld-sub" text-anchor="end">${kwSummary}${battSummary?' &bull; '+battSummary:''}</text>`);
   el.push(`<text x="${LOGO_X-10}" y="48" class="sld-note" text-anchor="end">Generated ${new Date().toLocaleDateString()}</text>`);
 
   // ── PV Array columns ──────────────────────────────────────────────────────
@@ -943,11 +945,41 @@ function render(){
   el.push(`<circle cx="${LX+16}" cy="${LY+117}" r="2" fill="#a0aac8"/><circle cx="${LX+30}" cy="${LY+107}" r="2" fill="#a0aac8"/>`);
   el.push(`<text x="${LX+50}" y="${LY+114}" class="sld-note">Disconnect switch</text>`);
 
+  // Pre-compute conduit data (needed for NEC box SVG and sidebar DOM)
+  const CAT6_AREA = 0.0594;
+  const c1 = conduitRows(v);
+  const perInvAcW = c1.perInvAcW;
+  const perInvAcA = c1.perInvAcA;
+  const acConductors = c1.acConds;
+  const totalAcA = c1.perInvAcA * c1.invCount;
+  const totalAcW = wireFor(totalAcA);
+  const perInvLabel = c1.invCount > 1 ? ` · ×${c1.invCount} runs` : '';
+  const commRuns = c1.invCount;
+  const commConduit = c1.commCond;
+  const hasAcCombiner = gc('hasAcCombiner');
+  const c2roof = v.hasArr2 ? conduitRows(v.a2) : null;
+  const roofTotalAcA = v.hasArr2 ? (c1.perInvAcA*c1.invCount + c2roof.perInvAcA*c2roof.invCount) : totalAcA;
+  const roofTotalAcW = v.hasArr2 ? wireFor(roofTotalAcA) : totalAcW;
+  const roofCommRuns = v.hasArr2 ? c1.invCount + c2roof.invCount : commRuns;
+  const roofCommCond = conduitFor(roofCommRuns, CAT6_AREA);
+  // Compact roof conduit line for the NEC SVG box
+  function roofConduitSvgLine(){
+    if(v.hasArr2 && !hasAcCombiner){
+      const r1=c1.invCount>1?` ×${c1.invCount}`:'';
+      const r2=c2roof.invCount>1?` ×${c2roof.invCount}`:'';
+      return `A1:#${c1.perInvAcW.awg}${r1}  A2:#${c2roof.perInvAcW.awg}${r2}  (${roofTotalAcA.toFixed(1)} A)`;
+    }
+    const runs=c1.invCount>1&&!v.hasArr2?` ×${c1.invCount}`:'';
+    const tag=hasAcCombiner?'combined':'direct';
+    return `#${roofTotalAcW.awg} AWG · ${conduitFor(acConductors,roofTotalAcW.area)} EMT${runs}  (${tag})`;
+  }
+  const totalAcKw = (v.invKw*v.invCount) + (v.hasArr2 ? v.a2.invKw*v.a2.invCount : 0);
+
   // NEC calcs box
   const NY=LY+134;
   const NW=160;
   if(v.hasArr2){
-    el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="156" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
+    el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="172" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
     el.push(`<text x="${LX+NW/2}" y="${NY+13}" class="sld-head" text-anchor="middle">NEC 690 CALCS</text>`);
     // Array 1 section
     el.push(`<line x1="${LX+6}" y1="${NY+18}" x2="${LX+NW-6}" y2="${NY+18}" stroke="#d0d5e8" stroke-width="0.7"/>`);
@@ -962,17 +994,19 @@ function render(){
     // Totals section
     el.push(`<line x1="${LX+6}" y1="${NY+98}" x2="${LX+NW-6}" y2="${NY+98}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+109}" style="fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600;letter-spacing:.06em">TOTALS</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+121}" class="sld-note">DC: ${totalKwDc.toFixed(2)} kW</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+133}" class="sld-note">AC: ${totalInvAcA.toFixed(1)} A (×1.25 = ${recBreakerMin.toFixed(1)} A)</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+145}" class="sld-note">Breaker: ${recBreaker}A  Panel: ${recPanel}A</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+121}" class="sld-note">DC: ${totalKwDc.toFixed(2)} kW  ·  AC: ${totalAcKw.toFixed(1)} kW</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+133}" class="sld-note">AC output: ${totalInvAcA.toFixed(1)} A  (×1.25 = ${recBreakerMin.toFixed(1)} A)</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+145}" class="sld-note">Roof: ${roofConduitSvgLine()}</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+157}" class="sld-note">Breaker: ${recBreaker}A  Panel: ${recPanel}A</text>`);
   } else {
-    el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="76" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
+    el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="100" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
     el.push(`<text x="${LX+NW/2}" y="${NY+13}" class="sld-head" text-anchor="middle">NEC 690 CALCS</text>`);
     el.push(`<line x1="${LX+6}" y1="${NY+18}" x2="${LX+NW-6}" y2="${NY+18}" stroke="#d0d5e8" stroke-width="0.7"/>`);
-    el.push(`<text x="${LX+10}" y="${NY+31}" class="sld-note">String Voc:    ${stringVoc} V</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+44}" class="sld-note">Max sys Voc:   ${necVoc} V (×1.25)</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+57}" class="sld-note">Array Isc:     ${arrayIsc} A</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+70}" class="sld-note">Inv output:    ${invAC} A</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+31}" class="sld-note">DC: ${arrayKw} kW  ·  AC: ${totalAcKw.toFixed(1)} kW</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+44}" class="sld-note">Voc: ${stringVoc} V  (max ${necVoc} V)</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+57}" class="sld-note">Isc: ${arrayIsc} A  ·  AC: ${invAC} A</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+70}" class="sld-note">Roof: ${roofConduitSvgLine()}</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+83}" class="sld-note">Breaker: ${recBreaker}A  Panel: ${recPanel}A</text>`);
   }
 
   const totalH=Math.max(y+30, battBotY+30, 620);
@@ -983,18 +1017,7 @@ function render(){
   svg.innerHTML=el.join('\n');
 
   // ── Conduit sizing ────────────────────────────────────────────────────────
-  const CAT6_AREA = 0.0594;
-  const c1 = conduitRows(v);
-  // Keep vars alive for Roof → Electrical Room section below
-  const perInvAcW = c1.perInvAcW;
-  const perInvAcA = c1.perInvAcA;
-  const acConductors = c1.acConds;
-  const totalAcA = c1.perInvAcA * c1.invCount;
-  const totalAcW = wireFor(totalAcA);
-  const perInvLabel = c1.invCount > 1 ? ` · ×${c1.invCount} runs` : '';
-  const commRuns = c1.invCount;
-  const commConduit = c1.commCond;
-  const commText = `Cat6 · ×${commRuns} cable${commRuns > 1 ? 's' : ''} · ${commConduit} EMT  (NEC 800/725 Cl.2)`;
+  // (CAT6_AREA, c1, perInvAcW, etc. computed above before NEC box)
   {
     const SH = 'margin-top:10px;margin-bottom:3px;font-size:9px;letter-spacing:.08em';
     function crow(lbl,val){return `<div class="crow">${lbl}</div><div class="cval">${val}</div>`;}
@@ -1023,15 +1046,9 @@ function render(){
   }
 
   // ── Roof → Electrical Room conduit ───────────────────────────────────────
-  const hasAcCombiner = gc('hasAcCombiner');
+  // (hasAcCombiner, c2roof, roofTotalAcA/W, roofCommRuns/Cond computed above before NEC box)
   const roofBranchRow = $('roof-branch-row');
   const roofMainLbl = $('c-roof-main-lbl');
-  const c2roof = v.hasArr2 ? conduitRows(v.a2) : null;
-  // Combined totals across all active arrays
-  const roofTotalAcA = v.hasArr2 ? (c1.perInvAcA*c1.invCount + c2roof.perInvAcA*c2roof.invCount) : totalAcA;
-  const roofTotalAcW = v.hasArr2 ? wireFor(roofTotalAcA) : totalAcW;
-  const roofCommRuns = v.hasArr2 ? c1.invCount + c2roof.invCount : commRuns;
-  const roofCommCond = conduitFor(roofCommRuns, CAT6_AREA);
   if(hasAcCombiner){
     roofBranchRow.style.display = 'block';
     if(v.hasArr2){
