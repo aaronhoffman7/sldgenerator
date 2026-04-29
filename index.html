@@ -1525,42 +1525,43 @@ function render(){
     const cRate=(v.battKw/v.battKwh).toFixed(2);
     const usableKwh=(v.battKwh*(v.battSocMax-v.battSocMin)/100).toFixed(1);
     const qtyLabel=v.battQty>1?`${v.battQty}× `:'';
-    const BW2=190, BX2=BATTCX-BW2/2;
-    const divY1=70;  // PCS → fuse row
-    const divY2=90;  // fuse row → battery bank
-    const contH=168; // battery bank section = 78px
+    const BW2=230, BX2=BATTCX-BW2/2;
+    const divY1=64;  // PCS section (3 lines)
+    const divY2=82;  // DC fuse row (18px)
+    const contH=160; // battery bank section = 78px
 
     function renderBessContainer(contTop){
       el.push(`<text x="${BATTCX}" y="${contTop-4}" class="sld-note" text-anchor="middle" style="fill:#1e8a60;font-weight:600">${qtyLabel}BESS Container</text>`);
       el.push(`<rect x="${BX2}" y="${contTop}" width="${BW2}" height="${contH}" rx="7" fill="#ebf8f3" stroke="#1e8a60" stroke-width="1.5"/>`);
-      // PCS section
+      // PCS section — AC voltage shown on external wire, DC voltage shown at internal divider
       el.push(`<line x1="${BX2+10}" y1="${contTop+divY1}" x2="${BX2+BW2-10}" y2="${contTop+divY1}" stroke="#1e8a60" stroke-width="0.8" stroke-dasharray="4 2"/>`);
-      el.push(`<text x="${BATTCX}" y="${contTop+13}" class="sld-lbl" text-anchor="middle">PCS / Inverter</text>`);
-      el.push(`<text x="${BATTCX}" y="${contTop+25}" class="sld-sub" text-anchor="middle">${v.battKw} kW / ${v.pcsKva} kVA</text>`);
-      el.push(`<text x="${BATTCX}" y="${contTop+37}" class="sld-sub" text-anchor="middle">DC in: ${v.battV} · AC out: ${v.invV}</text>`);
-      el.push(`<text x="${BATTCX}" y="${contTop+50}" class="sld-sub" text-anchor="middle">${v.battModel}</text>`);
+      el.push(`<text x="${BATTCX}" y="${contTop+14}" class="sld-lbl" text-anchor="middle">PCS / Inverter</text>`);
+      el.push(`<text x="${BATTCX}" y="${contTop+27}" class="sld-sub" text-anchor="middle">${v.battKw} kW / ${v.pcsKva} kVA</text>`);
+      el.push(`<text x="${BATTCX}" y="${contTop+40}" class="sld-sub" text-anchor="middle">${v.battModel}</text>`);
+      el.push(`<text x="${BATTCX}" y="${contTop+divY1-4}" class="sld-note" text-anchor="middle" style="fill:#1e8a60">DC: ${v.battV}</text>`);
       // DC fuse/contactor row
       el.push(`<line x1="${BX2+10}" y1="${contTop+divY2}" x2="${BX2+BW2-10}" y2="${contTop+divY2}" stroke="#1e8a60" stroke-width="0.8" stroke-dasharray="4 2"/>`);
-      el.push(`<text x="${BATTCX}" y="${contTop+divY1+13}" class="sld-sub" text-anchor="middle" style="font-style:italic">DC Fuse / Contactor: ${v.battDcFuse}A</text>`);
+      el.push(`<text x="${BATTCX}" y="${contTop+divY1+12}" class="sld-note" text-anchor="middle" style="font-style:italic">DC Fuse / Contactor: ${v.battDcFuse}A</text>`);
       // Battery bank section
       const bankY=contTop+divY2;
       el.push(`<text x="${BATTCX}" y="${bankY+14}" class="sld-lbl" text-anchor="middle">Battery Bank</text>`);
       el.push(`<text x="${BATTCX}" y="${bankY+27}" class="sld-sub" text-anchor="middle">${v.battKwh} kWh · ${dur}h · C${cRate}C</text>`);
       el.push(`<text x="${BATTCX}" y="${bankY+40}" class="sld-sub" text-anchor="middle">${usableKwh} kWh usable · SOC ${v.battSocMin}–${v.battSocMax}%</text>`);
-      el.push(`<text x="${BATTCX}" y="${bankY+54}" class="sld-sub" text-anchor="middle">${v.battChem} · ${v.battV}</text>`);
-      // Comms annotation — dashed line from right edge
-      const commsY=contTop+divY2+20;
+      el.push(`<text x="${BATTCX}" y="${bankY+54}" class="sld-sub" text-anchor="middle">${v.battChem}</text>`);
+      // Comms annotation — dashed line from right edge, mid-height of battery section
+      const commsY=bankY+27;
       const commsX=BX2+BW2;
-      el.push(`<line x1="${commsX}" y1="${commsY}" x2="${commsX+52}" y2="${commsY}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="4 2"/>`);
-      el.push(`<text x="${commsX+55}" y="${commsY+4}" class="sld-sub" text-anchor="start" style="fill:#7a84a0;font-style:italic">COMMS</text>`);
-      el.push(`<text x="${commsX+55}" y="${commsY+15}" class="sld-sub" text-anchor="start" style="fill:#7a84a0">${v.battComms}</text>`);
+      el.push(`<line x1="${commsX}" y1="${commsY}" x2="${commsX+48}" y2="${commsY}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="4 2"/>`);
+      el.push(`<text x="${commsX+51}" y="${commsY-3}" class="sld-note" text-anchor="start" style="fill:#7a84a0;font-style:italic">COMMS</text>`);
+      el.push(`<text x="${commsX+51}" y="${commsY+9}" class="sld-note" text-anchor="start" style="fill:#7a84a0">${v.battComms}</text>`);
     }
 
   if(v.battCouple==='ac'){
     const acTapY=y+Math.round(W/2);
     const contTop=acTapY-20;
     el.push(pathAC(`M ${MCX} ${acTapY} H ${BX2}`));
-    el.push(wlabel((MCX+BX2)/2, acTapY-8, 'AC', true));
+    // AC voltage label on the wire — shows where AC power flows in/out
+    el.push(wlabel((MCX+BX2)/2, acTapY-8, `AC · ${v.invV}`, true));
     renderBessContainer(contTop);
     battBotY=contTop+contH;
   }
@@ -1569,7 +1570,8 @@ function render(){
     const contTop=dcConnY-22;
     const BX2loc=BATTCX-BW2/2;
     el.push(`<line x1="${CX1}" y1="${dcConnY}" x2="${BX2loc}" y2="${dcConnY}" stroke="#c9a10a" stroke-width="2" stroke-dasharray="7 3"/>`);
-    el.push(wlabel((CX1+BX2loc)/2, dcConnY-8, 'DC', false));
+    // DC bus voltage on the wire — shows solar DC input to PCS
+    el.push(wlabel((CX1+BX2loc)/2, dcConnY-8, `DC · ${v.combV} VDC`, false));
     renderBessContainer(contTop);
     battBotY=contTop+contH;
   }
