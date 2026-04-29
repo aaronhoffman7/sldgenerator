@@ -108,7 +108,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
         Drop .dae file here<br><span style="font-size:9px">or click to browse</span>
       </div>
       <input type="file" id="skp-file-input" accept=".dae" style="display:none" onchange="skpFileSelected(this.files[0])">
-      <div id="skp-preview" style="display:none;margin-top:10px;border-radius:4px;overflow:hidden;position:relative;background:#0f1117">
+      <div id="skp-preview" style="display:none;margin-top:10px;border-radius:4px;overflow:hidden;position:relative;background:#ffffff">
         <canvas id="skp-preview-canvas" style="display:block;width:100%;cursor:grab"></canvas>
         <div style="position:absolute;top:4px;right:6px;font-size:9px;color:rgba(255,255,255,0.35)">drag to orbit · scroll to zoom</div>
       </div>
@@ -295,7 +295,11 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     </div>
   </div>
   <div class="section">
-    <div class="stitle">Utility &amp; POI</div>
+    <div class="sec-toggle" onclick="toggleSec('util-body','util-arrow')">
+      <div class="stitle">Utility, POI &amp; Protection</div>
+      <span class="sec-arrow open" id="util-arrow">&#9654;</span>
+    </div>
+    <div class="sec-body" id="util-body">
     <div class="row2">
       <div><label>Utility name</label><input type="text" id="utilityName" value="Utility" oninput="render()"></div>
       <div><label>POI voltage (kV)</label><input type="number" id="poiKv" value="0.48" step="0.001" min="0.1" max="500" oninput="render()"></div>
@@ -311,13 +315,6 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
         <div><label>Secondary (V)</label><input type="number" id="mvSecV" value="480" step="10" oninput="render()"></div>
       </div>
     </div>
-  </div>
-  <div class="section">
-    <div class="sec-toggle" onclick="toggleSec('svc-body','svc-arrow')">
-      <div class="stitle">Service &amp; Protection</div>
-      <span class="sec-arrow open" id="svc-arrow">&#9654;</span>
-    </div>
-    <div class="sec-body" id="svc-body">
     <div class="row2">
       <div><label>Panel size (A)</label>
         <select id="panelA" onchange="render()"><option value="20">20A</option><option value="40">40A</option><option value="60">60A</option><option value="80">80A</option><option value="100">100A</option><option value="200" selected>200A</option><option value="300">300A</option><option value="400">400A</option><option value="500">500A</option><option value="600">600A</option><option value="700">700A</option><option value="800">800A</option><option value="900">900A</option><option value="1000">1000A</option><option value="1100">1100A</option><option value="1200">1200A</option><option value="1300">1300A</option><option value="1400">1400A</option><option value="1500">1500A</option><option value="1600">1600A</option><option value="1700">1700A</option><option value="1800">1800A</option><option value="1900">1900A</option><option value="2000">2000A</option></select>
@@ -343,14 +340,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div id="conduit-content"></div>
     <div class="cnote">Cu THWN-2 · 75 °C ampacity · EMT 40% fill · EGC per NEC 250.122</div>
     <div class="cnote">Comms: Cat6 · NEC Art. 800 / 725 Class 2 · EMT 40% fill</div>
-    </div>
-  </div>
-  <div class="section">
-    <div class="sec-toggle" onclick="toggleSec('roof-body','roof-arrow')">
-      <div class="stitle">Roof → Electrical Room</div>
-      <span class="sec-arrow open" id="roof-arrow">&#9654;</span>
-    </div>
-    <div class="sec-body" id="roof-body">
+    <div class="sec-subtitle" style="margin:10px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Roof → Electrical Room</div>
+    <div id="roof-body">
     <div class="trow"><span>AC combiner on roof</span><label class="tog"><input type="checkbox" id="hasAcCombiner" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div id="roof-branch-row" style="display:none">
       <div class="crow">Inv → combiner (per inverter)</div>
@@ -361,6 +352,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="crow">PV communications (inverter → DAS)</div>
     <div class="cval" id="c-roof-comm">--</div>
     <div class="cnote">Cu THWN-2 · 75 °C · EMT 40% fill · Comms: NEC Art. 800 / 725 Class 2</div>
+    </div>
     </div>
   </div>
 </aside>
@@ -667,7 +659,7 @@ function renderDaePreview(xmlText){
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio||1);
   renderer.setSize(W, H);
-  renderer.setClearColor(0x0f1117);
+  renderer.setClearColor(0xffffff);
   _daeRenderer = renderer;
 
   const scene = new THREE.Scene();
