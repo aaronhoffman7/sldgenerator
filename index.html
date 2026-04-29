@@ -85,6 +85,28 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <label>AHJ / designer note</label>
     <input type="text" id="designer" value="Conceptual Drawing — Not for Construction" oninput="render()">
   </div>
+  <!-- SketchUp Import -->
+  <div class="section">
+    <div class="sec-toggle" onclick="toggleSec('skp-body','skp-arrow')">
+      <div class="stitle">SketchUp Import</div>
+      <span class="sec-arrow open" id="skp-arrow">&#9654;</span>
+    </div>
+    <div class="sec-body" id="skp-body">
+      <div id="skp-drop-zone" onclick="$('skp-file-input').click()"
+           ondragover="event.preventDefault();this.style.borderColor='var(--accent2)'"
+           ondragleave="this.style.borderColor='var(--border)'"
+           ondrop="skpFileDrop(event);this.style.borderColor='var(--border)'"
+           style="border:1px dashed var(--border);border-radius:4px;padding:14px 10px;text-align:center;cursor:pointer;font-size:11px;color:var(--muted);margin-top:6px;transition:border-color .15s">
+        Drop .skp or .dae here<br><span style="font-size:9px">or click to browse</span>
+      </div>
+      <input type="file" id="skp-file-input" accept=".skp,.dae" style="display:none" onchange="skpFileSelected(this.files[0])">
+      <div id="skp-name-row" style="display:none;margin-top:8px">
+        <label>Component name <span style="font-size:9px;color:var(--muted)">(exact name from SketchUp)</span></label>
+        <input type="text" id="skp-comp-name" placeholder="e.g. Solar Panel" oninput="skpCountByName()">
+      </div>
+      <div id="skp-results" style="margin-top:8px"></div>
+    </div>
+  </div>
   <!-- Array 1 -->
   <div class="section">
     <div class="sec-toggle" onclick="toggleSec('arr1-body','arr1-arrow')">
@@ -509,6 +531,121 @@ function toggleSec(bodyId, arrowId){
   arrow.classList.toggle('open', !open);
 }
 
+// ── SketchUp Import ───────────────────────────────────────────────────────────
+let _skpBuffer = null; // ArrayBuffer for .skp
+let _skpIsDae = false;
+let _daeCounts = {}; // component name → instance count
+
+function skpFileDrop(e){
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if(f) skpFileSelected(f);
+}
+
+function skpFileSelected(file){
+  if(!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  _skpBuffer = null; _skpIsDae = false; _daeCounts = {};
+  $('skp-results').innerHTML = `<div class="cnote">Reading ${file.name}…</div>`;
+  $('skp-name-row').style.display = 'none';
+
+  const reader = new FileReader();
+  if(ext === 'dae'){
+    _skpIsDae = true;
+    reader.onload = e => { parseDaeText(e.target.result); };
+    reader.readAsText(file);
+  } else if(ext === 'skp'){
+    reader.onload = e => { _skpBuffer = e.target.result; showSkpNameField(); };
+    reader.readAsArrayBuffer(file);
+  } else {
+    $('skp-results').innerHTML = `<div class="cnote" style="color:#f5a742">Unsupported file type. Upload a .skp or .dae file.</div>`;
+  }
+}
+
+function parseDaeText(xml){
+  let doc;
+  try { doc = new DOMParser().parseFromString(xml, 'text/xml'); }
+  catch(e){ $('skp-results').innerHTML=`<div class="cnote" style="color:#f5a742">Could not parse file.</div>`; return; }
+
+  // Build id→name map from library_nodes
+  const nameMap = {};
+  doc.querySelectorAll('library_nodes node[id]').forEach(n => {
+    nameMap['#'+n.getAttribute('id')] = n.getAttribute('name') || n.getAttribute('id');
+  });
+
+  // Count instance_node references
+  const counts = {};
+  doc.querySelectorAll('instance_node[url]').forEach(inst => {
+    const url = inst.getAttribute('url');
+    const name = nameMap[url] || url.replace('#','');
+    counts[name] = (counts[name]||0) + 1;
+  });
+
+  _daeCounts = counts;
+  renderSkpResults(counts, false);
+}
+
+function showSkpNameField(){
+  $('skp-name-row').style.display = 'block';
+  $('skp-results').innerHTML = `<div class="cnote">Enter the component name to search for in the binary.</div>`;
+  $('skp-comp-name').focus();
+}
+
+function skpCountByName(){
+  const name = $('skp-comp-name').value.trim();
+  if(!name || !_skpBuffer){ return; }
+
+  const needle = new TextEncoder().encode(name);
+  const hay = new Uint8Array(_skpBuffer);
+  let hits = 0;
+  outer: for(let i = 0; i <= hay.length - needle.length; i++){
+    for(let j = 0; j < needle.length; j++){
+      if(hay[i+j] !== needle[j]) continue outer;
+    }
+    hits++;
+  }
+  // First hit is the component definition; remaining are instances
+  const count = Math.max(0, hits - 1);
+  renderSkpResults({[name]: count}, true);
+}
+
+function renderSkpResults(counts, isSkp){
+  const el = $('skp-results');
+  const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  if(!entries.length){
+    el.innerHTML = '<div class="cnote">No components found.</div>'; return;
+  }
+  let html = '';
+  entries.forEach(([name, count]) => {
+    const safe = name.replace(/'/g,"\\'");
+    html += `<div style="margin-top:7px">
+      <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${name}">${name}</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
+        <span style="font-size:13px;font-weight:600;color:var(--green);font-family:var(--mono)">${count} modules</span>
+        <button class="hbtn" style="font-size:10px;padding:3px 8px" onclick="applySkpCount(1,${count})">→ Array 1</button>
+        <button class="hbtn" style="font-size:10px;padding:3px 8px" onclick="applySkpCount(2,${count})">→ Array 2</button>
+      </div>
+    </div>`;
+  });
+  if(isSkp) html += `<div class="cnote" style="margin-top:8px">⚠ Estimated from binary search. Verify count in SketchUp. Export as .dae for exact results.</div>`;
+  el.innerHTML = html;
+}
+
+function applySkpCount(n, totalModules){
+  const modW = +agv(n,'modW') || 550;
+  const voc  = +agv(n,'voc')  || 49.9;
+  const combV= +agv(n,'combV')|| 1000;
+  // Compute mps from NEC 690.7, then set systemKw to drive arrSystemKwChanged
+  const maxMps = Math.floor(combV/(voc*1.25));
+  const mps = Math.min(Math.max(1,maxMps),40);
+  const {totalStrings,actualKw} = calcStrings(totalModules, mps, modW);
+  a$(n,'strings').value = totalStrings;
+  a$(n,'mods').value = mps;
+  const kwEl = a$(n,'systemKw');
+  if(kwEl) kwEl.value = (totalModules*modW/1000).toFixed(2);
+  arrSystemKwChanged(n);
+}
+
 function arr2Toggle(){
   const on = gc('hasArr2');
   const body = $('arr2-body');
@@ -794,7 +931,7 @@ function render(){
   // Title block
   const LOGO_W=80, LOGO_H=32, LOGO_X=SVG_W-22-LOGO_W, LOGO_Y=20;
   el.push(`<rect x="10" y="10" width="${SVG_W-20}" height="62" rx="5" fill="#f5f7fc" stroke="#d0d5e8" stroke-width="0.8"/>`);
-  el.push(`<text x="22" y="28" style="fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:15px;font-weight:700">Single Line Diagram — Solar PV</text>`);
+  el.push(`<text x="22" y="28" style="fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:15px;font-weight:700">Single Line Diagram — Solar PV${v.hasBatt?' + BESS':''}</text>`);
   el.push(`<text x="22" y="44" style="fill:#1a2040;font-family:'Avenir Next','Avenir',sans-serif;font-size:13px;font-weight:500">${esc(v.projName)}</text>`);
   el.push(`<text x="22" y="58" style="fill:#707890;font-family:'Avenir Next','Avenir',sans-serif;font-size:11px">${esc(v.sysType.toUpperCase())} &bull; ${esc(v.designer)} &bull; ${esc(v.utilityName)} &bull; POI: ${v.poiKv} kV</text>`);
   el.push(`<image href="${LOGO_B64}" x="${LOGO_X}" y="${LOGO_Y}" width="${LOGO_W}" height="${LOGO_H}" preserveAspectRatio="xMidYMid meet"/>`);
