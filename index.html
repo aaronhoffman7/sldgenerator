@@ -284,6 +284,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="row2">
       <div><label>Voltage</label>
         <select id="battV" onchange="battVChanged()">
+          <option value="12VDC">12 VDC (low-voltage)</option>
           <option value="24VDC">24 VDC (low-voltage)</option>
           <option value="48VDC" selected>48 VDC (low-voltage)</option>
           <option value="51.2VDC">51.2 VDC (LFP nominal)</option>
@@ -1214,6 +1215,7 @@ function autosizeBatt(){
   $('battKw').value=totalAcKw;
   $('battKwh').value=kwhVal;
   $('pcsKva').value=totalAcKw;
+  autosizeBattV(totalAcKw);
   render();
 }
 document.addEventListener('DOMContentLoaded',function(){
@@ -1319,6 +1321,13 @@ const BATT_PRESETS = {
   'HV 400VDC':     { model: 'Generac PWRcell',        chem: 'NMC' },
   'HV 500VDC':     { model: 'LG RESU Prime',          chem: 'NMC' },
 };
+function autosizeBattV(kw){
+  const vKey = kw<=3 ? '48VDC' : kw<=5 ? '51.2VDC' : kw<=30 ? '~350–400VDC' : 'HV 500VDC';
+  const sel=$('battV');
+  if(sel) sel.value=vKey;
+  const p=BATT_PRESETS[vKey];
+  if(p){ if(p.model) $('battModel').value=p.model; $('battChem').value=p.chem; }
+}
 function battVChanged(){
   const v = gv('battV');
   const p = BATT_PRESETS[v];
@@ -1477,6 +1486,14 @@ function render(){
   const kwSummary=`${v.hasArr2?totalKwDc.toFixed(2):arrayKw} kW PV`;
   el.push(`<text x="${LOGO_X-10}" y="34" style="fill:#4a5580;font-family:'Avenir Next','Avenir',sans-serif;font-size:12px;font-weight:500" text-anchor="end">${kwSummary}${battSummary?' &bull; '+battSummary:''}</text>`);
   el.push(`<text x="${LOGO_X-10}" y="52" style="fill:#707890;font-family:'Avenir Next','Avenir',sans-serif;font-size:11px" text-anchor="end">Generated ${new Date().toLocaleDateString()}</text>`);
+
+  // ── Auto-fill string fuses (NEC 690.8: Isc × 1.25 × 1.25, next std size) ──
+  const recFuse1=nextStandardBreaker(Math.ceil(v.isc*1.5625));
+  $('combFuse').value=recFuse1; v.combFuse=recFuse1;
+  if(v.hasArr2){
+    const recFuse2=nextStandardBreaker(Math.ceil(v.a2.isc*1.5625));
+    $('a2combFuse').value=recFuse2; v.a2.combFuse=recFuse2;
+  }
 
   // ── PV Array columns ──────────────────────────────────────────────────────
   const PV_START_Y=140;
@@ -1776,17 +1793,11 @@ function render(){
   }
 
   // ── Combiner fuse minimum per NEC 690.8(A)+(B) ───────────────────────────
-  const minFuse = Math.ceil(v.isc * 1.5625);
   const fuseEl = $('fuse-check');
   if(v.hasCombiner){
-    const math=`${v.isc}A × 1.25 × 1.25 = ${minFuse}A`;
-    if(v.combFuse < minFuse){
-      fuseEl.style.color='#f5a742';
-      fuseEl.textContent=`⚠ NEC 690.8 min: ${minFuse}A  (${math})`;
-    } else {
-      fuseEl.style.color='var(--muted)';
-      fuseEl.textContent=`NEC 690.8 min: ${minFuse}A ✓  (${math})`;
-    }
+    const minFuseRaw=(v.isc*1.5625).toFixed(1);
+    fuseEl.style.color='#1e8a60';
+    fuseEl.textContent=`NEC 690.8: ${v.isc}A × 1.25 × 1.25 = ${minFuseRaw}A → ${recFuse1}A std. ✓`;
   } else { fuseEl.textContent=''; }
 }
 
