@@ -46,7 +46,10 @@ select option{background:var(--surface2)}
 .tthumb{position:absolute;top:2px;left:2px;width:13px;height:13px;background:#fff;border-radius:50%;transition:transform .2s;pointer-events:none}
 .tog input:checked~.ttrack{background:var(--accent2)}
 .tog input:checked~.ttrack .tthumb{transform:translateX(13px)}
-main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+main{flex:1;overflow:hidden;display:flex;flex-direction:column;position:relative}
+#dae-overlay{position:absolute;top:16px;right:16px;z-index:10;border-radius:6px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,.15);border:1px solid #c8ccdc;background:#fff;display:none;width:260px}
+#dae-overlay-hdr{display:flex;align-items:center;justify-content:space-between;padding:5px 9px;background:#f0f2f8;border-bottom:1px solid #c8ccdc;font-size:10px;font-weight:600;color:#3a4060;letter-spacing:.04em;text-transform:uppercase;user-select:none}
+#dae-overlay-hdr button{background:none;border:none;color:#7a84a0;cursor:pointer;font-size:14px;line-height:1;padding:0}
 .canvas-wrap{flex:1;overflow:auto;padding:20px;background:#e8eaf0}
 .canvas-wrap::-webkit-scrollbar{width:5px;height:5px}
 .canvas-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
@@ -96,7 +99,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   <!-- SketchUp Import -->
   <div class="section">
     <div class="sec-toggle" onclick="toggleSec('skp-body','skp-arrow')">
-      <div class="stitle">SketchUp Import</div>
+      <div class="stitle">File Import</div>
       <span class="sec-arrow open" id="skp-arrow">&#9654;</span>
     </div>
     <div class="sec-body" id="skp-body">
@@ -108,11 +111,11 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
         Drop .dae file here<br><span style="font-size:9px">or click to browse</span>
       </div>
       <input type="file" id="skp-file-input" accept=".dae" style="display:none" onchange="skpFileSelected(this.files[0])">
-      <div id="skp-preview" style="display:none;margin-top:10px;border-radius:4px;overflow:hidden;position:relative;background:#ffffff">
-        <canvas id="skp-preview-canvas" style="display:block;width:100%;cursor:grab"></canvas>
-        <div style="position:absolute;top:4px;right:6px;font-size:9px;color:rgba(255,255,255,0.35)">drag to orbit · scroll to zoom</div>
-      </div>
       <div id="skp-results" style="margin-top:8px"></div>
+      <div id="skp-preview-toggle-row" class="trow" style="display:none;margin-top:8px">
+        <span>3D model preview</span>
+        <label class="tog"><input type="checkbox" id="skp-preview-toggle" checked onchange="toggleDaePreview(this.checked)"><div class="ttrack"><div class="tthumb"></div></div></label>
+      </div>
     </div>
   </div>
   <!-- Array 1 -->
@@ -357,6 +360,14 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   </div>
 </aside>
 <main>
+  <div id="dae-overlay">
+    <div id="dae-overlay-hdr">
+      <span>3D Model Preview</span>
+      <button onclick="toggleDaePreview(false)" title="Hide">&#10005;</button>
+    </div>
+    <canvas id="skp-preview-canvas" style="display:block;width:100%;cursor:grab"></canvas>
+    <div style="padding:3px 8px 4px;font-size:9px;color:#a0a8c0;background:#f8f9fc">drag to orbit &middot; scroll to zoom</div>
+  </div>
   <div class="canvas-wrap"><svg id="sld-svg"></svg></div>
   <div class="sbar">
     <span class="stat">Array: <b id="s-kw">--</b></span>
@@ -567,11 +578,21 @@ function skpFileSelected(file){
     return;
   }
   $('skp-results').innerHTML = `<div class="cnote">Reading ${file.name}…</div>`;
-  $('skp-preview').style.display = 'none';
+  $('dae-overlay').style.display = 'none';
   const reader = new FileReader();
   reader.onload = e => { parseDaeText(e.target.result); renderDaePreview(e.target.result); };
   reader.readAsText(file);
 }
+
+function toggleDaePreview(visible){
+  const ov = $('dae-overlay');
+  if(!ov) return;
+  ov.style.display = visible ? 'block' : 'none';
+  const cb = $('skp-preview-toggle');
+  if(cb) cb.checked = !!visible;
+}
+
+let _daeInstanceMap = {}; // visual_scene node name → component definition name
 
 function parseDaeText(xml){
   let doc;
@@ -582,6 +603,18 @@ function parseDaeText(xml){
   const nameMap = {};
   doc.querySelectorAll('library_nodes node[id]').forEach(n => {
     nameMap['#'+n.getAttribute('id')] = n.getAttribute('name') || n.getAttribute('id');
+  });
+
+  // Build visual_scene node name → component definition name map (for 3D scene tagging)
+  _daeInstanceMap = {};
+  doc.querySelectorAll('visual_scene node').forEach(node => {
+    const inst = node.querySelector('instance_node');
+    if(inst){
+      const url = inst.getAttribute('url');
+      const defName = nameMap[url] || url.replace('#','');
+      const nodeName = node.getAttribute('name');
+      if(nodeName) _daeInstanceMap[nodeName] = defName;
+    }
   });
 
   // Count instance_node references per component definition
@@ -625,6 +658,14 @@ function renderDaeResults(counts){
 function daeDismiss(key){
   const row = $('dae-row-'+key);
   if(row) row.remove();
+  const compName = decodeURIComponent(key);
+  _daeDismissed.add(compName);
+  if(_daeScene){
+    _daeScene.traverse(obj => {
+      if(obj.userData.componentName === compName) obj.visible = false;
+    });
+    refitCamera();
+  }
 }
 
 function applySkpCount(n, totalModules){
@@ -642,6 +683,30 @@ function applySkpCount(n, totalModules){
 }
 
 let _daeRenderer = null, _daeAnimFrame = null;
+let _daeScene = null, _daeCamera = null, _daeControls = null;
+let _daeDismissed = new Set();
+
+function refitCamera(){
+  if(!_daeScene || !_daeCamera || !_daeControls) return;
+  const box = new THREE.Box3();
+  function traverseVisible(obj){
+    if(!obj.visible) return;
+    if(obj.isMesh && obj.geometry){
+      obj.updateMatrixWorld(true);
+      box.union(new THREE.Box3().setFromObject(obj));
+    }
+    obj.children.forEach(c => traverseVisible(c));
+  }
+  traverseVisible(_daeScene);
+  if(box.isEmpty()) return;
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  _daeCamera.position.set(center.x, center.y + maxDim * 1.4, center.z + maxDim * 0.6);
+  _daeCamera.lookAt(center);
+  _daeControls.target.copy(center);
+  _daeControls.update();
+}
 
 function renderDaePreview(xmlText){
   if(typeof THREE === 'undefined') return;
@@ -649,12 +714,16 @@ function renderDaePreview(xmlText){
   // Tear down previous renderer
   if(_daeAnimFrame){ cancelAnimationFrame(_daeAnimFrame); _daeAnimFrame=null; }
   if(_daeRenderer){ _daeRenderer.dispose(); _daeRenderer=null; }
+  _daeScene = null; _daeCamera = null; _daeControls = null;
+  _daeDismissed = new Set();
 
-  const wrap = $('skp-preview');
+  const wrap = $('dae-overlay');
   const canvas = $('skp-preview-canvas');
-  const W = 240, H = 180;
+  const W = 260, H = 180;
   canvas.width = W; canvas.height = H;
   wrap.style.display = 'block';
+  const toggleRow = $('skp-preview-toggle-row');
+  if(toggleRow){ toggleRow.style.display = 'flex'; $('skp-preview-toggle').checked = true; }
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio||1);
@@ -672,6 +741,8 @@ function renderDaePreview(xmlText){
   const controls = new THREE.OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
+  _daeCamera = camera;
+  _daeControls = controls;
 
   const blob = new Blob([xmlText], {type:'model/vnd.collada+xml'});
   const url = URL.createObjectURL(blob);
@@ -680,17 +751,16 @@ function renderDaePreview(xmlText){
   loader.load(url, collada => {
     URL.revokeObjectURL(url);
     const model = collada.scene;
+    _daeScene = model;
     scene.add(model);
 
-    // Fit camera to model bounding box
-    const box = new THREE.Box3().setFromObject(model);
-    const center = box.getCenter(new THREE.Vector3());
-    const size = box.getSize(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z);
-    camera.position.set(center.x, center.y + maxDim * 1.4, center.z + maxDim * 0.6);
-    camera.lookAt(center);
-    controls.target.copy(center);
-    controls.update();
+    // Tag each scene node with its component definition name
+    model.traverse(obj => {
+      const compName = _daeInstanceMap[obj.name];
+      if(compName) obj.userData.componentName = compName;
+    });
+
+    refitCamera();
 
     function animate(){
       _daeAnimFrame = requestAnimationFrame(animate);
