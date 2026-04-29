@@ -674,8 +674,7 @@ function daeDismiss(key){
   if(_daeScene){
     _daeScene.traverse(obj => {
       if(obj.userData.componentName === compName){
-        obj.visible = false;
-        obj.traverse(child => { child.visible = false; });
+        obj.traverse(child => { if(child.isMesh) child.visible = false; });
       }
     });
     refitCamera();
@@ -704,15 +703,14 @@ function refitCamera(){
   if(!_daeScene || !_daeCamera || !_daeControls) return;
   _daeScene.updateMatrixWorld(true);
   const box = new THREE.Box3();
-  function traverseVisible(obj){
-    if(!obj.visible) return;
-    if(obj.isMesh && obj.geometry){
+  // Groups are never hidden (only meshes have visibility toggled), so traverse all
+  // groups unconditionally and only collect visible meshes.
+  _daeScene.traverse(obj => {
+    if(obj.isMesh && obj.visible && obj.geometry){
       const tmp = new THREE.Box3().setFromObject(obj);
       if(!tmp.isEmpty()) box.union(tmp);
     }
-    obj.children.forEach(c => traverseVisible(c));
-  }
-  traverseVisible(_daeScene);
+  });
   if(box.isEmpty()) return;
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
@@ -787,13 +785,13 @@ function renderDaePreview(xmlText){
       }
     });
 
-    // Hide everything, then show only direct component instance nodes and their children
-    model.traverse(obj => { obj.visible = false; });
-    model.visible = true;
+    // Only toggle visibility on meshes (never groups) — hidden parent groups
+    // prevent children from rendering in Three.js even if children are visible=true.
+    // Hide all meshes first, then show only meshes inside tagged component nodes.
+    model.traverse(obj => { if(obj.isMesh) obj.visible = false; });
     model.traverse(obj => {
       if(obj.userData.componentName && !_daeDismissed.has(obj.userData.componentName)){
-        obj.visible = true;
-        obj.traverse(child => { child.visible = true; });
+        obj.traverse(child => { if(child.isMesh) child.visible = true; });
       }
     });
 
