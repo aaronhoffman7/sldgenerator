@@ -133,7 +133,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
         <select id="invV" onchange="render()">
           <option value="240VAC 1ph">240VAC 1ph</option>
           <option value="208VAC 3ph">208VAC 3ph</option>
-          <option value="480VAC 3ph">480VAC 3ph</option>
+          <option value="480VAC 3ph" selected>480VAC 3ph</option>
         </select>
       </div>
     </div>
@@ -200,7 +200,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
         <select id="a2invV" onchange="render()">
           <option value="240VAC 1ph">240VAC 1ph</option>
           <option value="208VAC 3ph">208VAC 3ph</option>
-          <option value="480VAC 3ph">480VAC 3ph</option>
+          <option value="480VAC 3ph" selected>480VAC 3ph</option>
         </select>
       </div>
     </div>
@@ -354,7 +354,7 @@ function wireFor(a){return WIRE_AMP.find(w=>w.amps>=a)||WIRE_AMP[WIRE_AMP.length
 function conduitFor(n,wireArea){const tot=n*wireArea;return(EMT_FILL.find(c=>c.f>=tot)||EMT_FILL[EMT_FILL.length-1]).size;}
 // Compute conduit sizing data for one array config object
 function conduitRows(cfg){
-  const invV=cfg.invV||'240VAC 1ph';
+  const invV=cfg.invV||'480VAC 3ph';
   const invVolts=invV.startsWith('240')?240:invV.startsWith('208')?208:480;
   const is3ph=invV.includes('3ph');
   const acConds=is3ph?4:3;
@@ -444,11 +444,17 @@ function renderPVArray(v, cx, startY) {
   s += `<rect x="${envX}" y="${envY}" width="${envW}" height="${envH}" rx="6" fill="#fefce8" stroke="#c0a000" stroke-width="1" stroke-dasharray="4 3"/>`;
 
   // Labels above envelope, centered over the visual stack
-  const arrayKw = (v.strings * v.mods * v.modW / 1000).toFixed(2);
+  const modsLast = v.modsLast || v.mods;
+  const hasPartial = modsLast !== v.mods && v.strings > 1;
+  const totalMods = hasPartial ? (v.strings - 1) * v.mods + modsLast : v.strings * v.mods;
+  const arrayKw = (totalMods * v.modW / 1000).toFixed(2);
   const arrLabel = v.colLabel ? `PV Array ${v.colLabel}` : 'PV Array';
   const labelCX = cx + shadowExtent / 2;
+  const stringSub = hasPartial
+    ? `${v.strings - 1}×${v.mods} + 1×${modsLast} mods · ${arrayKw} kWp · ${esc(v.modModel)}`
+    : `${v.strings} Strings · ${v.mods} Mods/string · ${arrayKw} kWp · ${esc(v.modModel)}`;
   s += `<text x="${labelCX}" y="${envY - 16}" style="fill:#1a2040;font-family:'Avenir Next','Avenir',sans-serif;font-size:13px;font-weight:500" text-anchor="middle">${esc(arrLabel)}</text>`;
-  s += `<text x="${labelCX}" y="${envY - 4}" style="fill:#4a5580;font-family:'Avenir Next','Avenir',sans-serif;font-size:10px" text-anchor="middle">${v.strings} Strings · ${v.mods} Mods/string · ${arrayKw} kWp · ${esc(v.modModel)}</text>`;
+  s += `<text x="${labelCX}" y="${envY - 4}" style="fill:#4a5580;font-family:'Avenir Next','Avenir',sans-serif;font-size:10px" text-anchor="middle">${stringSub}</text>`;
 
   // Shadow string rects (back to front, like inverter stacking)
   for (let i = maxShadow; i > 0; i--) {
@@ -552,6 +558,17 @@ document.addEventListener('DOMContentLoaded',function(){
   if(arr2fields) arr2fields.querySelectorAll('input,select').forEach(el => el.disabled = true);
 });
 // ── Generalized per-array input calculations ──────────────────────────────────
+// Returns { fullStrings, modsLast, totalStrings, totalMods, actualKw }
+// fullStrings full-length strings + 1 partial string of modsLast modules (if remainder > 0)
+function calcStrings(totalMods, mps, modW){
+  const fullStrings=Math.floor(totalMods/mps);
+  const remainder=totalMods-fullStrings*mps;
+  const modsLast=remainder>0?remainder:mps;
+  const totalStrings=remainder>0?fullStrings+1:Math.max(1,fullStrings);
+  const actualMods=fullStrings*mps+modsLast*(remainder>0?1:0)||(mps);
+  const actualKw=(totalMods*modW/1000);
+  return{fullStrings,modsLast,totalStrings,totalMods,actualKw};
+}
 function arrSystemKwChanged(n){
   const systemKw=+agv(n,'systemKw');
   const modW=+agv(n,'modW')||550;
@@ -562,14 +579,16 @@ function arrSystemKwChanged(n){
   const totalMods=Math.round(systemKw*1000/modW);
   const maxMps=Math.floor(combV/(voc*1.25)); // NEC 690.7 worst-case Voc × 1.25
   const mps=Math.min(Math.max(1,maxMps),40);
-  const strings=Math.max(1,Math.round(totalMods/mps));
-  a$(n,'strings').value=strings;
+  const{fullStrings,modsLast,totalStrings,actualKw}=calcStrings(totalMods,mps,modW);
+  a$(n,'strings').value=totalStrings;
   a$(n,'mods').value=mps;
-  const actual=(strings*mps*modW/1000).toFixed(2);
+  const hasPartial=modsLast!==mps&&fullStrings>0;
   const note=a$(n,'system-kw-note');
   if(note){
-    note.textContent=`${strings} strings × ${mps} mods/string = ${strings*mps} modules · ${actual} kW DC · max ${mps} mods @ ${combV}VDC`;
-    if(Math.abs(+actual-systemKw)>0.5) note.textContent+=` (nearest fit)`;
+    if(hasPartial)
+      note.textContent=`${fullStrings}×${mps} + 1×${modsLast} mods = ${totalMods} modules · ${actualKw.toFixed(2)} kW DC · max ${mps} mods @ ${combV}VDC`;
+    else
+      note.textContent=`${totalStrings} strings × ${mps} mods/string = ${totalMods} modules · ${actualKw.toFixed(2)} kW DC · max ${mps} mods @ ${combV}VDC`;
   }
   const invCount=Math.max(1,+agv(n,'invCount')||1);
   const unitKw=Math.round((systemKw/dcAcRatio/invCount)*10)/10;
@@ -595,13 +614,15 @@ function arrModsChanged(n){
   const mps=+agv(n,'mods');
   if(systemKw>0&&mps>0){
     const totalMods=Math.round(systemKw*1000/modW);
-    const strings=Math.max(1,Math.round(totalMods/mps));
-    const strEl=a$(n,'strings'); if(strEl) strEl.value=strings;
-    const actual=(strings*mps*modW/1000).toFixed(2);
+    const{fullStrings,modsLast,totalStrings,actualKw}=calcStrings(totalMods,mps,modW);
+    const strEl=a$(n,'strings'); if(strEl) strEl.value=totalStrings;
+    const hasPartial=modsLast!==mps&&fullStrings>0;
     const note=a$(n,'system-kw-note');
     if(note){
-      note.textContent=`${strings} strings × ${mps} mods = ${strings*mps} modules · ${actual} kW DC`;
-      if(Math.abs(+actual-systemKw)>0.5) note.textContent+=` (nearest fit)`;
+      if(hasPartial)
+        note.textContent=`${fullStrings}×${mps} + 1×${modsLast} mods = ${totalMods} modules · ${actualKw.toFixed(2)} kW DC`;
+      else
+        note.textContent=`${totalStrings} strings × ${mps} mods = ${totalMods} modules · ${actualKw.toFixed(2)} kW DC`;
     }
   }
   render();
@@ -682,7 +703,18 @@ function renderArrayColumn(cfg, cx, startY) {
 function render(){
   if(gc('hasArr2') && gc('arr2-linked')) arr2Sync();
   const v=vals();
-  const arrayKw=(v.strings*v.mods*v.modW/1000).toFixed(2);
+  // Compute modsLast for partial last string (when systemKw auto-calculated)
+  function getModsLast(sysKw, strings, mods, modW){
+    if(!sysKw||sysKw<=0) return mods;
+    const totalMods=Math.round(sysKw*1000/modW);
+    const rem=totalMods-(strings-1)*mods; // modules in final string
+    return Math.min(Math.max(1,rem),mods);
+  }
+  const arr1SysKw=+gv('systemKw');
+  const arr1ModsLast=getModsLast(arr1SysKw,v.strings,v.mods,v.modW);
+  // kW = full strings × mods × modW + last string × modsLast × modW
+  const arr1TotalMods=(v.strings-1)*v.mods+arr1ModsLast;
+  const arrayKw=(arr1TotalMods*v.modW/1000).toFixed(2);
   const stringVoc=(v.mods*v.voc).toFixed(1);
   const arrayIsc=(v.strings*v.isc).toFixed(1);
   const necVoc=(parseFloat(stringVoc)*1.25).toFixed(0);
@@ -692,9 +724,12 @@ function render(){
   const perInvRaw=(v.invKw*1000)/(invVolts*(is3ph?1.732:1));
   $('inv-ac-calc').textContent=`${v.invKw} kW @ ${v.invV} = ${perInvRaw.toFixed(1)} A · ×1.25 = ${(perInvRaw*1.25).toFixed(1)} A min.`;
   // Array 2 electrical calcs
-  let a2Kw=0,a2StrVoc=0,a2ArrIsc=0,a2InvAcA=0,a2perInvRaw=0;
+  let a2Kw=0,a2StrVoc=0,a2ArrIsc=0,a2InvAcA=0,a2perInvRaw=0,a2ModsLast=0;
   if(v.hasArr2){
-    a2Kw=v.a2.strings*v.a2.mods*v.a2.modW/1000;
+    const a2SysKwRaw=+gv('a2systemKw');
+    a2ModsLast=getModsLast(a2SysKwRaw,v.a2.strings,v.a2.mods,v.a2.modW);
+    const a2TotalMods=(v.a2.strings-1)*v.a2.mods+a2ModsLast;
+    a2Kw=a2TotalMods*v.a2.modW/1000;
     a2StrVoc=v.a2.mods*v.a2.voc;
     a2ArrIsc=v.a2.strings*v.a2.isc;
     const a2V=v.a2.invV.startsWith('240')?240:v.a2.invV.startsWith('208')?208:480;
@@ -768,12 +803,12 @@ function render(){
 
   // ── PV Array columns ──────────────────────────────────────────────────────
   const PV_START_Y=140;
-  const col1=renderArrayColumn({...v, colLabel:v.hasArr2?'1':''}, CX1, PV_START_Y);
+  const col1=renderArrayColumn({...v, modsLast:arr1ModsLast, colLabel:v.hasArr2?'1':''}, CX1, PV_START_Y);
   el.push(col1.svg);
 
   let invBot1=col1.invBotY, invBot2=col1.invBotY;
   if(v.hasArr2){
-    const col2=renderArrayColumn({...v.a2, hasRSD:v.hasRSD, colLabel:'2'}, CX2, PV_START_Y);
+    const col2=renderArrayColumn({...v.a2, modsLast:a2ModsLast, hasRSD:v.hasRSD, colLabel:'2'}, CX2, PV_START_Y);
     el.push(col2.svg);
     invBot2=col2.invBotY;
   }
