@@ -52,8 +52,6 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 #dae-resize::after{content:'';position:absolute;bottom:3px;right:3px;width:7px;height:7px;border-right:2px solid #a0a8c0;border-bottom:2px solid #a0a8c0;border-radius:0 0 2px 0}
 #dae-overlay-hdr{display:flex;align-items:center;justify-content:space-between;padding:5px 9px;background:#f0f2f8;border-bottom:1px solid #c8ccdc;font-size:10px;font-weight:600;color:#3a4060;letter-spacing:.04em;text-transform:uppercase;user-select:none}
 #dae-overlay-hdr button{background:none;border:none;color:#7a84a0;cursor:pointer;font-size:14px;line-height:1;padding:0}
-#dae-btn-arr,#dae-btn-str{font-size:9px!important;padding:1px 5px!important;line-height:1.5!important;font-weight:600;border-radius:3px;border:1px solid #a0aac8!important;color:#7a84a0!important;transition:all .15s}
-#dae-btn-arr.active,#dae-btn-str.active{background:#3a6bc0!important;color:#fff!important;border-color:#3a6bc0!important}
 .canvas-wrap{flex:1;overflow:auto;padding:20px;background:#e8eaf0;position:relative}
 .canvas-wrap::-webkit-scrollbar{width:5px;height:5px}
 .canvas-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
@@ -382,11 +380,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div id="dae-overlay">
       <div id="dae-overlay-hdr">
         <span>Array Layout</span>
-        <div style="display:flex;align-items:center;gap:3px">
-          <button id="dae-btn-arr" class="active" onclick="setDaeView('array')">Arr</button>
-          <button id="dae-btn-str" onclick="setDaeView('strings')">Str</button>
-          <button onclick="toggleDaePreview(false)" title="Hide" style="margin-left:3px">&#10005;</button>
-        </div>
+        <button onclick="toggleDaePreview(false)" title="Hide">&#10005;</button>
       </div>
       <div id="dae-legend" style="display:none;padding:4px 8px;background:#f7f8fc;border-bottom:1px solid #e0e3ef;gap:10px;flex-wrap:wrap"></div>
       <canvas id="skp-preview-canvas" style="display:block;width:100%;cursor:grab"></canvas>
@@ -792,11 +786,6 @@ function skpFileSelected(file){
   $('dae-overlay').style.display = 'none';
   _daeDismissed = new Set(); // reset dismissed only on fresh file upload
   _daeArrayAssign = {};
-  _daeView = 'array';
-  _stringColorMap = [];
-  const btnArr = $('dae-btn-arr'), btnStr = $('dae-btn-str');
-  if(btnArr){ btnArr.classList.add('active'); }
-  if(btnStr){ btnStr.classList.remove('active'); }
   const reader = new FileReader();
   reader.onload = e => {
     _lastDaeXml = e.target.result;
@@ -918,8 +907,6 @@ function parseDaeText(xml){
 
 let _daeCounts = {};
 let _daeArrayAssign = {}; // componentName → arrayNumber (1 or 2)
-let _daeView = 'array';   // 'array' | 'strings'
-let _stringColorMap = []; // [{label, color, arrNum}] for legend
 
 const DAE_ARR_COLOR = { 1: '#3a6bc0', 2: '#1e8a60' };
 const DAE_ARR_THREE = { 1: 0x3a6bc0, 2: 0x1e8a60 };
@@ -965,199 +952,11 @@ function daeDismiss(key){
   }
 }
 
-function setDaeView(mode){
-  _daeView = mode;
-  const btnArr = $('dae-btn-arr'), btnStr = $('dae-btn-str');
-  if(btnArr) btnArr.classList.toggle('active', mode === 'array');
-  if(btnStr) btnStr.classList.toggle('active', mode === 'strings');
-  if(mode === 'strings') applyStringColors();
-  else { recolorDaeScene(); updateDaeLegend(); }
-}
 
-function sortPanelsRowMajor(panels){
-  if(panels.length <= 1) return [...panels];
-
-  const xs = panels.map(p => p.center.x);
-  const zs = panels.map(p => p.center.z);
-  const xRange = Math.max(...xs) - Math.min(...xs);
-  const zRange = Math.max(...zs) - Math.min(...zs);
-
-  // Use a small snap tolerance (2% of the shorter range) to count distinct grid lines
-  const snapTol = Math.min(xRange, zRange) * 0.02 || 0.01;
-  function countUniq(vals){
-    const s = [...vals].sort((a,b) => a-b);
-    let c = 1;
-    for(let i = 1; i < s.length; i++) if(s[i] - s[i-1] > snapTol) c++;
-    return c;
-  }
-  const uniqueX = countUniq(xs);
-  const uniqueZ = countUniq(zs);
-
-  // Axis with MORE unique positions = within-row direction (panels packed along it).
-  // Rows are therefore SEPARATED along the other axis.
-  let rowAxis, colAxis;
-  if(uniqueX !== uniqueZ){
-    rowAxis = uniqueX > uniqueZ ? 'z' : 'x';
-  } else {
-    rowAxis = xRange >= zRange ? 'z' : 'x'; // tie-break: larger spread = within-row
-  }
-  colAxis = rowAxis === 'z' ? 'x' : 'z';
-
-  // Minimum positive gap along the rowAxis = the actual row pitch.
-  // Use half that as the threshold: anything larger than half the row pitch → new row.
-  const rowVals = panels.map(p => p.center[rowAxis]).sort((a,b) => a-b);
-  let minRowGap = Infinity;
-  for(let i = 1; i < rowVals.length; i++){
-    const g = rowVals[i] - rowVals[i-1];
-    if(g > snapTol) minRowGap = Math.min(minRowGap, g);
-  }
-  if(!isFinite(minRowGap)) return [...panels];
-  const rowThreshold = minRowGap * 0.5;
-
-  const sorted = [...panels].sort((a,b) => a.center[rowAxis] - b.center[rowAxis]);
-  const rows = [[sorted[0]]];
-  for(let i = 1; i < sorted.length; i++){
-    if(sorted[i].center[rowAxis] - sorted[i-1].center[rowAxis] > rowThreshold) rows.push([]);
-    rows[rows.length-1].push(sorted[i]);
-  }
-  // Snake (boustrophedon) pattern: each row starts from the side the previous row ended on
-  rows.forEach((row, i) => {
-    const asc = i % 2 === 0;
-    row.sort((a,b) => (asc ? 1 : -1) * (a.center[colAxis] - b.center[colAxis]));
-  });
-  return rows.flat();
-}
-
-function collectPanelsForView(arrNum){
-  // Returns [{center, meshes}] for visible panels belonging to arrNum (or all if arrNum===0)
-  const panels = [];
-  if(!_daeScene) return panels;
-  _daeScene.traverse(obj => {
-    if(!obj.userData.componentName) return;
-    if(_daeDismissed.has(obj.userData.componentName)) return;
-    if(arrNum !== 0 && _daeArrayAssign[obj.userData.componentName] !== arrNum) return;
-    const box = new THREE.Box3();
-    let hasMesh = false;
-    obj.traverse(c => { if(c.isMesh && c.visible){ box.expandByObject(c); hasMesh = true; } });
-    if(!hasMesh) return;
-    const center = box.getCenter(new THREE.Vector3());
-    const meshes = [];
-    obj.traverse(c => { if(c.isMesh) meshes.push(c); });
-    panels.push({ center, meshes });
-  });
-  return panels;
-}
-
-function clusterPanels(panels){
-  // Split a flat panel list into spatially distinct groups using gap detection on each axis.
-  if(panels.length <= 1) return [panels];
-
-  function gapBreaks(vals){
-    const s = [...vals].sort((a,b) => a-b);
-    const gaps = [];
-    for(let i = 1; i < s.length; i++) gaps.push({ g: s[i]-s[i-1], at:(s[i]+s[i-1])/2 });
-    if(!gaps.length) return [];
-    // Minimum non-trivial gap = typical panel spacing
-    const minG = Math.min(...gaps.map(g=>g.g).filter(g=>g>0.01));
-    // Any gap more than 2.5× the typical panel spacing = a physical separation between groups
-    return gaps.filter(g => g.g > minG * 2.5).map(g => g.at);
-  }
-
-  const xBreaks = gapBreaks(panels.map(p => p.center.x));
-  const zBreaks = gapBreaks(panels.map(p => p.center.z));
-  if(!xBreaks.length && !zBreaks.length) return [panels];
-
-  function cellKey(val, breaks){
-    let idx = 0;
-    for(const b of breaks) if(val > b) idx++;
-    return idx;
-  }
-
-  const cells = new Map();
-  panels.forEach(p => {
-    const key = `${cellKey(p.center.x, xBreaks)}_${cellKey(p.center.z, zBreaks)}`;
-    if(!cells.has(key)) cells.set(key, []);
-    cells.get(key).push(p);
-  });
-
-  // Sort clusters top-left → bottom-right (by centroid Z then X)
-  return [...cells.values()].sort((a, b) => {
-    const az = a.reduce((s,p)=>s+p.center.z,0)/a.length, bz = b.reduce((s,p)=>s+p.center.z,0)/b.length;
-    const ax = a.reduce((s,p)=>s+p.center.x,0)/a.length, bx = b.reduce((s,p)=>s+p.center.x,0)/b.length;
-    return az - bz || ax - bx;
-  });
-}
-
-function applyStringColors(){
-  if(!_daeScene) return;
-  _stringColorMap = [];
-  const hasAssign = Object.keys(_daeArrayAssign).length > 0;
-
-  // Build groups: per array if assigned, otherwise one pool using array 1 settings
-  const groups = [];
-  if(hasAssign){
-    [1, 2].forEach(arrNum => {
-      const panels = collectPanelsForView(arrNum);
-      if(!panels.length) return;
-      const mods = +($('a2mods') && arrNum === 2 ? $('a2mods').value : $('mods')?.value) || 10;
-      groups.push({ panels, arrNum, mods });
-    });
-  } else {
-    const panels = collectPanelsForView(0);
-    const mods = +($('mods')?.value) || 10;
-    if(panels.length) groups.push({ panels, arrNum: 1, mods });
-  }
-
-  // Pre-compute sorted clusters per group so we know total string count before coloring
-  const groupData = groups.map(({ panels, arrNum, mods }) => {
-    const clusters = clusterPanels(panels).map(c => sortPanelsRowMajor(c));
-    return { clusters, arrNum, mods };
-  });
-  const totalStrings = groupData.reduce((sum, { clusters, mods }) =>
-    sum + clusters.reduce((s, c) => s + Math.ceil(c.length / mods), 0), 0);
-
-  let globalIdx = 0;
-  groupData.forEach(({ clusters, arrNum, mods }) => {
-    clusters.forEach(sorted => {
-      sorted.forEach((p, i) => {
-        const hue = (globalIdx + Math.floor(i / mods)) / Math.max(totalStrings, 1);
-        const mat = new THREE.MeshLambertMaterial({ color: new THREE.Color().setHSL(hue, 0.78, 0.52), side: THREE.DoubleSide });
-        p.meshes.forEach(m => m.material = mat);
-      });
-      const n = Math.ceil(sorted.length / mods);
-      for(let s = 0; s < n; s++){
-        const hue = (globalIdx + s) / Math.max(totalStrings, 1);
-        _stringColorMap.push({ label:`S${globalIdx+s+1}`, color:`hsl(${Math.round(hue*360)},78%,52%)`, arrNum });
-      }
-      globalIdx += n;
-    });
-  });
-
-  updateDaeLegend();
-}
 
 function updateDaeLegend(){
   const legend = $('dae-legend');
   if(!legend) return;
-
-  if(_daeView === 'strings'){
-    if(!_stringColorMap.length){ legend.style.display = 'none'; return; }
-    legend.style.display = 'flex';
-    legend.style.maxHeight = '44px';
-    legend.style.overflowY = 'auto';
-    legend.style.gap = '4px 8px';
-    legend.innerHTML = _stringColorMap.map(({label, color}) =>
-      `<span style="display:flex;align-items:center;gap:3px;font-size:9px;font-weight:600;color:#3a4060;white-space:nowrap">
-        <span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0"></span>${label}
-      </span>`
-    ).join('');
-    return;
-  }
-
-  // Array view
-  legend.style.maxHeight = '';
-  legend.style.overflowY = '';
-  legend.style.gap = '10px';
   const assigned = [...new Set(Object.values(_daeArrayAssign))].sort();
   if(!assigned.length){ legend.style.display = 'none'; return; }
   legend.style.display = 'flex';
@@ -1321,8 +1120,7 @@ function renderDaePreview(xmlText){
     });
 
     refitCamera();
-    if(_daeView === 'strings') applyStringColors();
-    else { recolorDaeScene(); updateDaeLegend(); }
+    recolorDaeScene(); updateDaeLegend();
 
     function animate(){
       _daeAnimFrame = requestAnimationFrame(animate);
