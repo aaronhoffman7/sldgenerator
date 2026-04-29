@@ -432,6 +432,20 @@ const gc=id=>$(id)?$(id).checked:false;
 // ── Project save / load ──────────────────────────────────────────────────────
 const SLD_KEY_PREFIX = 'sld_proj_';
 
+// IndexedDB for DAE files (localStorage is too small for most .dae exports)
+const _idbName = 'sld_dae_db', _idbStore = 'dae';
+function _idbOpen(){
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open(_idbName,1);
+    r.onupgradeneeded=e=>e.target.result.createObjectStore(_idbStore);
+    r.onsuccess=e=>res(e.target.result);
+    r.onerror=e=>rej(e.target.error);
+  });
+}
+function idbPut(key,val){ return _idbOpen().then(db=>new Promise((res,rej)=>{ const t=db.transaction(_idbStore,'readwrite'); t.objectStore(_idbStore).put(val,key); t.oncomplete=res; t.onerror=e=>rej(e.target.error); })); }
+function idbGet(key){ return _idbOpen().then(db=>new Promise((res,rej)=>{ const r=db.transaction(_idbStore,'readonly').objectStore(_idbStore).get(key); r.onsuccess=e=>res(e.target.result??null); r.onerror=e=>rej(e.target.error); })); }
+function idbDel(key){ return _idbOpen().then(db=>new Promise((res,rej)=>{ const t=db.transaction(_idbStore,'readwrite'); t.objectStore(_idbStore).delete(key); t.oncomplete=res; t.onerror=e=>rej(e.target.error); })); }
+
 function collectInputState(){
   const state = {};
   document.querySelectorAll('input[id],select[id]').forEach(el => {
@@ -481,18 +495,15 @@ function openSaveModal(){
 }
 function closeSaveModal(){ $('save-modal').classList.remove('open'); }
 
-function saveProject(){
+async function saveProject(){
   const name = $('save-file-name').value.trim() || 'Untitled';
   const savedBy = $('save-by-name').value.trim();
   const ts = Date.now();
   const date = new Date(ts).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
   const key = SLD_KEY_PREFIX + ts;
-  const record = { name, savedBy, date, timestamp: ts, inputs: collectInputState() };
+  const record = { name, savedBy, date, timestamp: ts, hasDae: !!_lastDaeXml, inputs: collectInputState() };
   localStorage.setItem(key, JSON.stringify(record));
-  // Save DAE XML separately (may be large; fail gracefully)
-  if(_lastDaeXml){
-    try { localStorage.setItem(key + '_dae', _lastDaeXml); } catch(e){ console.warn('DAE XML too large for localStorage'); }
-  }
+  if(_lastDaeXml) await idbPut(key, _lastDaeXml);
   closeSaveModal();
   renderProjectsList();
 }
@@ -501,7 +512,7 @@ function getSavedProjects(){
   const list = [];
   for(let i = 0; i < localStorage.length; i++){
     const k = localStorage.key(i);
-    if(!k.startsWith(SLD_KEY_PREFIX) || k.endsWith('_dae')) continue;
+    if(!k.startsWith(SLD_KEY_PREFIX)) continue;
     try { list.push({ key: k, ...JSON.parse(localStorage.getItem(k)) }); } catch(e){}
   }
   return list.sort((a,b) => b.timestamp - a.timestamp);
@@ -518,7 +529,7 @@ function renderProjectsList(){
     <div class="proj-item">
       <div class="proj-item-info">
         <div class="proj-item-name" title="${p.name}">${p.name}</div>
-        <div class="proj-item-meta">${p.date}${p.savedBy?' &bull; '+p.savedBy:''}</div>
+        <div class="proj-item-meta">${p.date}${p.savedBy?' &bull; '+p.savedBy:''}${p.hasDae?' &bull; &#127760; 3D model':''}</div>
       </div>
       <div class="proj-item-btns">
         <button class="hbtn" style="padding:4px 10px;font-size:10px" onclick="loadProject('${p.key}')">Load</button>
@@ -527,24 +538,24 @@ function renderProjectsList(){
     </div>`).join('');
 }
 
-function loadProject(key){
+async function loadProject(key){
   const data = JSON.parse(localStorage.getItem(key) || 'null');
   if(!data) return;
-  // restoreInputState sets _daeDismissed before renderDaePreview is called,
-  // so the ColladaLoader callback will correctly hide dismissed components.
-  restoreInputState(data.inputs);
-  const xml = localStorage.getItem(key + '_dae');
-  if(xml){
-    _lastDaeXml = xml;
-    renderDaePreview(xml); // _daeDismissed already set by restoreInputState
+  restoreInputState(data.inputs); // sets _daeDismissed before renderDaePreview
+  if(data.hasDae){
+    const xml = await idbGet(key);
+    if(xml){
+      _lastDaeXml = xml;
+      renderDaePreview(xml);
+    }
   }
   closeProjectsModal();
 }
 
-function deleteProject(key){
+async function deleteProject(key){
   if(!confirm('Delete this saved project?')) return;
   localStorage.removeItem(key);
-  localStorage.removeItem(key + '_dae');
+  await idbDel(key);
   renderProjectsList();
 }
 
@@ -715,14 +726,19 @@ function pathDC(d){return`<path d="${d}" stroke="#c9a10a" stroke-width="2" strok
 function gndSym(x,y){return`<line x1="${x}" y1="${y}" x2="${x}" y2="${y+12}" stroke="#8090b8" stroke-width="1.2"/><line x1="${x-12}" y1="${y+12}" x2="${x+12}" y2="${y+12}" stroke="#8090b8" stroke-width="1.5"/><line x1="${x-8}" y1="${y+17}" x2="${x+8}" y2="${y+17}" stroke="#8090b8" stroke-width="1"/><line x1="${x-4}" y1="${y+22}" x2="${x+4}" y2="${y+22}" stroke="#8090b8" stroke-width="0.7"/><text x="${x}" y="${y+33}" class="sld-note" text-anchor="middle">GND</text>`;}
 function meterCircle(cx,cy){return`<circle cx="${cx}" cy="${cy}" r="15" fill="#f5f7fc" stroke="#a0aac8" stroke-width="1"/><text x="${cx}" y="${cy-2}" class="sld-note" text-anchor="middle">kWh</text><text x="${cx}" y="${cy+10}" class="sld-note" text-anchor="middle">MTR</text>`;}
 function wlabel(x,y,txt,ac,anchor='middle'){const col=ac?'#3d8ef8':'#c9a10a';return`<text x="${x}" y="${y}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="${anchor}">${esc(txt)}</text>`;}
-function discBox(x,y,w,h,fill,stroke,label,sub){
+function discBox(x,y,w,h,fill,stroke,label,sub,sub2){
   let s=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="5" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
   const mx=x+w/2,my=y+h/2;
   s+=`<line x1="${mx-8}" y1="${my+5}" x2="${mx+8}" y2="${my-5}" stroke="${stroke}" stroke-width="1.5"/>`;
   s+=`<circle cx="${mx-8}" cy="${my+5}" r="2" fill="${stroke}"/>`;
   s+=`<circle cx="${mx+8}" cy="${my-5}" r="2" fill="${stroke}"/>`;
   s+=`<text x="${mx}" y="${y+10}" class="sld-note" text-anchor="middle">${esc(label)}</text>`;
-  if(sub)s+=`<text x="${mx}" y="${y+h-5}" class="sld-note" text-anchor="middle">${esc(sub)}</text>`;
+  if(sub2){
+    s+=`<text x="${mx}" y="${y+h-13}" class="sld-note" text-anchor="middle">${esc(sub)}</text>`;
+    s+=`<text x="${mx}" y="${y+h-4}" class="sld-note" text-anchor="middle">${esc(sub2)}</text>`;
+  } else if(sub){
+    s+=`<text x="${mx}" y="${y+h-5}" class="sld-note" text-anchor="middle">${esc(sub)}</text>`;
+  }
   return s;
 }
 
@@ -1199,20 +1215,18 @@ function renderArrayColumn(cfg, cx, startY) {
   s.push(wlabel(pv.envRightX+12, y-4, `Voc=${stringVoc}V  Isc=${arrayIsc}A`, false, 'start'));
   const PV_DROP=W+24; // extra breathing room between PV symbols and first box
   s.push(wireDC(cx,y,cx,y+PV_DROP)); y+=PV_DROP;
-  if(cfg.hasRSD){
-    s.push(compBox(cx-100,y,200,34,'#f5f7fc','#a0aac8','Rapid Shutdown Disconnect','NEC 690.12'));
-    y+=34; s.push(wireDC(cx,y,cx,y+W)); y+=W;
-  }
   if(cfg.hasCombiner){
     const title=cfg.colLabel?`String Combiner ${cfg.colLabel}`:'String Combiner(s)';
     s.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8',title,`${cfg.combV} VDC max`,`${cfg.strings} inputs · ${cfg.combFuse}A fuse`));
     y+=54; s.push(wireDC(cx,y,cx,y+W)); y+=W;
   }
-  s.push(discBox(BX+15,y,BW-30,46,'#f5f7fc','#a0aac8','DC Disconnect',`${cfg.combV} VDC · ${Math.ceil(parseFloat(arrayIsc)*1.25)}A`));
-  y+=46;
-  s.push(wireDC(cx,y,cx,y+W));
-  s.push(wlabel(cx+10,y+W/2,'DC',false));
-  y+=W;
+  if(cfg.hasRSD){
+    s.push(discBox(BX+15,y,BW-30,54,'#f5f7fc','#a0aac8','DC Disconnect / RSD',`${cfg.combV} VDC · ${Math.ceil(parseFloat(arrayIsc)*1.25)}A`,'NEC 690.12'));
+    y+=54;
+    s.push(wireDC(cx,y,cx,y+W));
+    s.push(wlabel(cx+10,y+W/2,'DC',false));
+    y+=W;
+  }
   const iF=cfg.invType==='hybrid'?'#ebf8f3':'#edf2ff';
   const iS=cfg.invType==='hybrid'?'#1e8a60':'#3a6bc0';
   const iL=cfg.invType==='hybrid'?'Hybrid Inverter':cfg.invType==='micro'?'Microinverters':cfg.invType==='central'?'Central Inverter':cfg.invCount>1?'String Inverters':'String Inverter';
