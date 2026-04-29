@@ -603,29 +603,52 @@ function positionDaeOverlay(svgX, svgY){
   ov.style.top = (20 + svgY) + 'px';
 }
 
-(function initDaeResize(){
-  const handle = $('dae-resize');
+(function initDaeOverlayInteraction(){
   const overlay = $('dae-overlay');
-  if(!handle || !overlay) return;
-  handle.addEventListener('mousedown', e => {
+  const handle  = $('dae-resize');
+  const hdr     = $('dae-overlay-hdr');
+  if(!overlay || !handle || !hdr) return;
+
+  function drag(e, onMove){
     e.preventDefault();
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', function onUp(){
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+    });
+  }
+
+  // Drag header → move the overlay
+  hdr.style.cursor = 'grab';
+  hdr.addEventListener('mousedown', e => {
+    if(e.target.tagName === 'BUTTON') return;
+    const startX = e.clientX, startY = e.clientY;
+    const startL = parseInt(overlay.style.left) || 0;
+    const startT = parseInt(overlay.style.top)  || 0;
+    document.body.style.cursor = 'grabbing';
+    drag(e, e => {
+      overlay.style.left = (startL + e.clientX - startX) + 'px';
+      overlay.style.top  = (startT + e.clientY - startY) + 'px';
+    });
+  });
+
+  // Drag corner handle → resize
+  handle.addEventListener('mousedown', e => {
     const startX = e.clientX, startY = e.clientY;
     const startW = overlay.offsetWidth;
-    const hdrH = $('dae-overlay-hdr').offsetHeight;
-    const startCanvasH = ($('skp-preview-canvas').offsetHeight || 180);
-    function onMove(e){
+    const startH = $('skp-preview-canvas').offsetHeight || 180;
+    document.body.style.cursor = 'nwse-resize';
+    drag(e, e => {
       const newW = Math.max(140, startW + e.clientX - startX);
-      const newH = Math.max(80, startCanvasH + e.clientY - startY);
+      const newH = Math.max(80,  startH + e.clientY - startY);
       overlay.style.width = newW + 'px';
       if(_daeRenderer && _daeCamera){
         _daeRenderer.setSize(newW, newH);
         _daeCamera.aspect = newW / newH;
         _daeCamera.updateProjectionMatrix();
       }
-    }
-    function onUp(){ document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    });
   });
 })();
 
