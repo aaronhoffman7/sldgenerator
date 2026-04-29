@@ -1299,7 +1299,7 @@ function arrModWChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else
 function arrVocChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else render(); }
 function arrCombVChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else render(); }
 function arrDcAcRatioChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else render(); }
-function arrInvCountChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else render(); }
+function arrInvCountChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else if(gc('hasBatt')) autosizeBatt(); else render(); }
 // Array 1 wrappers — preserve existing oninput= attribute names in HTML
 function systemKwChanged(){ arrSystemKwChanged(1); }
 function stringsChanged(){ arrStringsChanged(1); }
