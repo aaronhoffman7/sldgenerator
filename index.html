@@ -647,6 +647,43 @@ function battVChanged(){
   }
   render();
 }
+function renderArrayColumn(cfg, cx, startY) {
+  const BW=160, BX=cx-BW/2, W=26;
+  let s=[];
+  const pv=renderPVArray(cfg, cx, startY);
+  s.push(pv.svg);
+  const stringVoc=(cfg.mods*cfg.voc).toFixed(1);
+  const arrayIsc=(cfg.strings*cfg.isc).toFixed(1);
+  let y=pv.botY;
+  s.push(wlabel(pv.envRightX+12, y-4, `Voc=${stringVoc}V  Isc=${arrayIsc}A`, false, 'start'));
+  s.push(wireDC(cx,y,cx,y+W)); y+=W;
+  if(cfg.hasRSD){
+    s.push(compBox(cx-100,y,200,34,'#f5f7fc','#a0aac8','Rapid Shutdown Disconnect','NEC 690.12'));
+    y+=34; s.push(wireDC(cx,y,cx,y+W)); y+=W;
+  }
+  if(cfg.hasCombiner){
+    const title=cfg.colLabel?`String Combiner ${cfg.colLabel}`:'String Combiner(s)';
+    s.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8',title,`${cfg.combV} VDC max`,`${cfg.strings} inputs · ${cfg.combFuse}A fuse`));
+    y+=54; s.push(wireDC(cx,y,cx,y+W)); y+=W;
+  }
+  s.push(discBox(BX+15,y,BW-30,46,'#f5f7fc','#a0aac8','DC Disconnect',`${cfg.combV} VDC · ${Math.ceil(parseFloat(arrayIsc)*1.25)}A`));
+  y+=46;
+  s.push(wireDC(cx,y,cx,y+W));
+  s.push(wlabel(cx+10,y+W/2,'DC',false));
+  y+=W;
+  const iF=cfg.invType==='hybrid'?'#ebf8f3':'#edf2ff';
+  const iS=cfg.invType==='hybrid'?'#1e8a60':'#3a6bc0';
+  const iL=cfg.invType==='hybrid'?'Hybrid Inverter':cfg.invType==='micro'?'Microinverters':cfg.invType==='central'?'Central Inverter':cfg.invCount>1?'String Inverters':'String Inverter';
+  const iTotKw=(cfg.invKw*cfg.invCount).toFixed(1).replace(/\.0$/,'');
+  const iSub=cfg.invCount>1?`${cfg.invCount}× ${cfg.invKw} kW = ${iTotKw} kW · ${cfg.invV}`:`${cfg.invKw} kW · ${cfg.invV}`;
+  if(cfg.invCount>1){const sh=Math.min(cfg.invCount-1,2);for(let i=sh;i>0;i--) s.push(`<rect x="${cx-100+i*5}" y="${y+i*5}" width="200" height="64" rx="6" fill="${iF}" stroke="${iS}" stroke-width="0.8" opacity="0.45"/>`);}
+  s.push(compBox(cx-100,y,200,64,iF,iS,iL,iSub,cfg.invModel));
+  const itx=cx+100-4,ity=y+21;
+  s.push(`<polygon points="${itx},${ity} ${itx},${ity+22} ${itx+20},${ity+11}" fill="${iF}" stroke="${iS}" stroke-width="1.2"/>`);
+  const invBotY=y+64;
+  return {svg:s.join('\n'), invBotY, envRightX:pv.envRightX, dcBusY:invBotY-64-Math.round(W/2)};
+}
+
 function render(){
   if(gc('hasArr2') && gc('arr2-linked')) arr2Sync();
   const v=vals();
@@ -659,17 +696,32 @@ function render(){
   const invAC=((v.invKw*v.invCount*1000)/(invVolts*(is3ph?1.732:1))).toFixed(1);
   const perInvRaw=(v.invKw*1000)/(invVolts*(is3ph?1.732:1));
   $('inv-ac-calc').textContent=`${v.invKw} kW @ ${v.invV} = ${perInvRaw.toFixed(1)} A · ×1.25 = ${(perInvRaw*1.25).toFixed(1)} A min.`;
+  // Array 2 electrical calcs
+  let a2Kw=0,a2StrVoc=0,a2ArrIsc=0,a2InvAcA=0;
+  if(v.hasArr2){
+    a2Kw=v.a2.strings*v.a2.mods*v.a2.modW/1000;
+    a2StrVoc=v.a2.mods*v.a2.voc;
+    a2ArrIsc=v.a2.strings*v.a2.isc;
+    const a2V=v.a2.invV.startsWith('240')?240:v.a2.invV.startsWith('208')?208:480;
+    const a23ph=v.a2.invV.includes('3ph');
+    a2InvAcA=(v.a2.invKw*v.a2.invCount*1000)/(a2V*(a23ph?1.732:1));
+  }
+  const totalKwDc=parseFloat(arrayKw)+a2Kw;
+  const totalInvAcA=parseFloat(invAC)+a2InvAcA;
+  const maxNecVoc=v.hasArr2?Math.max(+necVoc,a2StrVoc*1.25):+necVoc;
   const systemKwRaw=+gv('systemKw');
   const dcAcRatioRaw=+gv('dcAcRatio')||1.2;
   $('ac-system-kw').textContent=systemKwRaw>0?(systemKwRaw/dcAcRatioRaw).toFixed(1)+' kW':'--';
   // Auto-fill solar breaker and panel size
-  const recBreakerMin=parseFloat(invAC)*1.25;
+  const recBreakerMin=(v.hasArr2?totalInvAcA:parseFloat(invAC))*1.25;
   const recBreaker=nextStandardBreaker(Math.ceil(recBreakerMin));
   $('solarBreaker').value=recBreaker;
-  $('breaker-math').textContent=`${parseFloat(invAC).toFixed(1)} A\n× 1.25 = ${recBreakerMin.toFixed(1)} A\n→ ${recBreaker}A std.`;
+  $('breaker-math').textContent=v.hasArr2
+    ?`Arr1: ${parseFloat(invAC).toFixed(1)} A\nArr2: ${a2InvAcA.toFixed(1)} A\nTotal: ${totalInvAcA.toFixed(1)} A\n× 1.25 = ${recBreakerMin.toFixed(1)} A\n→ ${recBreaker}A std.`
+    :`${parseFloat(invAC).toFixed(1)} A\n× 1.25 = ${recBreakerMin.toFixed(1)} A\n→ ${recBreaker}A std.`;
   const recPanel=nextPanelSize(Math.ceil(recBreaker*5));
   $('panelA').value=recPanel;
-  $('s-kw').textContent=arrayKw+' kW DC';
+  $('s-kw').textContent=(v.hasArr2?totalKwDc.toFixed(2):arrayKw)+' kW DC';
   $('s-voc').textContent=stringVoc+' V';
   $('s-isc').textContent=arrayIsc+' A';
   if(v.hasBatt){
@@ -681,10 +733,16 @@ function render(){
     $('s-batt').textContent='None';
     $('batt-calc').textContent='';
   }
-  $('s-nec').textContent=necVoc+' V';
+  $('s-nec').textContent=Math.ceil(maxNecVoc)+' V';
 
-  const SVG_W=1100, CX=220, BW=160, BX=CX-BW/2, BATTCX=580;
-  const W=26; // standard wire length between all components
+  // ── Layout constants (shift when Array 2 active) ─────────────────────────
+  const SVG_W=v.hasArr2?1300:1100;
+  const CX1=v.hasArr2?190:220;
+  const CX2=570;
+  const MCX=v.hasArr2?Math.round((CX1+CX2)/2):CX1; // merge / downstream centre
+  const BW=160, BX=MCX-BW/2;
+  const BATTCX=v.hasArr2?980:580;
+  const W=26;
   let el=[];
 
   el.push(`<defs><style>
@@ -702,88 +760,53 @@ function render(){
   el.push(`<text x="22" y="48" class="sld-note">${esc(v.sysType.toUpperCase())} &bull; ${esc(v.designer)} &bull; ${esc(v.utilityName)} &bull; POI: ${v.poiKv} kV</text>`);
   el.push(`<image href="${LOGO_B64}" x="${LOGO_X}" y="${LOGO_Y}" width="${LOGO_W}" height="${LOGO_H}" preserveAspectRatio="xMidYMid meet"/>`);
   const battSummary=v.hasBatt?`${v.battKw} kW / ${v.battKwh} kWh BESS`:'No Storage';
-  el.push(`<text x="${LOGO_X-10}" y="31" class="sld-sub" text-anchor="end">${arrayKw} kW PV &bull; ${battSummary}</text>`);
+  el.push(`<text x="${LOGO_X-10}" y="31" class="sld-sub" text-anchor="end">${v.hasArr2?totalKwDc.toFixed(2):arrayKw} kW PV &bull; ${battSummary}</text>`);
   el.push(`<text x="${LOGO_X-10}" y="48" class="sld-note" text-anchor="end">Generated ${new Date().toLocaleDateString()}</text>`);
 
-  // ── PV Array ──────────────────────────────────────────────────────────────
-  const PV_START_Y = 140; // top of first module body
-  const pv = renderPVArray(v, CX, PV_START_Y);
-  el.push(pv.svg);
+  // ── PV Array columns ──────────────────────────────────────────────────────
+  const PV_START_Y=140;
+  const col1=renderArrayColumn({...v, colLabel:v.hasArr2?'1':''}, CX1, PV_START_Y);
+  el.push(col1.svg);
 
-  // Wire annotation beside the output
-  let y = pv.botY;
-  el.push(wlabel(pv.envRightX + 12, y - 4, `Voc=${stringVoc}V  Isc=${arrayIsc}A`, false, 'start'));
-
-  // Gap wire before next component
-  el.push(wireDC(CX, y, CX, y + W)); y += W;
-
-  // RSD
-  if(v.hasRSD){
-    el.push(compBox(CX-100,y,200,34,'#f5f7fc','#a0aac8','Rapid Shutdown Disconnect','NEC 690.12'));
-    y+=34;
-    el.push(wireDC(CX,y,CX,y+W)); y+=W;
+  let invBot1=col1.invBotY, invBot2=col1.invBotY;
+  if(v.hasArr2){
+    const col2=renderArrayColumn({...v.a2, hasRSD:v.hasRSD, colLabel:'2'}, CX2, PV_START_Y);
+    el.push(col2.svg);
+    invBot2=col2.invBotY;
   }
 
-  // Combiner
-  if(v.hasCombiner){
-    el.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8','String Combiner(s)',`${v.combV} VDC max`,`${v.strings} inputs · ${v.combFuse}A fuse`));
-    y+=54;
-    el.push(wireDC(CX,y,CX,y+W)); y+=W;
+  // ── AC merge bus ──────────────────────────────────────────────────────────
+  const mergeY=Math.max(invBot1,invBot2);
+  let y=mergeY;
+  if(v.hasArr2){
+    if(invBot1<mergeY) el.push(wireAC(CX1,invBot1,CX1,mergeY));
+    if(invBot2<mergeY) el.push(wireAC(CX2,invBot2,CX2,mergeY));
+    el.push(wireAC(CX1,mergeY,CX2,mergeY));
+    el.push(wlabel(MCX,mergeY-8,'AC Bus',true));
+    el.push(wireAC(MCX,mergeY,MCX,mergeY+W)); y=mergeY+W;
   }
-
-  // DC Disconnect
-  el.push(discBox(BX+15,y,BW-30,46,'#f5f7fc','#a0aac8','DC Disconnect',`${v.combV} VDC · ${Math.ceil(arrayIsc*1.25)}A`));
-  y+=46;
-
-  // Inverter
-  el.push(wireDC(CX,y,CX,y+W));
-  el.push(wlabel(CX+10,y+W/2,'DC',false));
-  y+=W;
-  const invFill=v.invType==='hybrid'?'#ebf8f3':'#edf2ff';
-  const invStroke=v.invType==='hybrid'?'#1e8a60':'#3a6bc0';
-  const invLabel=v.invType==='hybrid'?'Hybrid Inverter':v.invType==='micro'?'Microinverters':v.invType==='central'?'Central Inverter':v.invCount>1?'String Inverters':'String Inverter';
-  const totalInvKw=(v.invKw*v.invCount).toFixed(1).replace(/\.0$/,'');
-  const invSub=v.invCount>1?`${v.invCount}× ${v.invKw} kW = ${totalInvKw} kW · ${v.invV}`:`${v.invKw} kW · ${v.invV}`;
-  // Stack effect for multiple inverters
-  if(v.invCount>1){
-    const shadows=Math.min(v.invCount-1,2);
-    for(let i=shadows;i>0;i--){
-      el.push(`<rect x="${CX-100+i*5}" y="${y+i*5}" width="200" height="64" rx="6" fill="${invFill}" stroke="${invStroke}" stroke-width="0.8" opacity="${0.45}"/>`);
-    }
-  }
-  el.push(compBox(CX-100,y,200,64,invFill,invStroke,invLabel,invSub,v.invModel));
-  const itx=CX+100-4,ity=y+21;
-  el.push(`<polygon points="${itx},${ity} ${itx},${ity+22} ${itx+20},${ity+11}" fill="${invFill}" stroke="${invStroke}" stroke-width="1.2"/>`);
-  const invBot=y+64; y=invBot;
 
   // Battery branch
-  let battBotY=invBot;
+  let battBotY=y;
   if(v.hasBatt){
     const dur=(v.battKwh/v.battKw).toFixed(1);
     const cRate=(v.battKw/v.battKwh).toFixed(2);
     const qtyLabel=v.battQty>1?`${v.battQty}× `:'';
     const BW2=190, BX2=BATTCX-BW2/2;
-    const contH=130; // total container height
-    const divY=58;   // where PCS section ends / battery section begins
+    const contH=130;
+    const divY=58;
 
   if(v.battCouple==='ac'){
-    // Tap off the AC bus wire below the inverter — BESS is parallel on the AC bus
-    const acTapY = invBot + Math.round(W/2); // midpoint of AC wire below inverter
-    const contTop = acTapY - 20;             // container top: connection enters PCS section
-    // Horizontal AC branch from bus wire to container
-    el.push(pathAC(`M ${CX} ${acTapY} H ${BX2}`));
-    el.push(wlabel((CX+BX2)/2, acTapY-8, 'AC', true));
-    // "BESS Container" label centered above the rect
+    const acTapY=y+Math.round(W/2);
+    const contTop=acTapY-20;
+    el.push(pathAC(`M ${MCX} ${acTapY} H ${BX2}`));
+    el.push(wlabel((MCX+BX2)/2, acTapY-8, 'AC', true));
     el.push(`<text x="${BATTCX}" y="${contTop-4}" class="sld-note" text-anchor="middle" style="fill:#1e8a60;font-weight:600">${qtyLabel}BESS Container</text>`);
-    // Outer container rect
     el.push(`<rect x="${BX2}" y="${contTop}" width="${BW2}" height="${contH}" rx="7" fill="#ebf8f3" stroke="#1e8a60" stroke-width="1.5"/>`);
-    // Divider line
     el.push(`<line x1="${BX2+10}" y1="${contTop+divY}" x2="${BX2+BW2-10}" y2="${contTop+divY}" stroke="#1e8a60" stroke-width="0.8" stroke-dasharray="4 2"/>`);
-    // PCS section
     el.push(`<text x="${BATTCX}" y="${contTop+16}" class="sld-lbl" text-anchor="middle">PCS / Inverter</text>`);
     el.push(`<text x="${BATTCX}" y="${contTop+30}" class="sld-sub" text-anchor="middle">${v.battKw} kW / ${v.pcsKva} kVA</text>`);
     el.push(`<text x="${BATTCX}" y="${contTop+43}" class="sld-sub" text-anchor="middle">${v.battModel}</text>`);
-    // Battery section
     const bankY=contTop+divY;
     el.push(`<text x="${BATTCX}" y="${bankY+18}" class="sld-lbl" text-anchor="middle">Battery Bank</text>`);
     el.push(`<text x="${BATTCX}" y="${bankY+32}" class="sld-sub" text-anchor="middle">${v.battKwh} kWh · ${dur}h · C${cRate}C</text>`);
@@ -791,12 +814,11 @@ function render(){
     battBotY=contTop+contH;
   }
   if(v.battCouple==='dc'){
-    // Connect from the vertical DC bus wire (above inverter), not from inverter side
-    const dcConnY = invBot - 64 - Math.round(W/2); // midpoint of DC wire segment above inverter
-    const contTop = dcConnY - 22; // container top so connection enters PCS section
-    const bY = contTop + 10; // bY used for text positioning (10px padding from top)
-    el.push(`<line x1="${CX}" y1="${dcConnY}" x2="${BX2}" y2="${dcConnY}" stroke="#c9a10a" stroke-width="2" stroke-dasharray="7 3"/>`);
-    el.push(wlabel((CX+BX2)/2, dcConnY-8, 'DC', false));
+    const dcConnY=col1.dcBusY;
+    const contTop=dcConnY-22;
+    const BX2=BATTCX-BW2/2;
+    el.push(`<line x1="${CX1}" y1="${dcConnY}" x2="${BX2}" y2="${dcConnY}" stroke="#c9a10a" stroke-width="2" stroke-dasharray="7 3"/>`);
+    el.push(wlabel((CX1+BX2)/2, dcConnY-8, 'DC', false));
     el.push(`<text x="${BATTCX}" y="${contTop-4}" class="sld-note" text-anchor="middle" style="fill:#1e8a60;font-weight:600">${qtyLabel}BESS Container</text>`);
     el.push(`<rect x="${BX2}" y="${contTop}" width="${BW2}" height="${contH}" rx="7" fill="#ebf8f3" stroke="#1e8a60" stroke-width="1.5"/>`);
     el.push(`<line x1="${BX2+10}" y1="${contTop+divY}" x2="${BX2+BW2-10}" y2="${contTop+divY}" stroke="#1e8a60" stroke-width="0.8" stroke-dasharray="4 2"/>`);
@@ -811,47 +833,47 @@ function render(){
   }
 
   // AC Disconnect
-  el.push(wireAC(CX,y,CX,y+W));
-  el.push(wlabel(CX+10,y+W/2,'AC',true));
+  el.push(wireAC(MCX,y,MCX,y+W));
+  el.push(wlabel(MCX+10,y+W/2,'AC',true));
   y+=W;
   el.push(discBox(BX+15,y,BW-30,46,'#edf2ff','#3a6bc0','AC Disconnect',`${v.invV} · ${recBreaker}A`));
   y+=46;
 
   // Production meter
   if(v.hasMeter){
-    el.push(wireAC(CX,y,CX,y+W)); y+=W;
-    el.push(meterCircle(CX,y+14));
-    el.push(wlabel(CX+52,y+15,'Prod. Meter',true));
+    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+    el.push(meterCircle(MCX,y+14));
+    el.push(wlabel(MCX+52,y+15,'Prod. Meter',true));
     y+=28;
   }
 
   // Main panel
-  el.push(wireAC(CX,y,CX,y+W)); y+=W;
+  el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
   const panelSub=`${recPanel}A · ${v.invV}`;
   el.push(compBox(BX,y,BW,64,'#f0eaff','#6b45c0','Main Service Panel',panelSub,`Solar backfeed: ${recBreaker}A`));
   const panelBot=y+64; y=panelBot;
 
   // Utility meter
-  el.push(wireAC(CX,y,CX,y+W)); y+=W;
-  el.push(meterCircle(CX,y+14));
-  el.push(wlabel(CX+58,y+15,'Utility Meter',true));
+  el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+  el.push(meterCircle(MCX,y+14));
+  el.push(wlabel(MCX+58,y+15,'Utility Meter',true));
   y+=28;
-  el.push(wireAC(CX,y,CX,y+W)); y+=W;
-  el.push(compBox(CX-100,y,200,44,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,'27/59/81/25A · OV/UV/OF/UF/Sync'));
+  el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+  el.push(compBox(MCX-100,y,200,44,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,'27/59/81/25A · OV/UV/OF/UF/Sync'));
   y+=44;
 
   // MV step-up transformer
   if(v.hasMvXfmr){
-    el.push(wireAC(CX,y,CX,y+W)); y+=W;
+    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
     const mvLabel=`${v.mvQty>1?v.mvQty+'× ':''}${v.mvKva} kVA Pad-Mount Transformer`;
     const mvSub=`${v.mvSecV}V / ${v.mvPriKv} kV · 3Φ 60Hz`;
-    el.push(compBox(CX-100,y,200,54,'#fff8ec','#c07a00',mvLabel,mvSub,'NEMA 3R · Oil-Cooled'));
+    el.push(compBox(MCX-100,y,200,54,'#fff8ec','#c07a00',mvLabel,mvSub,'NEMA 3R · Oil-Cooled'));
     y+=54;
   }
 
   // POI marker
   const poiLabel=v.poiKv>=1?`${v.poiKv} kV`:`${(v.poiKv*1000).toFixed(0)}V`;
-  el.push(wireAC(CX,y,CX,y+W)); y+=W;
+  el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
   el.push(compBox(BX,y,BW,36,'#f5f7fc','#a0aac8','GRID',poiLabel+' · '+esc(v.utilityName)));
   [0,1,2].forEach(i=>{const lx=BX+BW-24,ly=y+10+i*8;el.push(`<line x1="${lx}" y1="${ly}" x2="${lx+16}" y2="${ly}" stroke="#a0aac8" stroke-width="${2-i*0.5}"/>`);});
   y+=36;
@@ -885,12 +907,25 @@ function render(){
 
   // NEC calcs box
   const NY=LY+134;
-  el.push(`<rect x="${LX}" y="${NY}" width="155" height="76" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
-  el.push(`<text x="${LX+12}" y="${NY+15}" class="sld-head">NEC 690 CALCS</text>`);
-  el.push(`<text x="${LX+12}" y="${NY+30}" class="sld-note">String Voc:    ${stringVoc} V</text>`);
-  el.push(`<text x="${LX+12}" y="${NY+43}" class="sld-note">Max sys Voc:   ${necVoc} V (x1.25)</text>`);
-  el.push(`<text x="${LX+12}" y="${NY+56}" class="sld-note">Array Isc:     ${arrayIsc} A</text>`);
-  el.push(`<text x="${LX+12}" y="${NY+69}" class="sld-note">Inv output:    ${invAC} A</text>`);
+  if(v.hasArr2){
+    el.push(`<rect x="${LX}" y="${NY}" width="155" height="120" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
+    el.push(`<text x="${LX+12}" y="${NY+14}" class="sld-head">NEC 690 CALCS</text>`);
+    el.push(`<text x="${LX+12}" y="${NY+27}" class="sld-note">Arr1 Voc: ${stringVoc} V  max: ${necVoc} V</text>`);
+    el.push(`<text x="${LX+12}" y="${NY+40}" class="sld-note">Arr2 Voc: ${a2StrVoc.toFixed(1)} V  max: ${(a2StrVoc*1.25).toFixed(0)} V</text>`);
+    el.push(`<text x="${LX+12}" y="${NY+53}" class="sld-note">Arr1 Isc: ${arrayIsc} A</text>`);
+    el.push(`<text x="${LX+12}" y="${NY+66}" class="sld-note">Arr2 Isc: ${a2ArrIsc.toFixed(1)} A</text>`);
+    el.push(`<text x="${LX+12}" y="${NY+79}" class="sld-note">Total DC: ${totalKwDc.toFixed(2)} kW</text>`);
+    el.push(`<text x="${LX+12}" y="${NY+92}" class="sld-note">Arr1 AC out: ${parseFloat(invAC).toFixed(1)} A</text>`);
+    el.push(`<text x="${LX+12}" y="${NY+105}" class="sld-note">Arr2 AC out: ${a2InvAcA.toFixed(1)} A</text>`);
+    el.push(`<text x="${LX+12}" y="${NY+118}" class="sld-note">Total AC → ${recBreaker}A breaker</text>`);
+  } else {
+    el.push(`<rect x="${LX}" y="${NY}" width="155" height="76" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
+    el.push(`<text x="${LX+12}" y="${NY+15}" class="sld-head">NEC 690 CALCS</text>`);
+    el.push(`<text x="${LX+12}" y="${NY+30}" class="sld-note">String Voc:    ${stringVoc} V</text>`);
+    el.push(`<text x="${LX+12}" y="${NY+43}" class="sld-note">Max sys Voc:   ${necVoc} V (x1.25)</text>`);
+    el.push(`<text x="${LX+12}" y="${NY+56}" class="sld-note">Array Isc:     ${arrayIsc} A</text>`);
+    el.push(`<text x="${LX+12}" y="${NY+69}" class="sld-note">Inv output:    ${invAC} A</text>`);
+  }
 
   const totalH=Math.max(y+30, battBotY+30, 620);
   const svg=$('sld-svg');
