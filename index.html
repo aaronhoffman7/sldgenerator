@@ -615,20 +615,22 @@ function parseDaeText(xml){
   });
 
   // Build visual_scene node name → component definition name map (for 3D scene tagging)
+  // Iterate from instance_node → parentElement so we only tag the DIRECT parent node,
+  // not ancestor groups (which would incorrectly match via querySelector descendant search)
   _daeInstanceMap = {};
-  doc.querySelectorAll('visual_scene node').forEach(node => {
-    const inst = node.querySelector('instance_node');
-    if(inst){
-      const url = inst.getAttribute('url');
-      const defName = nameMap[url] || url.replace('#','');
-      const nodeName = node.getAttribute('name');
+  doc.querySelectorAll('visual_scene instance_node[url]').forEach(inst => {
+    const url = inst.getAttribute('url');
+    const defName = nameMap[url] || url.replace('#','');
+    const parentNode = inst.parentElement;
+    if(parentNode){
+      const nodeName = parentNode.getAttribute('name');
       if(nodeName) _daeInstanceMap[nodeName] = defName;
     }
   });
 
   // Count instance_node references per component definition
   const counts = {};
-  doc.querySelectorAll('instance_node[url]').forEach(inst => {
+  doc.querySelectorAll('visual_scene instance_node[url]').forEach(inst => {
     const url = inst.getAttribute('url');
     const name = nameMap[url] || url.replace('#','');
     counts[name] = (counts[name]||0) + 1;
@@ -771,18 +773,28 @@ function renderDaePreview(xmlText){
     _daeScene = model;
     scene.add(model);
 
-    // Tag each scene node with its component definition name
+    // Tag only the direct parent nodes of instance_node elements
     model.traverse(obj => {
       const compName = _daeInstanceMap[obj.name];
       if(compName) obj.userData.componentName = compName;
     });
 
-    // Hide all meshes that aren't part of a recognized component instance
+    // Make all materials double-sided so faces aren't black when viewed from either direction
     model.traverse(obj => {
-      if(!obj.isMesh) return;
-      let cur = obj.parent, isComp = false;
-      while(cur && cur !== model){ if(cur.userData.componentName){ isComp = true; break; } cur = cur.parent; }
-      if(!isComp) obj.visible = false;
+      if(obj.isMesh && obj.material){
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        mats.forEach(m => { m.side = THREE.DoubleSide; });
+      }
+    });
+
+    // Hide everything, then show only direct component instance nodes and their children
+    model.traverse(obj => { obj.visible = false; });
+    model.visible = true;
+    model.traverse(obj => {
+      if(obj.userData.componentName && !_daeDismissed.has(obj.userData.componentName)){
+        obj.visible = true;
+        obj.traverse(child => { child.visible = true; });
+      }
     });
 
     refitCamera();
