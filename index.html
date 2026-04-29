@@ -382,6 +382,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
         <span>Array Layout</span>
         <button onclick="toggleDaePreview(false)" title="Hide">&#10005;</button>
       </div>
+      <div id="dae-legend" style="display:none;padding:4px 8px;background:#f7f8fc;border-bottom:1px solid #e0e3ef;gap:10px;flex-wrap:wrap"></div>
       <canvas id="skp-preview-canvas" style="display:block;width:100%;cursor:grab"></canvas>
       <div id="dae-resize"></div>
     </div>
@@ -928,6 +929,19 @@ function daeDismiss(key){
   }
 }
 
+function updateDaeLegend(){
+  const legend = $('dae-legend');
+  if(!legend) return;
+  const assigned = [...new Set(Object.values(_daeArrayAssign))].sort();
+  if(!assigned.length){ legend.style.display = 'none'; return; }
+  legend.style.display = 'flex';
+  legend.innerHTML = assigned.map(n =>
+    `<span style="display:flex;align-items:center;gap:4px;font-size:9px;font-weight:600;color:#3a4060">
+      <span style="width:10px;height:10px;border-radius:2px;background:${DAE_ARR_COLOR[n]};flex-shrink:0"></span>Array ${n}
+    </span>`
+  ).join('');
+}
+
 function recolorDaeScene(){
   if(!_daeScene) return;
   _daeScene.traverse(obj => {
@@ -968,6 +982,7 @@ function applySkpCount(n, totalModules, key){
     const compName = decodeURIComponent(key);
     _daeArrayAssign[compName] = n;
     recolorDaeScene();
+    updateDaeLegend();
     const badge = $('dae-badge-'+key);
     if(badge){
       badge.textContent = `Array ${n}`;
@@ -1729,8 +1744,10 @@ function exportPDF(){
       const ovW=daeOv.offsetWidth;
       const hdrEl=$('dae-overlay-hdr');
       const hdrH=hdrEl?hdrEl.offsetHeight:24;
+      const legendEl=$('dae-legend');
+      const legendH=(legendEl&&legendEl.style.display!=='none')?legendEl.offsetHeight:0;
       const canvasH=wglCanvas.offsetHeight;
-      const totalH=hdrH+canvasH;
+      const totalH=hdrH+legendH+canvasH;
       ctx.fillStyle='#ffffff';
       ctx.fillRect(ovLeft,ovTop,ovW,totalH);
       ctx.strokeStyle='#c8ccdc'; ctx.lineWidth=0.5;
@@ -1742,7 +1759,23 @@ function exportPDF(){
       ctx.textBaseline='middle'; ctx.textAlign='left';
       ctx.letterSpacing='0.04em';
       ctx.fillText('ARRAY LAYOUT',ovLeft+8,ovTop+hdrH/2);
-      ctx.drawImage(wglCanvas,ovLeft,ovTop+hdrH,ovW,canvasH);
+      if(legendH>0){
+        ctx.fillStyle='#f7f8fc';
+        ctx.fillRect(ovLeft,ovTop+hdrH,ovW,legendH);
+        ctx.strokeStyle='#e0e3ef'; ctx.lineWidth=0.5;
+        ctx.beginPath(); ctx.moveTo(ovLeft,ovTop+hdrH+legendH); ctx.lineTo(ovLeft+ovW,ovTop+hdrH+legendH); ctx.stroke();
+        const assigned=[...new Set(Object.values(_daeArrayAssign))].sort();
+        let lx=ovLeft+8; const ly=ovTop+hdrH+legendH/2;
+        const swSize=8, gap=4, labelGap=14;
+        assigned.forEach(n=>{
+          ctx.fillStyle=DAE_ARR_COLOR[n]; ctx.fillRect(lx,ly-swSize/2,swSize,swSize);
+          ctx.fillStyle='#3a4060'; ctx.font=`600 9px Avenir Next,Avenir,sans-serif`;
+          ctx.textBaseline='middle'; ctx.textAlign='left';
+          ctx.fillText(`Array ${n}`,lx+swSize+gap,ly);
+          lx+=swSize+gap+labelGap+20;
+        });
+      }
+      ctx.drawImage(wglCanvas,ovLeft,ovTop+hdrH+legendH,ovW,canvasH);
     }
 
     function finish(){
