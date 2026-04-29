@@ -561,6 +561,7 @@ async function loadProject(key){
     const xml = await idbGet(key);
     if(xml){
       _lastDaeXml = xml;
+      buildDaeInstanceMap(xml);
       renderDaePreview(xml);
     }
   }
@@ -860,20 +861,14 @@ function positionDaeOverlay(svgX, svgY){
 
 let _daeInstanceMap = {}; // visual_scene node name → component definition name
 
-function parseDaeText(xml){
+function buildDaeInstanceMap(xmlText){
   let doc;
-  try { doc = new DOMParser().parseFromString(xml, 'text/xml'); }
-  catch(e){ $('skp-results').innerHTML=`<div class="cnote" style="color:#f5a742">Could not parse file.</div>`; return; }
-
-  // Build id→name map from library_nodes
+  try { doc = new DOMParser().parseFromString(xmlText, 'text/xml'); }
+  catch(e){ return; }
   const nameMap = {};
   doc.querySelectorAll('library_nodes node[id]').forEach(n => {
     nameMap['#'+n.getAttribute('id')] = n.getAttribute('name') || n.getAttribute('id');
   });
-
-  // Build visual_scene node name → component definition name map (for 3D scene tagging)
-  // Iterate from instance_node → parentElement so we only tag the DIRECT parent node,
-  // not ancestor groups (which would incorrectly match via querySelector descendant search)
   _daeInstanceMap = {};
   doc.querySelectorAll('visual_scene instance_node[url]').forEach(inst => {
     const url = inst.getAttribute('url');
@@ -883,6 +878,20 @@ function parseDaeText(xml){
       const nodeName = parentNode.getAttribute('name');
       if(nodeName) _daeInstanceMap[nodeName] = defName;
     }
+  });
+}
+
+function parseDaeText(xml){
+  let doc;
+  try { doc = new DOMParser().parseFromString(xml, 'text/xml'); }
+  catch(e){ $('skp-results').innerHTML=`<div class="cnote" style="color:#f5a742">Could not parse file.</div>`; return; }
+
+  buildDaeInstanceMap(xml);
+
+  // Build nameMap again for counting (buildDaeInstanceMap keeps it internal)
+  const nameMap = {};
+  doc.querySelectorAll('library_nodes node[id]').forEach(n => {
+    nameMap['#'+n.getAttribute('id')] = n.getAttribute('name') || n.getAttribute('id');
   });
 
   // Count instance_node references per component definition
