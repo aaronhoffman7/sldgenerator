@@ -61,6 +61,20 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .stat b{color:var(--green);font-weight:500}
 .stat.w b{color:var(--accent)}
 .crow{font-size:10px;color:var(--muted);margin-top:9px}
+.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:center;justify-content:center}
+.modal-backdrop.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:22px 24px;width:340px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.modal h2{font-size:13px;font-weight:600;margin-bottom:16px;color:var(--text)}
+.modal label{margin-top:12px}
+.modal-row{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+.proj-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:5px;border:1px solid var(--border);margin-bottom:7px;background:var(--surface2)}
+.proj-item-info{flex:1;min-width:0}
+.proj-item-name{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-item-meta{font-size:10px;color:var(--muted);margin-top:2px}
+.proj-item-btns{display:flex;gap:5px;flex-shrink:0}
+#projects-list{max-height:340px;overflow-y:auto;margin-top:12px}
+#projects-list::-webkit-scrollbar{width:4px}
+#projects-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 .sec-toggle{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
 .sec-toggle .stitle{margin-bottom:0}
 .sec-arrow{font-size:11px;color:var(--muted);transition:transform .2s;display:inline-block}
@@ -78,6 +92,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   <h1>Single Line Diagram Generator</h1>
   <span>Solar + Battery Storage</span>
   <div class="hbtns">
+    <button class="hbtn" onclick="openSaveModal()">&#9632; Save</button>
+    <button class="hbtn" onclick="openProjectsModal()">&#9783; Projects</button>
     <button class="hbtn" onclick="exportSVG()">Export SVG</button>
     <button class="hbtn primary" onclick="exportPDF()">&#8595; Download PDF</button>
   </div>
@@ -90,8 +106,6 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <span class="sec-arrow open" id="proj-arrow">&#9654;</span>
     </div>
     <div class="sec-body" id="proj-body">
-    <label>System type</label>
-    <select id="sysType" onchange="render()"><option value="residential">Residential</option><option value="commercial" selected>Commercial</option></select>
     <label>Project name / address</label>
     <input type="text" id="projName" value="123 Main Street" oninput="render()">
     <label>AHJ / designer note</label>
@@ -382,10 +396,130 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   </div>
 </main>
 </div>
+
+<!-- Save Modal -->
+<div id="save-modal" class="modal-backdrop" onclick="if(event.target===this)closeSaveModal()">
+  <div class="modal">
+    <h2>Save Project</h2>
+    <label>File name</label>
+    <input type="text" id="save-file-name" placeholder="My Solar Project">
+    <label>Saved by</label>
+    <input type="text" id="save-by-name" placeholder="Your name">
+    <div style="font-size:11px;color:var(--muted);margin-top:10px">Date: <span id="save-date-display"></span></div>
+    <div class="modal-row">
+      <button class="hbtn" onclick="closeSaveModal()">Cancel</button>
+      <button class="hbtn primary" onclick="saveProject()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Projects Modal -->
+<div id="projects-modal" class="modal-backdrop" onclick="if(event.target===this)closeProjectsModal()">
+  <div class="modal" style="width:420px">
+    <h2>Saved Projects</h2>
+    <div id="projects-list"><div style="font-size:11px;color:var(--muted)">No saved projects yet.</div></div>
+    <div class="modal-row">
+      <button class="hbtn" onclick="closeProjectsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const $=id=>document.getElementById(id);
 const gv=id=>$(id)?$(id).value:'';
 const gc=id=>$(id)?$(id).checked:false;
+
+// ── Project save / load ──────────────────────────────────────────────────────
+const SLD_KEY_PREFIX = 'sld_proj_';
+
+function collectInputState(){
+  const state = {};
+  document.querySelectorAll('input[id],select[id]').forEach(el => {
+    state[el.id] = el.type === 'checkbox' ? el.checked : el.value;
+  });
+  return state;
+}
+
+function restoreInputState(state){
+  Object.entries(state).forEach(([id, val]) => {
+    const el = $(id);
+    if(!el) return;
+    if(el.type === 'checkbox') el.checked = val;
+    else el.value = val;
+  });
+  if(typeof arr2Toggle === 'function') arr2Toggle();
+  render();
+}
+
+function openSaveModal(){
+  const proj = gv('projName') || 'Untitled';
+  $('save-file-name').value = proj;
+  $('save-date-display').textContent = new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+  $('save-modal').classList.add('open');
+  $('save-file-name').focus();
+}
+function closeSaveModal(){ $('save-modal').classList.remove('open'); }
+
+function saveProject(){
+  const name = $('save-file-name').value.trim() || 'Untitled';
+  const savedBy = $('save-by-name').value.trim();
+  const ts = Date.now();
+  const date = new Date(ts).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+  const key = SLD_KEY_PREFIX + ts;
+  const record = { name, savedBy, date, timestamp: ts, inputs: collectInputState() };
+  localStorage.setItem(key, JSON.stringify(record));
+  closeSaveModal();
+  renderProjectsList();
+}
+
+function getSavedProjects(){
+  const list = [];
+  for(let i = 0; i < localStorage.length; i++){
+    const k = localStorage.key(i);
+    if(!k.startsWith(SLD_KEY_PREFIX)) continue;
+    try { list.push({ key: k, ...JSON.parse(localStorage.getItem(k)) }); } catch(e){}
+  }
+  return list.sort((a,b) => b.timestamp - a.timestamp);
+}
+
+function renderProjectsList(){
+  const el = $('projects-list');
+  const projects = getSavedProjects();
+  if(!projects.length){
+    el.innerHTML = '<div style="font-size:11px;color:var(--muted)">No saved projects yet.</div>';
+    return;
+  }
+  el.innerHTML = projects.map(p => `
+    <div class="proj-item">
+      <div class="proj-item-info">
+        <div class="proj-item-name" title="${p.name}">${p.name}</div>
+        <div class="proj-item-meta">${p.date}${p.savedBy?' &bull; '+p.savedBy:''}</div>
+      </div>
+      <div class="proj-item-btns">
+        <button class="hbtn" style="padding:4px 10px;font-size:10px" onclick="loadProject('${p.key}')">Load</button>
+        <button class="hbtn" style="padding:4px 10px;font-size:10px;color:#f5a742;border-color:#f5a742" onclick="deleteProject('${p.key}')">Delete</button>
+      </div>
+    </div>`).join('');
+}
+
+function loadProject(key){
+  const data = JSON.parse(localStorage.getItem(key) || 'null');
+  if(!data) return;
+  restoreInputState(data.inputs);
+  closeProjectsModal();
+}
+
+function deleteProject(key){
+  if(!confirm('Delete this saved project?')) return;
+  localStorage.removeItem(key);
+  renderProjectsList();
+}
+
+function openProjectsModal(){
+  renderProjectsList();
+  $('projects-modal').classList.add('open');
+}
+function closeProjectsModal(){ $('projects-modal').classList.remove('open'); }
 // Array-indexed element helpers: n=1 → original IDs; n≥2 → a{n}FieldName
 function aid(n,field){ return n===1?field:`a${n}${field}`; }
 function agv(n,field){ return gv(aid(n,field)); }
@@ -435,7 +569,7 @@ function nextPanelSize(minA){return PANEL_SIZES.find(p=>p>=minA)||PANEL_SIZES[PA
 function vals(){
   const hasArr2 = gc('hasArr2');
   return{
-    sysType:gv('sysType'),projName:gv('projName'),designer:gv('designer'),
+    projName:gv('projName'),designer:gv('designer'),
     strings:Math.max(1,+gv('strings')||1),mods:Math.max(1,+gv('mods')||1),
     modW:+gv('modW')||550,voc:+gv('voc')||49.9,isc:+gv('isc')||10.2,
     modModel:gv('modModel'),
@@ -1147,7 +1281,7 @@ function render(){
   el.push(`<rect x="10" y="10" width="${SVG_W-20}" height="62" rx="5" fill="#f5f7fc" stroke="#d0d5e8" stroke-width="0.8"/>`);
   el.push(`<text x="22" y="28" style="fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:15px;font-weight:700">Single Line Diagram — Solar PV${v.hasBatt?' + BESS':''}</text>`);
   el.push(`<text x="22" y="44" style="fill:#1a2040;font-family:'Avenir Next','Avenir',sans-serif;font-size:13px;font-weight:500">${esc(v.projName)}</text>`);
-  el.push(`<text x="22" y="58" style="fill:#707890;font-family:'Avenir Next','Avenir',sans-serif;font-size:11px">${esc(v.sysType.toUpperCase())} &bull; ${esc(v.designer)} &bull; ${esc(v.utilityName)} &bull; POI: ${v.poiKv} kV</text>`);
+  el.push(`<text x="22" y="58" style="fill:#707890;font-family:'Avenir Next','Avenir',sans-serif;font-size:11px">${esc(v.designer)} &bull; ${esc(v.utilityName)} &bull; POI: ${v.poiKv} kV</text>`);
   el.push(`<image href="${LOGO_B64}" x="${LOGO_X}" y="${LOGO_Y}" width="${LOGO_W}" height="${LOGO_H}" preserveAspectRatio="xMidYMid meet"/>`);
   const battSummary=v.hasBatt?`${v.battKw} kW / ${v.battKwh} kWh BESS`:'';
   const kwSummary=`${v.hasArr2?totalKwDc.toFixed(2):arrayKw} kW PV`;
