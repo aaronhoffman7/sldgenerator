@@ -453,14 +453,16 @@ function collectInputState(){
     state[el.id] = el.type === 'checkbox' ? el.checked : el.value;
   });
   // Persist the component list from the .dae upload
-  state.__daeCounts    = _daeCounts || {};
-  state.__daeDismissed = [...(_daeDismissed || [])];
+  state.__daeCounts      = _daeCounts || {};
+  state.__daeDismissed   = [...(_daeDismissed || [])];
+  state.__daeArrayAssign = {...(_daeArrayAssign || {})};
   return state;
 }
 
 function restoreInputState(state){
-  const daeCounts    = state.__daeCounts    || {};
-  const daeDismissed = state.__daeDismissed || [];
+  const daeCounts      = state.__daeCounts      || {};
+  const daeDismissed   = state.__daeDismissed   || [];
+  const daeArrayAssign = state.__daeArrayAssign || {};
 
   Object.entries(state).forEach(([id, val]) => {
     if(id.startsWith('__')) return;
@@ -479,6 +481,18 @@ function restoreInputState(state){
       const row = $('dae-row-' + encodeURIComponent(name));
       if(row) row.remove();
     });
+    // Re-apply array assignments + badges
+    _daeArrayAssign = daeArrayAssign;
+    Object.entries(daeArrayAssign).forEach(([compName, n]) => {
+      const badge = $('dae-badge-' + encodeURIComponent(compName));
+      if(badge){
+        badge.textContent = `Array ${n}`;
+        badge.style.background = DAE_ARR_COLOR[n];
+        badge.style.color = '#fff';
+        badge.style.display = 'inline';
+      }
+    });
+    updateDaeLegend();
     const toggleRow = $('skp-preview-toggle-row');
     if(toggleRow) toggleRow.style.display = 'flex';
   }
@@ -1095,6 +1109,8 @@ function renderDaePreview(xmlText){
     });
 
     refitCamera();
+    recolorDaeScene();
+    updateDaeLegend();
 
     function animate(){
       _daeAnimFrame = requestAnimationFrame(animate);
