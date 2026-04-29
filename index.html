@@ -97,13 +97,10 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
            ondragleave="this.style.borderColor='var(--border)'"
            ondrop="skpFileDrop(event);this.style.borderColor='var(--border)'"
            style="border:1px dashed var(--border);border-radius:4px;padding:14px 10px;text-align:center;cursor:pointer;font-size:11px;color:var(--muted);margin-top:6px;transition:border-color .15s">
-        Drop .skp or .dae here<br><span style="font-size:9px">or click to browse</span>
+        Drop .dae file here<br><span style="font-size:9px">or click to browse</span>
       </div>
-      <input type="file" id="skp-file-input" accept=".skp,.dae" style="display:none" onchange="skpFileSelected(this.files[0])">
-      <div id="skp-name-row" style="display:none;margin-top:8px">
-        <label>Component name <span style="font-size:9px;color:var(--muted)">(exact name from SketchUp)</span></label>
-        <input type="text" id="skp-comp-name" placeholder="e.g. Solar Panel" oninput="skpCountByName()">
-      </div>
+      <input type="file" id="skp-file-input" accept=".dae" style="display:none" onchange="skpFileSelected(this.files[0])">
+      <div class="cnote" style="margin-top:8px">In SketchUp: <b style="color:var(--text)">File → Export → 3D Model → Collada (.dae)</b></div>
       <div id="skp-results" style="margin-top:8px"></div>
     </div>
   </div>
@@ -531,13 +528,10 @@ function toggleSec(bodyId, arrowId){
   arrow.classList.toggle('open', !open);
 }
 
-// ── SketchUp Import ───────────────────────────────────────────────────────────
-let _skpBuffer = null; // ArrayBuffer for .skp
-let _skpIsDae = false;
-let _daeCounts = {}; // component name → instance count
-
+// ── SketchUp Import (.dae only) ───────────────────────────────────────────────
 function skpFileDrop(e){
   e.preventDefault();
+  e.currentTarget.style.borderColor='var(--border)';
   const f = e.dataTransfer.files[0];
   if(f) skpFileSelected(f);
 }
@@ -545,21 +539,14 @@ function skpFileDrop(e){
 function skpFileSelected(file){
   if(!file) return;
   const ext = file.name.split('.').pop().toLowerCase();
-  _skpBuffer = null; _skpIsDae = false; _daeCounts = {};
-  $('skp-results').innerHTML = `<div class="cnote">Reading ${file.name}…</div>`;
-  $('skp-name-row').style.display = 'none';
-
-  const reader = new FileReader();
-  if(ext === 'dae'){
-    _skpIsDae = true;
-    reader.onload = e => { parseDaeText(e.target.result); };
-    reader.readAsText(file);
-  } else if(ext === 'skp'){
-    reader.onload = e => { _skpBuffer = e.target.result; showSkpNameField(); };
-    reader.readAsArrayBuffer(file);
-  } else {
-    $('skp-results').innerHTML = `<div class="cnote" style="color:#f5a742">Unsupported file type. Upload a .skp or .dae file.</div>`;
+  if(ext !== 'dae'){
+    $('skp-results').innerHTML = `<div class="cnote" style="color:#f5a742">Please upload a Collada .dae file (File → Export → 3D Model → Collada in SketchUp).</div>`;
+    return;
   }
+  $('skp-results').innerHTML = `<div class="cnote">Reading ${file.name}…</div>`;
+  const reader = new FileReader();
+  reader.onload = e => parseDaeText(e.target.result);
+  reader.readAsText(file);
 }
 
 function parseDaeText(xml){
@@ -573,7 +560,7 @@ function parseDaeText(xml){
     nameMap['#'+n.getAttribute('id')] = n.getAttribute('name') || n.getAttribute('id');
   });
 
-  // Count instance_node references
+  // Count instance_node references per component definition
   const counts = {};
   doc.querySelectorAll('instance_node[url]').forEach(inst => {
     const url = inst.getAttribute('url');
@@ -581,43 +568,17 @@ function parseDaeText(xml){
     counts[name] = (counts[name]||0) + 1;
   });
 
-  _daeCounts = counts;
-  renderSkpResults(counts, false);
+  renderDaeResults(counts);
 }
 
-function showSkpNameField(){
-  $('skp-name-row').style.display = 'block';
-  $('skp-results').innerHTML = `<div class="cnote">Enter the component name to search for in the binary.</div>`;
-  $('skp-comp-name').focus();
-}
-
-function skpCountByName(){
-  const name = $('skp-comp-name').value.trim();
-  if(!name || !_skpBuffer){ return; }
-
-  const needle = new TextEncoder().encode(name);
-  const hay = new Uint8Array(_skpBuffer);
-  let hits = 0;
-  outer: for(let i = 0; i <= hay.length - needle.length; i++){
-    for(let j = 0; j < needle.length; j++){
-      if(hay[i+j] !== needle[j]) continue outer;
-    }
-    hits++;
-  }
-  // First hit is the component definition; remaining are instances
-  const count = Math.max(0, hits - 1);
-  renderSkpResults({[name]: count}, true);
-}
-
-function renderSkpResults(counts, isSkp){
+function renderDaeResults(counts){
   const el = $('skp-results');
   const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
   if(!entries.length){
-    el.innerHTML = '<div class="cnote">No components found.</div>'; return;
+    el.innerHTML = '<div class="cnote">No component instances found in file.</div>'; return;
   }
   let html = '';
   entries.forEach(([name, count]) => {
-    const safe = name.replace(/'/g,"\\'");
     html += `<div style="margin-top:7px">
       <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${name}">${name}</div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
@@ -627,7 +588,6 @@ function renderSkpResults(counts, isSkp){
       </div>
     </div>`;
   });
-  if(isSkp) html += `<div class="cnote" style="margin-top:8px">⚠ Estimated from binary search. Verify count in SketchUp. Export as .dae for exact results.</div>`;
   el.innerHTML = html;
 }
 
