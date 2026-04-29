@@ -1040,9 +1040,10 @@ function refitCamera(){
   // FOV-based distance: compute exactly how far the camera must be to fit the box
   const vHalfTan = Math.tan((_daeCamera.fov * Math.PI / 180) / 2);
   const hHalfTan = vHalfTan * _daeCamera.aspect;
-  const dist = Math.max(size.x / (2 * hHalfTan), size.z / (2 * vHalfTan), size.y / (2 * vHalfTan)) * 1.5;
-  // Top-down angled view: mostly from above with slight front-side offset
-  _daeCamera.position.set(center.x + dist * 0.4, center.y + dist, center.z + dist * 0.6);
+  const dist = Math.max(size.x / (2 * hHalfTan), size.z / (2 * vHalfTan)) * 1.4;
+  // Pure top-down view: camera directly above, looking straight down
+  _daeCamera.position.set(center.x, center.y + dist, center.z);
+  _daeCamera.up.set(0, 0, -1);
   _daeCamera.lookAt(center);
   _daeControls.target.copy(center);
   _daeControls.update();
