@@ -276,6 +276,10 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <div><label>Power (kW)</label><input type="number" id="battKw" value="5" step="0.1" min="0.1" max="5000" oninput="render()"></div>
       <div><label>Capacity (kWh)</label><input type="number" id="battKwh" value="13.5" step="0.1" min="1" max="2000" oninput="render()"></div>
     </div>
+    <div class="row2">
+      <div><label>Target duration (h)</label><input type="number" id="battDuration" value="2" step="0.5" min="0.5" max="24" oninput="autosizeBatt()"></div>
+      <div style="display:flex;align-items:flex-end;padding-bottom:2px"><button class="hbtn" style="padding:4px 10px;font-size:10px" onclick="autosizeBatt()">&#8635; Auto-size</button></div>
+    </div>
     <div id="batt-calc" class="cnote"></div>
     <div class="row2">
       <div><label>Voltage</label>
@@ -309,6 +313,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="row2">
       <div><label>DC fuse / CB (A)</label><input type="number" id="battDcFuse" value="200" min="1" max="2000" oninput="render()"></div>
     </div>
+    <div id="batt-fuse-calc" class="cnote"></div>
     <label>Comms protocol</label>
     <select id="battComms" onchange="render()">
       <option value="Modbus TCP">Modbus TCP</option>
@@ -641,6 +646,7 @@ const STANDARD_BREAKERS=[15,20,25,30,35,40,45,50,60,70,80,90,100,110,125,150,175
 const PANEL_SIZES=[20,40,60,80,100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000];
 function nextStandardBreaker(minA){return STANDARD_BREAKERS.find(b=>b>=minA)||STANDARD_BREAKERS[STANDARD_BREAKERS.length-1];}
 function nextPanelSize(minA){return PANEL_SIZES.find(p=>p>=minA)||PANEL_SIZES[PANEL_SIZES.length-1];}
+function battVMin(battV){const nums=(battV||'').match(/[\d.]+/g);return nums?Math.min(...nums.map(Number)):48;}
 
 function vals(){
   const hasArr2 = gc('hasArr2');
@@ -1192,7 +1198,23 @@ function toggleMvFields(){
 }
 function toggleBattFields(){
   const el=document.getElementById('batt-fields');
-  if(el) el.style.display=document.getElementById('hasBatt').checked?'block':'none';
+  const on=document.getElementById('hasBatt').checked;
+  if(el) el.style.display=on?'block':'none';
+  if(on) autosizeBatt(); else render();
+}
+function autosizeBatt(){
+  if(!gc('hasBatt')){render();return;}
+  const invKw=+gv('invKw')||10;
+  const invCount=Math.max(1,+gv('invCount')||1);
+  const hasArr2=gc('hasArr2');
+  const a2Kw=hasArr2?(+gv('a2invKw')||10)*Math.max(1,+gv('a2invCount')||1):0;
+  const totalAcKw=Math.round((invKw*invCount+a2Kw)*10)/10;
+  const dur=Math.max(0.5,+gv('battDuration')||2);
+  const kwhVal=Math.round(totalAcKw*dur*10)/10;
+  $('battKw').value=totalAcKw;
+  $('battKwh').value=kwhVal;
+  $('pcsKva').value=totalAcKw;
+  render();
 }
 document.addEventListener('DOMContentLoaded',function(){
   const cb=document.getElementById('hasMvXfmr');
@@ -1238,7 +1260,7 @@ function arrSystemKwChanged(n){
   const unitKw=Math.round((systemKw/dcAcRatio/invCount)*10)/10;
   const invKwEl=a$(n,'invKw');
   if(invKwEl) invKwEl.value=unitKw;
-  render();
+  if(gc('hasBatt')) autosizeBatt(); else render();
 }
 function arrStringsChanged(n){
   const strings=+agv(n,'strings');
@@ -1284,7 +1306,7 @@ function modWChanged(){ arrModWChanged(1); }
 function vocChanged(){ arrVocChanged(1); }
 function combVChanged(){ arrCombVChanged(1); }
 function dcAcRatioChanged(){ arrDcAcRatioChanged(1); }
-function invKwChanged(){ render(); }
+function invKwChanged(){ if(gc('hasBatt')) autosizeBatt(); else render(); }
 function invCountChanged(){ arrInvCountChanged(1); }
 const BATT_PRESETS = {
   '24VDC':         { model: '',                       chem: 'LFP' },
@@ -1410,7 +1432,16 @@ function render(){
     const usableKwh=(v.battKwh*(v.battSocMax-v.battSocMin)/100).toFixed(1);
     const usableDur=(usableKwh/v.battKw).toFixed(1);
     $('s-batt').textContent=`${v.battKw} kW · ${v.battKwh} kWh (${usableKwh} kWh usable) · ${usableDur}h · C/${(1/cRate).toFixed(1)}`;
-    $('batt-calc').textContent=`Gross: ${v.battKwh} kWh · Usable: ${usableKwh} kWh (SOC ${v.battSocMin}–${v.battSocMax}%) · Duration: ${usableDur} h · C-rate: ${cRate}C · ${v.interconnStd}`;
+    const invKwTotal=Math.round((v.invKw*v.invCount+(v.hasArr2?v.a2.invKw*v.a2.invCount:0))*10)/10;
+    const battDur=+gv('battDuration')||2;
+    $('batt-calc').textContent=`Auto: ${invKwTotal} kW AC × ${battDur}h = ${(invKwTotal*battDur).toFixed(1)} kWh  ·  Gross: ${v.battKwh} kWh · Usable: ${usableKwh} kWh (SOC ${v.battSocMin}–${v.battSocMax}%) · Duration: ${usableDur}h · C-rate: ${cRate}C`;
+    const battVdc=battVMin(v.battV);
+    const battDcAraw=(v.battKw*1000)/battVdc;
+    const battFuseMin=battDcAraw*1.25;
+    const recBattFuse=nextStandardBreaker(Math.ceil(battFuseMin));
+    $('battDcFuse').value=recBattFuse;
+    v.battDcFuse=recBattFuse;
+    $('batt-fuse-calc').textContent=`NEC 706.20: ${battDcAraw.toFixed(1)} A × 1.25 = ${battFuseMin.toFixed(1)} A → ${recBattFuse}A std. (@ ${battVdc}V min)`;
   } else {
     $('s-batt').textContent='None';
     $('batt-calc').textContent='';
