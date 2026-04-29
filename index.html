@@ -296,14 +296,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   </div>
   <div class="section">
     <div class="stitle">Conduit Sizing</div>
-    <div class="crow">String / source circuit (per string)</div>
-    <div class="cval" id="c-str">--</div>
-    <div class="crow">DC output circuit (combiner → inverter)</div>
-    <div class="cval" id="c-dc">--</div>
-    <div class="crow">AC output circuit (inverter → panel)</div>
-    <div class="cval" id="c-ac">--</div>
-    <div class="crow">PV communications (inverter → DAS)</div>
-    <div class="cval" id="c-comm">--</div>
+    <div id="conduit-content"></div>
     <div class="cnote">Cu THWN-2 · 75 °C ampacity · EMT 40% fill · EGC per NEC 250.122</div>
     <div class="cnote">Comms: Cat6 · NEC Art. 800 / 725 Class 2 · EMT 40% fill</div>
   </div>
@@ -359,6 +352,23 @@ const EMT_FILL=[
 ];
 function wireFor(a){return WIRE_AMP.find(w=>w.amps>=a)||WIRE_AMP[WIRE_AMP.length-1];}
 function conduitFor(n,wireArea){const tot=n*wireArea;return(EMT_FILL.find(c=>c.f>=tot)||EMT_FILL[EMT_FILL.length-1]).size;}
+// Compute conduit sizing data for one array config object
+function conduitRows(cfg){
+  const invV=cfg.invV||'240VAC 1ph';
+  const invVolts=invV.startsWith('240')?240:invV.startsWith('208')?208:480;
+  const is3ph=invV.includes('3ph');
+  const acConds=is3ph?4:3;
+  const invCount=Math.max(1,cfg.invCount||1);
+  const strA=cfg.isc*1.5625;
+  const strW=wireFor(strA);
+  const dcA=cfg.strings*cfg.isc*1.5625;
+  const dcW=wireFor(dcA);
+  const perInvAcA=(cfg.invKw*1000)/(invVolts*(is3ph?1.732:1))*1.25;
+  const perInvAcW=wireFor(perInvAcA);
+  const CAT6_AREA=0.0594;
+  const commCond=conduitFor(invCount,CAT6_AREA);
+  return{strA,strW,dcA,dcW,perInvAcA,perInvAcW,acConds,invCount,commCond};
+}
 
 const STANDARD_BREAKERS=[15,20,25,30,35,40,45,50,60,70,80,90,100,110,125,150,175,200,225,250,300,350,400,450,500,600,700,800,1000,1200,1600,2000];
 const PANEL_SIZES=[20,40,60,80,100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000];
@@ -938,34 +948,44 @@ function render(){
   svg.innerHTML=el.join('\n');
 
   // ── Conduit sizing ────────────────────────────────────────────────────────
-  // String/source circuit: Isc × 1.25 (690.8A) × 1.25 (690.8B) = × 1.5625
-  const strA = v.isc * 1.5625;
-  const strW = wireFor(strA);
-  $('c-str').textContent = `#${strW.awg} AWG · ${conduitFor(3, strW.area)} EMT  (${strA.toFixed(1)} A req.)`;
-
-  // DC output circuit: arrayIsc × 1.5625
-  const dcA = parseFloat(arrayIsc) * 1.5625;
-  const dcW = wireFor(dcA);
-  $('c-dc').textContent = `#${dcW.awg} AWG · ${conduitFor(3, dcW.area)} EMT  (${dcA.toFixed(1)} A req.)`;
-
-  // AC output circuit: per-inverter sizing (NEC 690.8B continuous × 1.25)
-  const acConductors = v.invV.includes('3ph') ? 4 : 3; // L1,L2,(L3),EGC
-  const perInvAcA = (v.invKw * 1000) / (invVolts * (v.invV.includes('3ph') ? 1.732 : 1)) * 1.25;
-  const perInvAcW = wireFor(perInvAcA);
-  const totalAcA = parseFloat(invAC) * 1.25; // total combined, used for AC combiner sizing
-  const totalAcW = wireFor(totalAcA);
-  const perInvLabel = v.invCount > 1 ? ` · ×${v.invCount} runs` : '';
-  $('c-ac').textContent = `#${perInvAcW.awg} AWG · ${conduitFor(acConductors, perInvAcW.area)} EMT${perInvLabel}  (${perInvAcA.toFixed(1)} A req.)`;
-
-  // ── PV communications conduit (NEC Art. 800 / 725 Class 2) ───────────────
-  // Cat6: ~0.275" OD → cross-section area = π(0.1375)² ≈ 0.0594 in²
-  // Star topology: one Cat6 run per inverter to DAS / network switch
-  // RS-485 Modbus daisy-chain alternative always needs only 1 cable → ½" EMT
   const CAT6_AREA = 0.0594;
-  const commRuns = v.invCount;
-  const commConduit = conduitFor(commRuns, CAT6_AREA);
+  const c1 = conduitRows(v);
+  // Keep vars alive for Roof → Electrical Room section below
+  const perInvAcW = c1.perInvAcW;
+  const perInvAcA = c1.perInvAcA;
+  const acConductors = c1.acConds;
+  const totalAcA = c1.perInvAcA * c1.invCount;
+  const totalAcW = wireFor(totalAcA);
+  const perInvLabel = c1.invCount > 1 ? ` · ×${c1.invCount} runs` : '';
+  const commRuns = c1.invCount;
+  const commConduit = c1.commCond;
   const commText = `Cat6 · ×${commRuns} cable${commRuns > 1 ? 's' : ''} · ${commConduit} EMT  (NEC 800/725 Cl.2)`;
-  $('c-comm').textContent = commText;
+  {
+    const SH = 'margin-top:10px;margin-bottom:3px;font-size:9px;letter-spacing:.08em';
+    function crow(lbl,val){return `<div class="crow">${lbl}</div><div class="cval">${val}</div>`;}
+    function arrBlock(c){
+      const rinv=c.invCount>1?` · ×${c.invCount} runs`:'';
+      return crow('String / source circuit (per string)',`#${c.strW.awg} AWG · ${conduitFor(3,c.strW.area)} EMT  (${c.strA.toFixed(1)} A req.)`)
+        +crow('DC output (combiner → inverter)',`#${c.dcW.awg} AWG · ${conduitFor(3,c.dcW.area)} EMT  (${c.dcA.toFixed(1)} A req.)`)
+        +crow('AC output (inverter → panel)',`#${c.perInvAcW.awg} AWG · ${conduitFor(c.acConds,c.perInvAcW.area)} EMT${rinv}  (${c.perInvAcA.toFixed(1)} A req.)`)
+        +crow('PV comms (inverter → DAS)',`Cat6 · ×${c.invCount} cable${c.invCount>1?'s':''} · ${c.commCond} EMT`);
+    }
+    let ch = '';
+    if(v.hasArr2) ch += `<div class="stitle" style="${SH};color:var(--accent2)">ARRAY 1</div>`;
+    ch += arrBlock(c1);
+    if(v.hasArr2){
+      const c2=conduitRows(v.a2);
+      ch += `<div class="stitle" style="${SH};color:var(--accent2)">ARRAY 2</div>`;
+      ch += arrBlock(c2);
+      const totAcA=c1.perInvAcA*c1.invCount+c2.perInvAcA*c2.invCount;
+      const totAcW=wireFor(totAcA);
+      const totComm=c1.invCount+c2.invCount;
+      ch += `<div class="stitle" style="${SH};color:var(--green)">TOTALS</div>`;
+      ch += crow('Combined AC to panel',`#${totAcW.awg} AWG · ${conduitFor(c1.acConds,totAcW.area)} EMT  (${totAcA.toFixed(1)} A req.)`);
+      ch += crow('Combined PV comms',`Cat6 · ×${totComm} cables · ${conduitFor(totComm,CAT6_AREA)} EMT`);
+    }
+    $('conduit-content').innerHTML = ch;
+  }
 
   // ── Roof → Electrical Room conduit ───────────────────────────────────────
   const hasAcCombiner = gc('hasAcCombiner');
