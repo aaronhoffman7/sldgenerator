@@ -320,7 +320,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     </div>
     <div class="sec-body" id="util-body">
     <div class="row2">
-      <div><label>Utility name</label><input type="text" id="utilityName" value="Utility" oninput="render()"></div>
+      <div><label>Utility name</label><input type="text" id="utilityName" value="Pepco" oninput="render()"></div>
       <div><label>POI voltage (kV)</label><input type="number" id="poiKv" value="0.48" step="0.001" min="0.1" max="500" oninput="render()"></div>
     </div>
     <div class="trow"><span>MV step-up transformer</span><label class="tog"><input type="checkbox" id="hasMvXfmr" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
@@ -437,16 +437,37 @@ function collectInputState(){
   document.querySelectorAll('input[id],select[id]').forEach(el => {
     state[el.id] = el.type === 'checkbox' ? el.checked : el.value;
   });
+  // Persist the component list from the .dae upload
+  state.__daeCounts    = _daeCounts || {};
+  state.__daeDismissed = [...(_daeDismissed || [])];
   return state;
 }
 
 function restoreInputState(state){
+  const daeCounts    = state.__daeCounts    || {};
+  const daeDismissed = state.__daeDismissed || [];
+
   Object.entries(state).forEach(([id, val]) => {
+    if(id.startsWith('__')) return;
     const el = $(id);
     if(!el) return;
     if(el.type === 'checkbox') el.checked = val;
     else el.value = val;
   });
+
+  // Restore component list
+  if(Object.keys(daeCounts).length > 0){
+    renderDaeResults(daeCounts);
+    // Re-apply dismissed rows
+    _daeDismissed = new Set(daeDismissed);
+    daeDismissed.forEach(name => {
+      const row = $('dae-row-' + encodeURIComponent(name));
+      if(row) row.remove();
+    });
+    const toggleRow = $('skp-preview-toggle-row');
+    if(toggleRow) toggleRow.style.display = 'flex';
+  }
+
   if(typeof arr2Toggle === 'function') arr2Toggle();
   render();
 }
