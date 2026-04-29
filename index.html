@@ -77,13 +77,18 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 <div class="app">
 <aside>
   <div class="section">
-    <div class="stitle">Project</div>
+    <div class="sec-toggle" onclick="toggleSec('proj-body','proj-arrow')">
+      <div class="stitle">Project</div>
+      <span class="sec-arrow open" id="proj-arrow">&#9654;</span>
+    </div>
+    <div class="sec-body" id="proj-body">
     <label>System type</label>
     <select id="sysType" onchange="render()"><option value="residential">Residential</option><option value="commercial" selected>Commercial</option></select>
     <label>Project name / address</label>
     <input type="text" id="projName" value="123 Main Street" oninput="render()">
     <label>AHJ / designer note</label>
     <input type="text" id="designer" value="Conceptual Drawing — Not for Construction" oninput="render()">
+    </div>
   </div>
   <!-- SketchUp Import -->
   <div class="section">
@@ -100,8 +105,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
         Drop .dae file here<br><span style="font-size:9px">or click to browse</span>
       </div>
       <input type="file" id="skp-file-input" accept=".dae" style="display:none" onchange="skpFileSelected(this.files[0])">
-      <div class="cnote" style="margin-top:8px">In SketchUp: <b style="color:var(--text)">File → Export → 3D Model → Collada (.dae)</b></div>
-      <div id="skp-results" style="margin-top:8px"></div>
+<div id="skp-results" style="margin-top:8px"></div>
     </div>
   </div>
   <!-- Array 1 -->
@@ -233,7 +237,11 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     </div><!-- end arr2-body -->
   </div>
   <div class="section">
-    <div class="stitle">Battery Storage</div>
+    <div class="sec-toggle" onclick="toggleSec('batt-body','batt-arrow')">
+      <div class="stitle">Battery Storage</div>
+      <span class="sec-arrow open" id="batt-arrow">&#9654;</span>
+    </div>
+    <div class="sec-body" id="batt-body">
     <div class="trow"><span>Include battery</span><label class="tog"><input type="checkbox" id="hasBatt" onchange="toggleBattFields();render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div id="batt-fields" style="display:none">
     <label>Coupling</label>
@@ -277,6 +285,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <option value="PREPA">PREPA</option>
     </select>
     </div>
+    </div>
   </div>
   <div class="section">
     <div class="stitle">Utility &amp; POI</div>
@@ -295,9 +304,14 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
         <div><label>Secondary (V)</label><input type="number" id="mvSecV" value="480" step="10" oninput="render()"></div>
       </div>
     </div>
+    </div>
   </div>
   <div class="section">
-    <div class="stitle">Service &amp; Protection</div>
+    <div class="sec-toggle" onclick="toggleSec('svc-body','svc-arrow')">
+      <div class="stitle">Service &amp; Protection</div>
+      <span class="sec-arrow open" id="svc-arrow">&#9654;</span>
+    </div>
+    <div class="sec-body" id="svc-body">
     <div class="row2">
       <div><label>Panel size (A)</label>
         <select id="panelA" onchange="render()"><option value="20">20A</option><option value="40">40A</option><option value="60">60A</option><option value="80">80A</option><option value="100">100A</option><option value="200" selected>200A</option><option value="300">300A</option><option value="400">400A</option><option value="500">500A</option><option value="600">600A</option><option value="700">700A</option><option value="800">800A</option><option value="900">900A</option><option value="1000">1000A</option><option value="1100">1100A</option><option value="1200">1200A</option><option value="1300">1300A</option><option value="1400">1400A</option><option value="1500">1500A</option><option value="1600">1600A</option><option value="1700">1700A</option><option value="1800">1800A</option><option value="1900">1900A</option><option value="2000">2000A</option></select>
@@ -312,15 +326,25 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="trow"><span>Rapid shutdown (RSD)</span><label class="tog"><input type="checkbox" id="hasRSD" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Production meter</span><label class="tog"><input type="checkbox" id="hasMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Show grounding</span><label class="tog"><input type="checkbox" id="hasGnd" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    </div>
   </div>
   <div class="section">
-    <div class="stitle">Conduit Sizing</div>
+    <div class="sec-toggle" onclick="toggleSec('conduit-body','conduit-arrow')">
+      <div class="stitle">Conduit Sizing</div>
+      <span class="sec-arrow open" id="conduit-arrow">&#9654;</span>
+    </div>
+    <div class="sec-body" id="conduit-body">
     <div id="conduit-content"></div>
     <div class="cnote">Cu THWN-2 · 75 °C ampacity · EMT 40% fill · EGC per NEC 250.122</div>
     <div class="cnote">Comms: Cat6 · NEC Art. 800 / 725 Class 2 · EMT 40% fill</div>
+    </div>
   </div>
   <div class="section">
-    <div class="stitle">Roof → Electrical Room</div>
+    <div class="sec-toggle" onclick="toggleSec('roof-body','roof-arrow')">
+      <div class="stitle">Roof → Electrical Room</div>
+      <span class="sec-arrow open" id="roof-arrow">&#9654;</span>
+    </div>
+    <div class="sec-body" id="roof-body">
     <div class="trow"><span>AC combiner on roof</span><label class="tog"><input type="checkbox" id="hasAcCombiner" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div id="roof-branch-row" style="display:none">
       <div class="crow">Inv → combiner (per inverter)</div>
@@ -331,6 +355,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="crow">PV communications (inverter → DAS)</div>
     <div class="cval" id="c-roof-comm">--</div>
     <div class="cnote">Cu THWN-2 · 75 °C · EMT 40% fill · Comms: NEC Art. 800 / 725 Class 2</div>
+    </div>
   </div>
 </aside>
 <main>
@@ -571,7 +596,10 @@ function parseDaeText(xml){
   renderDaeResults(counts);
 }
 
+let _daeCounts = {};
+
 function renderDaeResults(counts){
+  _daeCounts = counts;
   const el = $('skp-results');
   const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
   if(!entries.length){
@@ -579,8 +607,12 @@ function renderDaeResults(counts){
   }
   let html = '';
   entries.forEach(([name, count]) => {
-    html += `<div style="margin-top:7px">
-      <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${name}">${name}</div>
+    const key = encodeURIComponent(name);
+    html += `<div id="dae-row-${key}" style="margin-top:7px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1" title="${name}">${name}</div>
+        <button onclick="daeDismiss('${key}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:0 0 0 6px;flex-shrink:0" title="Remove">×</button>
+      </div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
         <span style="font-size:13px;font-weight:600;color:var(--green);font-family:var(--mono)">${count} modules</span>
         <button class="hbtn" style="font-size:10px;padding:3px 8px" onclick="applySkpCount(1,${count})">→ Array 1</button>
@@ -589,6 +621,11 @@ function renderDaeResults(counts){
     </div>`;
   });
   el.innerHTML = html;
+}
+
+function daeDismiss(key){
+  const row = $('dae-row-'+key);
+  if(row) row.remove();
 }
 
 function applySkpCount(n, totalModules){
@@ -1222,7 +1259,7 @@ function exportPDF(){
 
   const img=new Image();
   img.onload=function(){
-    const scale=2;
+    const scale=4;
     const canvas=document.createElement('canvas');
     canvas.width=W*scale; canvas.height=H*scale;
     const ctx=canvas.getContext('2d');
@@ -1235,16 +1272,16 @@ function exportPDF(){
     function finish(){
       const {jsPDF}=window.jspdf;
       const pdf=new jsPDF({orientation:W>=H?'landscape':'portrait',unit:'px',format:[W,H],hotfixes:['px_scaling']});
-      pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,W,H);
+      pdf.addImage(canvas.toDataURL('image/png',1.0),'PNG',0,0,W,H);
       pdf.save((v.projName||'sld').replace(/[^a-z0-9]/gi,'_')+'_SLD.pdf');
     }
 
     // Draw logo directly on canvas — SVG-as-image sandboxing blocks <image> elements
     if(LOGO_B64 && LOGO_B64 !== 'logo.png'){
-      const LOGO_W=80, LOGO_H=32, SVG_W=1100;
+      const LOGO_W=80, LOGO_H=32;
       const logoImg=new Image();
       logoImg.onload=function(){
-        ctx.drawImage(logoImg, SVG_W-22-LOGO_W, 18, LOGO_W, LOGO_H);
+        ctx.drawImage(logoImg, W-22-LOGO_W, 20, LOGO_W, LOGO_H);
         finish();
       };
       logoImg.onerror=finish;
