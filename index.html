@@ -1026,17 +1026,36 @@ function render(){
   const hasAcCombiner = gc('hasAcCombiner');
   const roofBranchRow = $('roof-branch-row');
   const roofMainLbl = $('c-roof-main-lbl');
+  const c2roof = v.hasArr2 ? conduitRows(v.a2) : null;
+  // Combined totals across all active arrays
+  const roofTotalAcA = v.hasArr2 ? (c1.perInvAcA*c1.invCount + c2roof.perInvAcA*c2roof.invCount) : totalAcA;
+  const roofTotalAcW = v.hasArr2 ? wireFor(roofTotalAcA) : totalAcW;
+  const roofCommRuns = v.hasArr2 ? c1.invCount + c2roof.invCount : commRuns;
+  const roofCommCond = conduitFor(roofCommRuns, CAT6_AREA);
   if(hasAcCombiner){
     roofBranchRow.style.display = 'block';
-    $('c-roof-branch').textContent = `#${perInvAcW.awg} AWG · ${conduitFor(acConductors, perInvAcW.area)} EMT · ×${v.invCount} runs  (${perInvAcA.toFixed(1)} A req.)`;
-    roofMainLbl.textContent = 'Combiner → elec. room (single run)';
-    $('c-roof-main').textContent = `#${totalAcW.awg} AWG · ${conduitFor(acConductors, totalAcW.area)} EMT  (${totalAcA.toFixed(1)} A req.)`;
+    if(v.hasArr2){
+      const r1=c1.invCount>1?` ×${c1.invCount} runs`:'';
+      const r2=c2roof.invCount>1?` ×${c2roof.invCount} runs`:'';
+      $('c-roof-branch').textContent = `Arr1: #${c1.perInvAcW.awg} AWG${r1}  (${(c1.perInvAcA*c1.invCount).toFixed(1)} A) · Arr2: #${c2roof.perInvAcW.awg} AWG${r2}  (${(c2roof.perInvAcA*c2roof.invCount).toFixed(1)} A)`;
+    } else {
+      $('c-roof-branch').textContent = `#${perInvAcW.awg} AWG · ${conduitFor(acConductors, perInvAcW.area)} EMT · ×${v.invCount} runs  (${perInvAcA.toFixed(1)} A req.)`;
+    }
+    roofMainLbl.textContent = v.hasArr2 ? 'AC combiner → elec. room (combined run)' : 'Combiner → elec. room (single run)';
+    $('c-roof-main').textContent = `#${roofTotalAcW.awg} AWG · ${conduitFor(acConductors, roofTotalAcW.area)} EMT  (${roofTotalAcA.toFixed(1)} A req.)`;
   } else {
     roofBranchRow.style.display = 'none';
-    roofMainLbl.textContent = v.invCount > 1 ? `Direct runs (×${v.invCount} inverters → elec. room)` : 'Direct run (inverter → elec. room)';
-    $('c-roof-main').textContent = `#${perInvAcW.awg} AWG · ${conduitFor(acConductors, perInvAcW.area)} EMT${perInvLabel}  (${perInvAcA.toFixed(1)} A req.)`;
+    if(v.hasArr2){
+      const r1=c1.invCount>1?` ×${c1.invCount} runs`:'';
+      const r2=c2roof.invCount>1?` ×${c2roof.invCount} runs`:'';
+      roofMainLbl.textContent = 'Direct runs (all inverters → elec. room)';
+      $('c-roof-main').textContent = `Arr1: #${c1.perInvAcW.awg} AWG${r1}  (${(c1.perInvAcA*c1.invCount).toFixed(1)} A) · Arr2: #${c2roof.perInvAcW.awg} AWG${r2}  (${(c2roof.perInvAcA*c2roof.invCount).toFixed(1)} A)`;
+    } else {
+      roofMainLbl.textContent = v.invCount > 1 ? `Direct runs (×${v.invCount} inverters → elec. room)` : 'Direct run (inverter → elec. room)';
+      $('c-roof-main').textContent = `#${perInvAcW.awg} AWG · ${conduitFor(acConductors, perInvAcW.area)} EMT${perInvLabel}  (${perInvAcA.toFixed(1)} A req.)`;
+    }
   }
-  $('c-roof-comm').textContent = commText;
+  $('c-roof-comm').textContent = `Cat6 · ×${roofCommRuns} cable${roofCommRuns>1?'s':''} · ${roofCommCond} EMT  (NEC 800/725 Cl.2)`;
 
   // ── NEC 705.12(D)(2) backfeed breaker validation ──────────────────────────
   // Max solar = (panel × 120%) − panel = panel × 20%
