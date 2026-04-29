@@ -113,7 +113,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <input type="file" id="skp-file-input" accept=".dae" style="display:none" onchange="skpFileSelected(this.files[0])">
       <div id="skp-results" style="margin-top:8px"></div>
       <div id="skp-preview-toggle-row" class="trow" style="display:none;margin-top:8px">
-        <span>3D model preview</span>
+        <span>Array layout preview</span>
         <label class="tog"><input type="checkbox" id="skp-preview-toggle" checked onchange="toggleDaePreview(this.checked)"><div class="ttrack"><div class="tthumb"></div></div></label>
       </div>
     </div>
@@ -363,7 +363,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   <div class="canvas-wrap">
     <div id="dae-overlay">
       <div id="dae-overlay-hdr">
-        <span>3D Model Preview</span>
+        <span>Array Layout</span>
         <button onclick="toggleDaePreview(false)" title="Hide">&#10005;</button>
       </div>
       <canvas id="skp-preview-canvas" style="display:block;width:100%;cursor:grab"></canvas>
@@ -671,7 +671,10 @@ function daeDismiss(key){
   _daeDismissed.add(compName);
   if(_daeScene){
     _daeScene.traverse(obj => {
-      if(obj.userData.componentName === compName) obj.visible = false;
+      if(obj.userData.componentName === compName){
+        obj.visible = false;
+        obj.traverse(child => { child.visible = false; });
+      }
     });
     refitCamera();
   }
@@ -711,8 +714,12 @@ function refitCamera(){
   if(box.isEmpty()) return;
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
-  const d = Math.max(size.x, size.y, size.z);
-  _daeCamera.position.set(center.x + d, center.y + d * 0.7, center.z + d);
+  // FOV-based distance: compute exactly how far the camera must be to fit the box
+  const vHalfTan = Math.tan((_daeCamera.fov * Math.PI / 180) / 2);
+  const hHalfTan = vHalfTan * _daeCamera.aspect;
+  const dist = Math.max(size.x / (2 * hHalfTan), size.z / (2 * vHalfTan), size.y / (2 * vHalfTan)) * 1.5;
+  // Top-down angled view: mostly from above with slight front-side offset
+  _daeCamera.position.set(center.x + dist * 0.4, center.y + dist, center.z + dist * 0.6);
   _daeCamera.lookAt(center);
   _daeControls.target.copy(center);
   _daeControls.update();
