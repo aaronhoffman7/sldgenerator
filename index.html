@@ -53,6 +53,11 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .stat b{color:var(--green);font-weight:500}
 .stat.w b{color:var(--accent)}
 .crow{font-size:10px;color:var(--muted);margin-top:9px}
+.sec-toggle{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.sec-toggle .stitle{margin-bottom:0}
+.sec-arrow{font-size:11px;color:var(--muted);transition:transform .2s;display:inline-block}
+.sec-arrow.open{transform:rotate(90deg)}
+.sec-body{overflow:hidden}
 .cval{font-size:11px;color:var(--text);font-family:var(--mono);margin-top:2px}
 .cnote{font-size:9px;color:var(--muted);margin-top:10px;line-height:1.5}
 .cwarn{font-size:10px;color:#f5a742;margin-top:4px}
@@ -80,8 +85,13 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <label>AHJ / designer note</label>
     <input type="text" id="designer" value="Conceptual Drawing — Not for Construction" oninput="render()">
   </div>
+  <!-- Array 1 -->
   <div class="section">
-    <div class="stitle">PV Array</div>
+    <div class="sec-toggle" onclick="toggleSec('arr1-body','arr1-arrow')">
+      <div class="stitle">PV Array 1</div>
+      <span class="sec-arrow open" id="arr1-arrow">&#9654;</span>
+    </div>
+    <div class="sec-body" id="arr1-body">
     <label>System size (kW DC)</label>
     <input type="number" id="systemKw" placeholder="e.g. 10" step="0.1" min="0.1" oninput="systemKwChanged()">
     <div id="system-kw-note" class="cnote"></div>
@@ -98,18 +108,14 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     </div>
     <label>Module make / model</label>
     <input type="text" id="modModel" value="JA Solar 550W" oninput="render()">
-  </div>
-  <div class="section">
-    <div class="stitle">String Combiner(s)</div>
+    <div class="stitle" style="margin-top:12px">String Combiner 1</div>
     <div class="trow"><span>Include combiner box</span><label class="tog"><input type="checkbox" id="hasCombiner" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <label>Max DC voltage rating</label>
     <select id="combV" onchange="combVChanged()"><option value="600">600 VDC</option><option value="1000" selected>1000 VDC</option><option value="1500">1500 VDC</option></select>
     <label>String fuse (A)</label>
     <input type="number" id="combFuse" value="15" min="5" max="60" oninput="render()">
     <div id="fuse-check" class="cnote"></div>
-  </div>
-  <div class="section">
-    <div class="stitle">Inverter</div>
+    <div class="stitle" style="margin-top:12px">Inverter 1</div>
     <label>Type</label>
     <select id="invType" onchange="render()">
       <option value="string">String inverter</option>
@@ -137,6 +143,69 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     </div>
     <label>Make / model</label>
     <input type="text" id="invModel" value="SMA Sunny Boy 10.0" oninput="render()">
+    </div><!-- end arr1-body -->
+  </div>
+  <!-- Array 2 -->
+  <div class="section">
+    <div class="sec-toggle" onclick="toggleSec('arr2-body','arr2-arrow')">
+      <div class="stitle" style="display:flex;align-items:center;gap:8px">
+        PV Array 2
+        <label class="tog" onclick="event.stopPropagation()" style="margin-top:0"><input type="checkbox" id="hasArr2" onchange="arr2Toggle();render()"><div class="ttrack"><div class="tthumb"></div></div></label>
+      </div>
+      <span class="sec-arrow" id="arr2-arrow">&#9654;</span>
+    </div>
+    <div class="sec-body" id="arr2-body" style="display:none">
+    <div style="margin-top:6px;margin-bottom:4px;display:flex;align-items:center;gap:6px">
+      <input type="checkbox" id="arr2-linked" checked onchange="arr2LinkChanged()" style="width:auto">
+      <span style="font-size:11px;color:var(--muted)">Mirror Array 1 settings</span>
+    </div>
+    <div id="arr2-fields">
+    <label>System size (kW DC)</label>
+    <input type="number" id="a2systemKw" placeholder="e.g. 10" step="0.1" min="0.1" oninput="render()">
+    <div class="row2">
+      <div><label>Strings</label><input type="number" id="a2strings" value="2" min="1" max="500" oninput="render()"></div>
+      <div><label>Mods/string</label><input type="number" id="a2mods" value="12" min="1" max="40" oninput="render()"></div>
+    </div>
+    <div class="row2">
+      <div><label>Module Wp</label><input type="number" id="a2modW" value="550" min="50" max="700" oninput="render()"></div>
+      <div><label>Voc (V)</label><input type="number" id="a2voc" value="49.9" step="0.1" oninput="render()"></div>
+    </div>
+    <div class="row2">
+      <div><label>Isc (A)</label><input type="number" id="a2isc" value="10.2" step="0.1" oninput="render()"></div>
+    </div>
+    <label>Module make / model</label>
+    <input type="text" id="a2modModel" value="JA Solar 550W" oninput="render()">
+    <div class="stitle" style="margin-top:12px">String Combiner 2</div>
+    <div class="trow"><span>Include combiner box</span><label class="tog"><input type="checkbox" id="a2hasCombiner" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <label>Max DC voltage rating</label>
+    <select id="a2combV" onchange="render()"><option value="600">600 VDC</option><option value="1000" selected>1000 VDC</option><option value="1500">1500 VDC</option></select>
+    <label>String fuse (A)</label>
+    <input type="number" id="a2combFuse" value="15" min="5" max="60" oninput="render()">
+    <div class="stitle" style="margin-top:12px">Inverter 2</div>
+    <label>Type</label>
+    <select id="a2invType" onchange="render()">
+      <option value="string">String inverter</option>
+      <option value="hybrid">Hybrid (DC-coupled battery)</option>
+      <option value="micro">Microinverters</option>
+      <option value="central">Central inverter</option>
+    </select>
+    <div class="row2">
+      <div><label>Unit size (kW)</label><input type="number" id="a2invKw" value="10" min="1" max="500" oninput="render()"></div>
+      <div><label>Output voltage</label>
+        <select id="a2invV" onchange="render()">
+          <option value="240VAC 1ph">240VAC 1ph</option>
+          <option value="208VAC 3ph">208VAC 3ph</option>
+          <option value="480VAC 3ph">480VAC 3ph</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2">
+      <div><label>Qty (parallel)</label><input type="number" id="a2invCount" value="1" min="1" max="20" oninput="render()"></div>
+    </div>
+    <label>Make / model</label>
+    <input type="text" id="a2invModel" value="SMA Sunny Boy 10.0" oninput="render()">
+    </div><!-- end arr2-fields -->
+    </div><!-- end arr2-body -->
   </div>
   <div class="section">
     <div class="stitle">Battery Storage</div>
@@ -287,6 +356,7 @@ function nextStandardBreaker(minA){return STANDARD_BREAKERS.find(b=>b>=minA)||ST
 function nextPanelSize(minA){return PANEL_SIZES.find(p=>p>=minA)||PANEL_SIZES[PANEL_SIZES.length-1];}
 
 function vals(){
+  const hasArr2 = gc('hasArr2');
   return{
     sysType:gv('sysType'),projName:gv('projName'),designer:gv('designer'),
     strings:Math.max(1,+gv('strings')||1),mods:Math.max(1,+gv('mods')||1),
@@ -294,6 +364,15 @@ function vals(){
     modModel:gv('modModel'),
     hasCombiner:gc('hasCombiner'),combV:+gv('combV')||1000,combFuse:+gv('combFuse')||15,
     invType:gv('invType'),invKw:+gv('invKw')||10,invCount:Math.max(1,+gv('invCount')||1),invV:gv('invV'),invModel:gv('invModel'),
+    hasArr2,
+    a2:{
+      strings:Math.max(1,+gv('a2strings')||1),mods:Math.max(1,+gv('a2mods')||1),
+      modW:+gv('a2modW')||550,voc:+gv('a2voc')||49.9,isc:+gv('a2isc')||10.2,
+      modModel:gv('a2modModel'),
+      hasCombiner:gc('a2hasCombiner'),combV:+gv('a2combV')||1000,combFuse:+gv('a2combFuse')||15,
+      invType:gv('a2invType'),invKw:+gv('a2invKw')||10,invCount:Math.max(1,+gv('a2invCount')||1),
+      invV:gv('a2invV'),invModel:gv('a2invModel'),
+    },
     hasBatt:gc('hasBatt'),battCouple:gv('battCouple'),battKwh:+gv('battKwh')||13.5,
     battKw:+gv('battKw')||5,battQty:Math.max(1,+gv('battQty')||1),pcsKva:+gv('pcsKva')||5,
     battV:gv('battV'),battChem:gv('battChem'),battModel:gv('battModel'),
@@ -416,6 +495,46 @@ function discBox(x,y,w,h,fill,stroke,label,sub){
   return s;
 }
 
+function toggleSec(bodyId, arrowId){
+  const body = $(bodyId), arrow = $(arrowId);
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  arrow.classList.toggle('open', !open);
+}
+
+function arr2Toggle(){
+  const on = gc('hasArr2');
+  const body = $('arr2-body');
+  const arrow = $('arr2-arrow');
+  body.style.display = on ? 'block' : 'none';
+  arrow.classList.toggle('open', on);
+  if(on) arr2Sync();
+}
+
+function arr2Sync(){
+  if(!gc('arr2-linked')) return;
+  const fields = ['strings','mods','modW','voc','isc','modModel','combV','combFuse','invType','invKw','invV','invCount','invModel'];
+  fields.forEach(f => {
+    const src = $(f), dst = $('a2'+f);
+    if(src && dst) dst.value = src.value;
+  });
+  const hasComb = gc('hasCombiner'), hasCombEl = $('a2hasCombiner');
+  if(hasCombEl) hasCombEl.checked = hasComb;
+  // also sync systemKw
+  const skw = $('systemKw'), askw = $('a2systemKw');
+  if(skw && askw) askw.value = skw.value;
+}
+
+function arr2LinkChanged(){
+  const linked = gc('arr2-linked');
+  const fields = $('arr2-fields');
+  if(fields){
+    fields.querySelectorAll('input,select').forEach(el => el.disabled = linked);
+  }
+  if(linked) arr2Sync();
+  render();
+}
+
 function toggleMvFields(){
   const el=document.getElementById('mvxfmr-fields');
   if(el) el.style.display=document.getElementById('hasMvXfmr').checked?'block':'none';
@@ -427,6 +546,9 @@ function toggleBattFields(){
 document.addEventListener('DOMContentLoaded',function(){
   const cb=document.getElementById('hasMvXfmr');
   if(cb) cb.addEventListener('change',toggleMvFields);
+  // Disable arr2 manual fields by default (mirrored)
+  const arr2fields = document.getElementById('arr2-fields');
+  if(arr2fields) arr2fields.querySelectorAll('input,select').forEach(el => el.disabled = true);
 });
 function stringsChanged(){
   const strings = +document.getElementById('strings').value;
@@ -526,6 +648,7 @@ function battVChanged(){
   render();
 }
 function render(){
+  if(gc('hasArr2') && gc('arr2-linked')) arr2Sync();
   const v=vals();
   const arrayKw=(v.strings*v.mods*v.modW/1000).toFixed(2);
   const stringVoc=(v.mods*v.voc).toFixed(1);
