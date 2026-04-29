@@ -1048,6 +1048,46 @@ function collectPanelsForView(arrNum){
   return panels;
 }
 
+function clusterPanels(panels){
+  // Split a flat panel list into spatially distinct groups using gap detection on each axis.
+  if(panels.length <= 1) return [panels];
+
+  function gapBreaks(vals){
+    const s = [...vals].sort((a,b) => a-b);
+    const gaps = [];
+    for(let i = 1; i < s.length; i++) gaps.push({ g: s[i]-s[i-1], at:(s[i]+s[i-1])/2 });
+    if(!gaps.length) return [];
+    // Minimum non-trivial gap = typical panel spacing
+    const minG = Math.min(...gaps.map(g=>g.g).filter(g=>g>0.01));
+    // Any gap more than 2.5× the typical panel spacing = a physical separation between groups
+    return gaps.filter(g => g.g > minG * 2.5).map(g => g.at);
+  }
+
+  const xBreaks = gapBreaks(panels.map(p => p.center.x));
+  const zBreaks = gapBreaks(panels.map(p => p.center.z));
+  if(!xBreaks.length && !zBreaks.length) return [panels];
+
+  function cellKey(val, breaks){
+    let idx = 0;
+    for(const b of breaks) if(val > b) idx++;
+    return idx;
+  }
+
+  const cells = new Map();
+  panels.forEach(p => {
+    const key = `${cellKey(p.center.x, xBreaks)}_${cellKey(p.center.z, zBreaks)}`;
+    if(!cells.has(key)) cells.set(key, []);
+    cells.get(key).push(p);
+  });
+
+  // Sort clusters top-left → bottom-right (by centroid Z then X)
+  return [...cells.values()].sort((a, b) => {
+    const az = a.reduce((s,p)=>s+p.center.z,0)/a.length, bz = b.reduce((s,p)=>s+p.center.z,0)/b.length;
+    const ax = a.reduce((s,p)=>s+p.center.x,0)/a.length, bx = b.reduce((s,p)=>s+p.center.x,0)/b.length;
+    return az - bz || ax - bx;
+  });
+}
+
 function applyStringColors(){
   if(!_daeScene) return;
   _stringColorMap = [];
@@ -1068,23 +1108,29 @@ function applyStringColors(){
     if(panels.length) groups.push({ panels, arrNum: 1, mods });
   }
 
-  const totalStrings = groups.reduce((s, g) => s + Math.ceil(g.panels.length / g.mods), 0);
-  let globalIdx = 0;
+  // Pre-compute sorted clusters per group so we know total string count before coloring
+  const groupData = groups.map(({ panels, arrNum, mods }) => {
+    const clusters = clusterPanels(panels).map(c => sortPanelsRowMajor(c));
+    return { clusters, arrNum, mods };
+  });
+  const totalStrings = groupData.reduce((sum, { clusters, mods }) =>
+    sum + clusters.reduce((s, c) => s + Math.ceil(c.length / mods), 0), 0);
 
-  groups.forEach(({ panels, arrNum, mods }) => {
-    const sorted = sortPanelsRowMajor(panels);
-    const numStrings = Math.ceil(sorted.length / mods);
-    sorted.forEach((p, i) => {
-      const sIdx = Math.floor(i / mods);
-      const hue = (globalIdx + sIdx) / Math.max(totalStrings, 1);
-      const mat = new THREE.MeshLambertMaterial({ color: new THREE.Color().setHSL(hue, 0.78, 0.52), side: THREE.DoubleSide });
-      p.meshes.forEach(m => m.material = mat);
+  let globalIdx = 0;
+  groupData.forEach(({ clusters, arrNum, mods }) => {
+    clusters.forEach(sorted => {
+      sorted.forEach((p, i) => {
+        const hue = (globalIdx + Math.floor(i / mods)) / Math.max(totalStrings, 1);
+        const mat = new THREE.MeshLambertMaterial({ color: new THREE.Color().setHSL(hue, 0.78, 0.52), side: THREE.DoubleSide });
+        p.meshes.forEach(m => m.material = mat);
+      });
+      const n = Math.ceil(sorted.length / mods);
+      for(let s = 0; s < n; s++){
+        const hue = (globalIdx + s) / Math.max(totalStrings, 1);
+        _stringColorMap.push({ label:`S${globalIdx+s+1}`, color:`hsl(${Math.round(hue*360)},78%,52%)`, arrNum });
+      }
+      globalIdx += n;
     });
-    for(let s = 0; s < numStrings; s++){
-      const hue = (globalIdx + s) / Math.max(totalStrings, 1);
-      _stringColorMap.push({ label: `S${globalIdx + s + 1}`, color: `hsl(${Math.round(hue*360)},78%,52%)`, arrNum });
-    }
-    globalIdx += numStrings;
   });
 
   updateDaeLegend();
