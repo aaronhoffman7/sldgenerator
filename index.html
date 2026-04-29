@@ -976,35 +976,55 @@ function setDaeView(mode){
 
 function sortPanelsRowMajor(panels){
   if(panels.length <= 1) return [...panels];
-  // Estimate typical nearest-neighbour spacing (sample up to 15 panels)
-  const sample = panels.slice(0, Math.min(panels.length, 15));
-  let totalMinD = 0;
-  sample.forEach(p => {
-    let minD = Infinity;
-    panels.forEach(q => {
-      if(p === q) return;
-      const d = Math.hypot(p.center.x - q.center.x, p.center.z - q.center.z);
-      if(d < minD) minD = d;
-    });
-    totalMinD += minD;
-  });
-  const spacing = totalMinD / sample.length || 1;
-  const rowGap  = spacing * 1.8; // gap larger than this → new row
 
-  const xs = panels.map(p => p.center.x), zs = panels.map(p => p.center.z);
-  const xSpread = Math.max(...xs) - Math.min(...xs);
-  const zSpread = Math.max(...zs) - Math.min(...zs);
-  // rowAxis: the axis that separates rows; colAxis: the axis within a row
-  const rowAxis = xSpread >= zSpread ? 'z' : 'x';
-  const colAxis = rowAxis === 'z' ? 'x' : 'z';
+  const xs = panels.map(p => p.center.x);
+  const zs = panels.map(p => p.center.z);
+  const xRange = Math.max(...xs) - Math.min(...xs);
+  const zRange = Math.max(...zs) - Math.min(...zs);
 
-  const sorted = [...panels].sort((a, b) => a.center[rowAxis] - b.center[rowAxis]);
+  // Use a small snap tolerance (2% of the shorter range) to count distinct grid lines
+  const snapTol = Math.min(xRange, zRange) * 0.02 || 0.01;
+  function countUniq(vals){
+    const s = [...vals].sort((a,b) => a-b);
+    let c = 1;
+    for(let i = 1; i < s.length; i++) if(s[i] - s[i-1] > snapTol) c++;
+    return c;
+  }
+  const uniqueX = countUniq(xs);
+  const uniqueZ = countUniq(zs);
+
+  // Axis with MORE unique positions = within-row direction (panels packed along it).
+  // Rows are therefore SEPARATED along the other axis.
+  let rowAxis, colAxis;
+  if(uniqueX !== uniqueZ){
+    rowAxis = uniqueX > uniqueZ ? 'z' : 'x';
+  } else {
+    rowAxis = xRange >= zRange ? 'z' : 'x'; // tie-break: larger spread = within-row
+  }
+  colAxis = rowAxis === 'z' ? 'x' : 'z';
+
+  // Minimum positive gap along the rowAxis = the actual row pitch.
+  // Use half that as the threshold: anything larger than half the row pitch → new row.
+  const rowVals = panels.map(p => p.center[rowAxis]).sort((a,b) => a-b);
+  let minRowGap = Infinity;
+  for(let i = 1; i < rowVals.length; i++){
+    const g = rowVals[i] - rowVals[i-1];
+    if(g > snapTol) minRowGap = Math.min(minRowGap, g);
+  }
+  if(!isFinite(minRowGap)) return [...panels];
+  const rowThreshold = minRowGap * 0.5;
+
+  const sorted = [...panels].sort((a,b) => a.center[rowAxis] - b.center[rowAxis]);
   const rows = [[sorted[0]]];
   for(let i = 1; i < sorted.length; i++){
-    if(sorted[i].center[rowAxis] - sorted[i-1].center[rowAxis] > rowGap) rows.push([]);
+    if(sorted[i].center[rowAxis] - sorted[i-1].center[rowAxis] > rowThreshold) rows.push([]);
     rows[rows.length-1].push(sorted[i]);
   }
-  rows.forEach(row => row.sort((a, b) => a.center[colAxis] - b.center[colAxis]));
+  // Snake (boustrophedon) pattern: each row starts from the side the previous row ended on
+  rows.forEach((row, i) => {
+    const asc = i % 2 === 0;
+    row.sort((a,b) => (asc ? 1 : -1) * (a.center[colAxis] - b.center[colAxis]));
+  });
   return rows.flat();
 }
 
