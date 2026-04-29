@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lightbox Solar SLD Generator</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/ColladaLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -105,7 +108,11 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
         Drop .dae file here<br><span style="font-size:9px">or click to browse</span>
       </div>
       <input type="file" id="skp-file-input" accept=".dae" style="display:none" onchange="skpFileSelected(this.files[0])">
-<div id="skp-results" style="margin-top:8px"></div>
+      <div id="skp-preview" style="display:none;margin-top:10px;border-radius:4px;overflow:hidden;position:relative;background:#0f1117">
+        <canvas id="skp-preview-canvas" style="display:block;width:100%;cursor:grab"></canvas>
+        <div style="position:absolute;top:4px;right:6px;font-size:9px;color:rgba(255,255,255,0.35)">drag to orbit · scroll to zoom</div>
+      </div>
+      <div id="skp-results" style="margin-top:8px"></div>
     </div>
   </div>
   <!-- Array 1 -->
@@ -568,8 +575,9 @@ function skpFileSelected(file){
     return;
   }
   $('skp-results').innerHTML = `<div class="cnote">Reading ${file.name}…</div>`;
+  $('skp-preview').style.display = 'none';
   const reader = new FileReader();
-  reader.onload = e => parseDaeText(e.target.result);
+  reader.onload = e => { parseDaeText(e.target.result); renderDaePreview(e.target.result); };
   reader.readAsText(file);
 }
 
@@ -631,7 +639,6 @@ function applySkpCount(n, totalModules){
   const modW = +agv(n,'modW') || 550;
   const voc  = +agv(n,'voc')  || 49.9;
   const combV= +agv(n,'combV')|| 1000;
-  // Compute mps from NEC 690.7, then set systemKw to drive arrSystemKwChanged
   const maxMps = Math.floor(combV/(voc*1.25));
   const mps = Math.min(Math.max(1,maxMps),40);
   const {totalStrings,actualKw} = calcStrings(totalModules, mps, modW);
@@ -640,6 +647,69 @@ function applySkpCount(n, totalModules){
   const kwEl = a$(n,'systemKw');
   if(kwEl) kwEl.value = (totalModules*modW/1000).toFixed(2);
   arrSystemKwChanged(n);
+}
+
+let _daeRenderer = null, _daeAnimFrame = null;
+
+function renderDaePreview(xmlText){
+  if(typeof THREE === 'undefined') return;
+
+  // Tear down previous renderer
+  if(_daeAnimFrame){ cancelAnimationFrame(_daeAnimFrame); _daeAnimFrame=null; }
+  if(_daeRenderer){ _daeRenderer.dispose(); _daeRenderer=null; }
+
+  const wrap = $('skp-preview');
+  const canvas = $('skp-preview-canvas');
+  const W = 240, H = 180;
+  canvas.width = W; canvas.height = H;
+  wrap.style.display = 'block';
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio||1);
+  renderer.setSize(W, H);
+  renderer.setClearColor(0x0f1117);
+  _daeRenderer = renderer;
+
+  const scene = new THREE.Scene();
+  scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.6);
+  sun.position.set(1, 2, 1);
+  scene.add(sun);
+
+  const camera = new THREE.PerspectiveCamera(45, W/H, 0.1, 100000);
+  const controls = new THREE.OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+
+  const blob = new Blob([xmlText], {type:'model/vnd.collada+xml'});
+  const url = URL.createObjectURL(blob);
+
+  const loader = new THREE.ColladaLoader();
+  loader.load(url, collada => {
+    URL.revokeObjectURL(url);
+    const model = collada.scene;
+    scene.add(model);
+
+    // Fit camera to model bounding box
+    const box = new THREE.Box3().setFromObject(model);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    camera.position.set(center.x, center.y + maxDim * 1.4, center.z + maxDim * 0.6);
+    camera.lookAt(center);
+    controls.target.copy(center);
+    controls.update();
+
+    function animate(){
+      _daeAnimFrame = requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  }, undefined, () => {
+    URL.revokeObjectURL(url);
+    wrap.style.display = 'none';
+  });
 }
 
 function arr2Toggle(){
