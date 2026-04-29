@@ -1457,8 +1457,8 @@ function render(){
     const cRate=(v.battKw/v.battKwh).toFixed(2);
     const qtyLabel=v.battQty>1?`${v.battQty}× `:'';
     const BW2=190, BX2=BATTCX-BW2/2;
-    const contH=130;
-    const divY=58;
+    const contH=142;
+    const divY=70;
 
   if(v.battCouple==='ac'){
     const acTapY=y+Math.round(W/2);
@@ -1468,9 +1468,10 @@ function render(){
     el.push(`<text x="${BATTCX}" y="${contTop-4}" class="sld-note" text-anchor="middle" style="fill:#1e8a60;font-weight:600">${qtyLabel}BESS Container</text>`);
     el.push(`<rect x="${BX2}" y="${contTop}" width="${BW2}" height="${contH}" rx="7" fill="#ebf8f3" stroke="#1e8a60" stroke-width="1.5"/>`);
     el.push(`<line x1="${BX2+10}" y1="${contTop+divY}" x2="${BX2+BW2-10}" y2="${contTop+divY}" stroke="#1e8a60" stroke-width="0.8" stroke-dasharray="4 2"/>`);
-    el.push(`<text x="${BATTCX}" y="${contTop+16}" class="sld-lbl" text-anchor="middle">PCS / Inverter</text>`);
-    el.push(`<text x="${BATTCX}" y="${contTop+30}" class="sld-sub" text-anchor="middle">${v.battKw} kW / ${v.pcsKva} kVA</text>`);
-    el.push(`<text x="${BATTCX}" y="${contTop+43}" class="sld-sub" text-anchor="middle">${v.battModel}</text>`);
+    el.push(`<text x="${BATTCX}" y="${contTop+13}" class="sld-lbl" text-anchor="middle">PCS / Inverter</text>`);
+    el.push(`<text x="${BATTCX}" y="${contTop+25}" class="sld-sub" text-anchor="middle">${v.battKw} kW / ${v.pcsKva} kVA</text>`);
+    el.push(`<text x="${BATTCX}" y="${contTop+37}" class="sld-sub" text-anchor="middle">DC in: ${v.battV} · AC out: ${v.invV}</text>`);
+    el.push(`<text x="${BATTCX}" y="${contTop+50}" class="sld-sub" text-anchor="middle">${v.battModel}</text>`);
     const bankY=contTop+divY;
     el.push(`<text x="${BATTCX}" y="${bankY+18}" class="sld-lbl" text-anchor="middle">Battery Bank</text>`);
     el.push(`<text x="${BATTCX}" y="${bankY+32}" class="sld-sub" text-anchor="middle">${v.battKwh} kWh · ${dur}h · C${cRate}C</text>`);
@@ -1486,9 +1487,10 @@ function render(){
     el.push(`<text x="${BATTCX}" y="${contTop-4}" class="sld-note" text-anchor="middle" style="fill:#1e8a60;font-weight:600">${qtyLabel}BESS Container</text>`);
     el.push(`<rect x="${BX2}" y="${contTop}" width="${BW2}" height="${contH}" rx="7" fill="#ebf8f3" stroke="#1e8a60" stroke-width="1.5"/>`);
     el.push(`<line x1="${BX2+10}" y1="${contTop+divY}" x2="${BX2+BW2-10}" y2="${contTop+divY}" stroke="#1e8a60" stroke-width="0.8" stroke-dasharray="4 2"/>`);
-    el.push(`<text x="${BATTCX}" y="${contTop+16}" class="sld-lbl" text-anchor="middle">PCS / Inverter</text>`);
-    el.push(`<text x="${BATTCX}" y="${contTop+30}" class="sld-sub" text-anchor="middle">${v.battKw} kW / ${v.pcsKva} kVA</text>`);
-    el.push(`<text x="${BATTCX}" y="${contTop+43}" class="sld-sub" text-anchor="middle">${v.battModel}</text>`);
+    el.push(`<text x="${BATTCX}" y="${contTop+13}" class="sld-lbl" text-anchor="middle">PCS / Inverter</text>`);
+    el.push(`<text x="${BATTCX}" y="${contTop+25}" class="sld-sub" text-anchor="middle">${v.battKw} kW / ${v.pcsKva} kVA</text>`);
+    el.push(`<text x="${BATTCX}" y="${contTop+37}" class="sld-sub" text-anchor="middle">DC in: ${v.battV} · AC out: ${v.invV}</text>`);
+    el.push(`<text x="${BATTCX}" y="${contTop+50}" class="sld-sub" text-anchor="middle">${v.battModel}</text>`);
     const bankY=contTop+divY;
     el.push(`<text x="${BATTCX}" y="${bankY+18}" class="sld-lbl" text-anchor="middle">Battery Bank</text>`);
     el.push(`<text x="${BATTCX}" y="${bankY+32}" class="sld-sub" text-anchor="middle">${v.battKwh} kWh · ${dur}h · C${cRate}C</text>`);
