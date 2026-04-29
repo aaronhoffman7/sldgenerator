@@ -769,6 +769,7 @@ function skpFileSelected(file){
   $('skp-results').innerHTML = `<div class="cnote">Reading ${file.name}…</div>`;
   $('dae-overlay').style.display = 'none';
   _daeDismissed = new Set(); // reset dismissed only on fresh file upload
+  _daeArrayAssign = {};
   const reader = new FileReader();
   reader.onload = e => {
     _lastDaeXml = e.target.result;
@@ -881,6 +882,10 @@ function parseDaeText(xml){
 }
 
 let _daeCounts = {};
+let _daeArrayAssign = {}; // componentName → arrayNumber (1 or 2)
+
+const DAE_ARR_COLOR = { 1: '#3a6bc0', 2: '#1e8a60' };
+const DAE_ARR_THREE = { 1: 0x3a6bc0, 2: 0x1e8a60 };
 
 function renderDaeResults(counts){
   _daeCounts = counts;
@@ -899,8 +904,9 @@ function renderDaeResults(counts){
       </div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
         <span style="font-size:13px;font-weight:600;color:var(--green);font-family:var(--mono)">${count} modules</span>
-        <button class="hbtn" style="font-size:10px;padding:3px 8px" onclick="applySkpCount(1,${count})">→ Array 1</button>
-        <button class="hbtn" style="font-size:10px;padding:3px 8px" onclick="applySkpCount(2,${count})">→ Array 2</button>
+        <button class="hbtn" style="font-size:10px;padding:3px 8px" onclick="applySkpCount(1,${count},'${key}')">→ Array 1</button>
+        <button class="hbtn" style="font-size:10px;padding:3px 8px" onclick="applySkpCount(2,${count},'${key}')">→ Array 2</button>
+        <span id="dae-badge-${key}" style="font-size:9px;font-weight:600;padding:1px 6px;border-radius:3px;display:none"></span>
       </div>
     </div>`;
   });
@@ -922,7 +928,31 @@ function daeDismiss(key){
   }
 }
 
-function applySkpCount(n, totalModules){
+function recolorDaeScene(){
+  if(!_daeScene) return;
+  _daeScene.traverse(obj => {
+    const compName = obj.userData.componentName;
+    if(!compName) return;
+    const arrayNum = _daeArrayAssign[compName];
+    obj.traverse(child => {
+      if(!child.isMesh) return;
+      if(!child.userData.origMaterial) child.userData.origMaterial = child.material;
+      if(arrayNum){
+        if(!child.userData.arrayMats) child.userData.arrayMats = {};
+        if(!child.userData.arrayMats[arrayNum]){
+          child.userData.arrayMats[arrayNum] = new THREE.MeshLambertMaterial({
+            color: DAE_ARR_THREE[arrayNum], side: THREE.DoubleSide
+          });
+        }
+        child.material = child.userData.arrayMats[arrayNum];
+      } else {
+        child.material = child.userData.origMaterial;
+      }
+    });
+  });
+}
+
+function applySkpCount(n, totalModules, key){
   const modW = +agv(n,'modW') || 550;
   const voc  = +agv(n,'voc')  || 49.9;
   const combV= +agv(n,'combV')|| 1000;
@@ -934,6 +964,18 @@ function applySkpCount(n, totalModules){
   const kwEl = a$(n,'systemKw');
   if(kwEl) kwEl.value = (totalModules*modW/1000).toFixed(2);
   arrSystemKwChanged(n);
+  if(key){
+    const compName = decodeURIComponent(key);
+    _daeArrayAssign[compName] = n;
+    recolorDaeScene();
+    const badge = $('dae-badge-'+key);
+    if(badge){
+      badge.textContent = `Array ${n}`;
+      badge.style.background = DAE_ARR_COLOR[n];
+      badge.style.color = '#fff';
+      badge.style.display = 'inline';
+    }
+  }
 }
 
 let _daeRenderer = null, _daeAnimFrame = null;
@@ -973,7 +1015,7 @@ function renderDaePreview(xmlText){
   if(_daeAnimFrame){ cancelAnimationFrame(_daeAnimFrame); _daeAnimFrame=null; }
   if(_daeRenderer){ _daeRenderer.dispose(); _daeRenderer=null; }
   _daeScene = null; _daeCamera = null; _daeControls = null;
-  // _daeDismissed is NOT reset here — it's reset in skpFileSelected (fresh upload)
+  // _daeDismissed / _daeArrayAssign are NOT reset here — reset in skpFileSelected (fresh upload)
   // or pre-populated by restoreInputState (project load)
 
   const wrap = $('dae-overlay');
@@ -1633,12 +1675,13 @@ function render(){
   const minFuse = Math.ceil(v.isc * 1.5625);
   const fuseEl = $('fuse-check');
   if(v.hasCombiner){
+    const math=`${v.isc}A × 1.25 × 1.25 = ${minFuse}A`;
     if(v.combFuse < minFuse){
       fuseEl.style.color='#f5a742';
-      fuseEl.textContent=`⚠ NEC 690.8 min: ${minFuse}A`;
+      fuseEl.textContent=`⚠ NEC 690.8 min: ${minFuse}A  (${math})`;
     } else {
       fuseEl.style.color='var(--muted)';
-      fuseEl.textContent=`NEC 690.8 min: ${minFuse}A ✓`;
+      fuseEl.textContent=`NEC 690.8 min: ${minFuse}A ✓  (${math})`;
     }
   } else { fuseEl.textContent=''; }
 }
