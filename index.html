@@ -404,79 +404,60 @@ function pvStringSymbol(cx, cy, w, h, idx) {
   const x = cx - w/2, y = cy - h/2;
   const termLen = 5;
   let s = '';
-  // body
   s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="#fef9d0" stroke="#a08800" stroke-width="1"/>`;
-  // diagonal (IEC PV cell symbol)
   s += `<line x1="${x+3}" y1="${y+h-3}" x2="${x+w-3}" y2="${y+3}" stroke="#a08800" stroke-width="0.8" opacity="0.7"/>`;
-  // + terminal (top)
   s += `<line x1="${cx}" y1="${y}" x2="${cx}" y2="${y-termLen}" stroke="#a08800" stroke-width="1.2"/>`;
-  // - terminal (bottom)
   s += `<line x1="${cx}" y1="${y+h}" x2="${cx}" y2="${y+h+termLen}" stroke="#a08800" stroke-width="1.2"/>`;
-  // string label — rotated to sit above the diagonal line
-  const angle = Math.atan2(-(h-6), (w-6)) * 180 / Math.PI;
-  s += `<text transform="translate(${cx},${cy}) rotate(${angle.toFixed(1)}) translate(0,-5)" style="fill:#7a5a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px" text-anchor="middle" dominant-baseline="middle">String ${idx}</text>`;
+  if(idx!=null){
+    const angle = Math.atan2(-(h-6), (w-6)) * 180 / Math.PI;
+    s += `<text transform="translate(${cx},${cy}) rotate(${angle.toFixed(1)}) translate(0,-5)" style="fill:#7a5a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px" text-anchor="middle" dominant-baseline="middle">String ${idx}</text>`;
+  }
   return { svg: s, topTermY: y - termLen, botTermY: y + h + termLen };
 }
 
-// Render the full PV array section with strings arranged horizontally.
-// Returns { svg, botY } where botY is the Y of the negative bus (output connection).
+// Render PV array as a single stacked symbol (like inverter stacking).
+// Returns { svg, botY, envRightX }.
 function renderPVArray(v, cx, startY) {
   const nStr = v.strings;
-  const renderCount = Math.min(nStr, 6); // cap at 6 for horizontal display
-  const modW = 58, modH = 42, gap = 12;
-  const termLen = 5; // matches pvStringSymbol terminal length
+  const modW = 90, modH = 52, termLen = 5;
+  const maxShadow = Math.min(nStr - 1, 2); // up to 2 shadow layers
+  const shadowStep = 5;
+  const shadowExtent = maxShadow * shadowStep;
 
-  const totalWidth = renderCount * modW + (renderCount - 1) * gap;
-  const firstCX = cx - totalWidth / 2 + modW / 2;
-  const modCY = startY + modH / 2; // all strings share the same vertical center
+  const envPad = 14;
+  const envX = cx - modW/2 - envPad;
+  const envY = startY - termLen - envPad;
+  const envW = modW + shadowExtent + envPad * 2;
+  const envH = modH + shadowExtent + termLen * 2 + envPad * 2;
 
   let s = '';
-
-  // Dashed grouping envelope — spans from above top terminal to below bottom terminal
-  const envPad = 14;
-  const envX = cx - totalWidth / 2 - envPad;
-  const envY = startY - termLen - envPad;
-  const envW = totalWidth + envPad * 2;
-  const envH = modH + termLen * 2 + envPad * 2;
-
   s += `<rect x="${envX}" y="${envY}" width="${envW}" height="${envH}" rx="6" fill="#fefce8" stroke="#c0a000" stroke-width="1" stroke-dasharray="4 3"/>`;
 
-  // Array label above envelope
+  // Labels above envelope, centered over the visual stack
   const arrayKw = (v.strings * v.mods * v.modW / 1000).toFixed(2);
-  s += `<text x="${cx}" y="${envY - 16}" style="fill:#1a2040;font-family:'Avenir Next','Avenir',sans-serif;font-size:13px;font-weight:500" text-anchor="middle">PV Array</text>`;
-  s += `<text x="${cx}" y="${envY - 4}" style="fill:#4a5580;font-family:'Avenir Next','Avenir',sans-serif;font-size:10px" text-anchor="middle">${v.strings} Strings · ${v.mods} Mods/string · ${arrayKw} kWp · ${v.modModel}</text>`;
+  const arrLabel = v.colLabel ? `PV Array ${v.colLabel}` : 'PV Array';
+  const labelCX = cx + shadowExtent / 2;
+  s += `<text x="${labelCX}" y="${envY - 16}" style="fill:#1a2040;font-family:'Avenir Next','Avenir',sans-serif;font-size:13px;font-weight:500" text-anchor="middle">${esc(arrLabel)}</text>`;
+  s += `<text x="${labelCX}" y="${envY - 4}" style="fill:#4a5580;font-family:'Avenir Next','Avenir',sans-serif;font-size:10px" text-anchor="middle">${v.strings} Strings · ${v.mods} Mods/string · ${arrayKw} kWp · ${esc(v.modModel)}</text>`;
 
-  // Draw each string symbol horizontally, all at the same CY
-  const cxArr = [], topBusY_ref = [], botBusY_ref = [];
-  for (let i = 0; i < renderCount; i++) {
-    const modCX = firstCX + i * (modW + gap);
-    const sym = pvStringSymbol(modCX, modCY, modW, modH, i + 1);
-    s += sym.svg;
-    cxArr.push(modCX);
-    topBusY_ref.push(sym.topTermY);
-    botBusY_ref.push(sym.botTermY);
+  // Shadow string rects (back to front, like inverter stacking)
+  for (let i = maxShadow; i > 0; i--) {
+    const ox = i * shadowStep, oy = i * shadowStep;
+    s += `<rect x="${cx - modW/2 + ox}" y="${startY + oy}" width="${modW}" height="${modH}" rx="2" fill="#fef9d0" stroke="#a08800" stroke-width="0.8" opacity="0.45"/>`;
+    s += `<line x1="${cx - modW/2 + ox + 3}" y1="${startY + oy + modH - 3}" x2="${cx + modW/2 + ox - 3}" y2="${startY + oy + 3}" stroke="#a08800" stroke-width="0.7" opacity="0.35"/>`;
   }
 
-  // All modules at same CY → all terminal tips share the same Y
-  const topBusY = topBusY_ref[0];
-  const botBusY = botBusY_ref[0];
+  // Front symbol — label suppressed when stacking (count shown in top-left corner instead)
+  const modCY = startY + modH / 2;
+  const sym = pvStringSymbol(cx, modCY, modW, modH, nStr === 1 ? 1 : null);
+  s += sym.svg;
 
-  // Positive bus: horizontal line across all + terminal tips
-  if (renderCount > 1) {
-    s += `<line x1="${cxArr[0]}" y1="${topBusY}" x2="${cxArr[renderCount - 1]}" y2="${topBusY}" stroke="#a08800" stroke-width="1.5"/>`;
-  }
-  // Negative bus: horizontal line across all − terminal tips
-  if (renderCount > 1) {
-    s += `<line x1="${cxArr[0]}" y1="${botBusY}" x2="${cxArr[renderCount - 1]}" y2="${botBusY}" stroke="#a08800" stroke-width="1.5"/>`;
+  // Count label in top-left of front symbol when multiple strings
+  if (nStr > 1) {
+    s += `<text x="${cx - modW/2 + 5}" y="${startY + 11}" style="fill:#7a5a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600">${nStr}× strings</text>`;
   }
 
-  // If more strings than displayed, show note below envelope
-  if (nStr > renderCount) {
-    s += `<text x="${cx}" y="${envY + envH + 12}" style="fill:#4a5580;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px" text-anchor="middle">(showing ${renderCount} of ${nStr} strings)</text>`;
-  }
-
-  // Output wire drops from center of negative bus (cx is the horizontal midpoint)
-  return { svg: s, botY: botBusY, envRightX: envX + envW };
+  return { svg: s, botY: sym.botTermY, envRightX: envX + envW };
 }
 
 function compBox(x,y,w,h,fill,stroke,title,sub1,sub2){
@@ -659,7 +640,8 @@ function renderArrayColumn(cfg, cx, startY) {
   const arrayIsc=(cfg.strings*cfg.isc).toFixed(1);
   let y=pv.botY;
   s.push(wlabel(pv.envRightX+12, y-4, `Voc=${stringVoc}V  Isc=${arrayIsc}A`, false, 'start'));
-  s.push(wireDC(cx,y,cx,y+W)); y+=W;
+  const PV_DROP=W+24; // extra breathing room between PV symbols and first box
+  s.push(wireDC(cx,y,cx,y+PV_DROP)); y+=PV_DROP;
   if(cfg.hasRSD){
     s.push(compBox(cx-100,y,200,34,'#f5f7fc','#a0aac8','Rapid Shutdown Disconnect','NEC 690.12'));
     y+=34; s.push(wireDC(cx,y,cx,y+W)); y+=W;
