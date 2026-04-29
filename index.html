@@ -792,16 +792,16 @@ function render(){
   </style></defs>`);
 
   // Title block
-  const LOGO_W=80, LOGO_H=32, LOGO_X=SVG_W-22-LOGO_W, LOGO_Y=18;
-  el.push(`<rect x="10" y="10" width="${SVG_W-20}" height="52" rx="5" fill="#f5f7fc" stroke="#d0d5e8" stroke-width="0.8"/>`);
-  el.push(`<text x="22" y="27" class="sld-title">${esc(v.projName)}</text>`);
-  el.push(`<text x="22" y="40" style="fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:11px;font-weight:500">Single Line Diagram — Solar PV</text>`);
-  el.push(`<text x="22" y="53" class="sld-note">${esc(v.sysType.toUpperCase())} &bull; ${esc(v.designer)} &bull; ${esc(v.utilityName)} &bull; POI: ${v.poiKv} kV</text>`);
+  const LOGO_W=80, LOGO_H=32, LOGO_X=SVG_W-22-LOGO_W, LOGO_Y=20;
+  el.push(`<rect x="10" y="10" width="${SVG_W-20}" height="62" rx="5" fill="#f5f7fc" stroke="#d0d5e8" stroke-width="0.8"/>`);
+  el.push(`<text x="22" y="28" style="fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:15px;font-weight:700">Single Line Diagram — Solar PV</text>`);
+  el.push(`<text x="22" y="44" style="fill:#1a2040;font-family:'Avenir Next','Avenir',sans-serif;font-size:13px;font-weight:500">${esc(v.projName)}</text>`);
+  el.push(`<text x="22" y="58" style="fill:#707890;font-family:'Avenir Next','Avenir',sans-serif;font-size:11px">${esc(v.sysType.toUpperCase())} &bull; ${esc(v.designer)} &bull; ${esc(v.utilityName)} &bull; POI: ${v.poiKv} kV</text>`);
   el.push(`<image href="${LOGO_B64}" x="${LOGO_X}" y="${LOGO_Y}" width="${LOGO_W}" height="${LOGO_H}" preserveAspectRatio="xMidYMid meet"/>`);
   const battSummary=v.hasBatt?`${v.battKw} kW / ${v.battKwh} kWh BESS`:'';
   const kwSummary=`${v.hasArr2?totalKwDc.toFixed(2):arrayKw} kW PV`;
-  el.push(`<text x="${LOGO_X-10}" y="31" class="sld-sub" text-anchor="end">${kwSummary}${battSummary?' &bull; '+battSummary:''}</text>`);
-  el.push(`<text x="${LOGO_X-10}" y="48" class="sld-note" text-anchor="end">Generated ${new Date().toLocaleDateString()}</text>`);
+  el.push(`<text x="${LOGO_X-10}" y="34" style="fill:#4a5580;font-family:'Avenir Next','Avenir',sans-serif;font-size:12px;font-weight:500" text-anchor="end">${kwSummary}${battSummary?' &bull; '+battSummary:''}</text>`);
+  el.push(`<text x="${LOGO_X-10}" y="52" style="fill:#707890;font-family:'Avenir Next','Avenir',sans-serif;font-size:11px" text-anchor="end">Generated ${new Date().toLocaleDateString()}</text>`);
 
   // ── PV Array columns ──────────────────────────────────────────────────────
   const PV_START_Y=140;
