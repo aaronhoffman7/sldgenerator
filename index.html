@@ -1714,14 +1714,29 @@ function render(){
   }
 
   const necH=v.hasArr2?172:100;
-  const overlayBottom=NY+necH+8+210;
+
+  // ── Conduit Recommendations box (only when AC combiner on roof) ───────────
+  const condRecH = hasAcCombiner ? 81 : 0;
+  if(hasAcCombiner){
+    const CRY = NY + necH + 6;
+    const powerConduit = conduitFor(acConductors, roofTotalAcW.area);
+    el.push(`<rect x="${LX}" y="${CRY}" width="${NW}" height="75" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
+    el.push(`<text x="${LX+NW/2}" y="${CRY+13}" class="sld-head" text-anchor="middle">CONDUIT RECS</text>`);
+    el.push(`<line x1="${LX+6}" y1="${CRY+18}" x2="${LX+NW-6}" y2="${CRY+18}" stroke="#d0d5e8" stroke-width="0.7"/>`);
+    el.push(`<text x="${LX+10}" y="${CRY+30}" class="sld-note">Provide ${powerConduit} EMT (${roofTotalAcA.toFixed(1)} A req.)</text>`);
+    el.push(`<text x="${LX+10}" y="${CRY+41}" class="sld-note">  roof → electrical room · PV power</text>`);
+    el.push(`<text x="${LX+10}" y="${CRY+55}" class="sld-note">Provide ${roofCommCond} EMT</text>`);
+    el.push(`<text x="${LX+10}" y="${CRY+66}" class="sld-note">  roof → electrical room · PV communications</text>`);
+  }
+
+  const overlayBottom=NY+necH+condRecH+8+210;
   const totalH=Math.max(y+30, battBotY+30, 620, overlayBottom+20);
   const svg=$('sld-svg');
   svg.setAttribute('width',SVG_W);
   svg.setAttribute('height',totalH);
   svg.setAttribute('viewBox',`0 0 ${SVG_W} ${totalH}`);
   svg.innerHTML=el.join('\n');
-  positionDaeOverlay(LX, NY+necH+8);
+  positionDaeOverlay(LX, NY+necH+condRecH+8);
 
   // ── Conduit sizing ────────────────────────────────────────────────────────
   // (CAT6_AREA, c1, perInvAcW, etc. computed above before NEC box)
