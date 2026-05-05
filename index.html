@@ -464,6 +464,7 @@ const gc=id=>$(id)?$(id).checked:false;
 const SLD_KEY_PREFIX = 'sld_proj_';
 let _currentProjectKey = null; // tracks the active save slot for overwrite
 let _lastAutoBreaker = null, _lastAutoPanel = null;
+const _lastAutoInvKw = {1: null, 2: null};
 
 // IndexedDB for DAE files (localStorage is too small for most .dae exports)
 const _idbName = 'sld_dae_db', _idbStore = 'dae';
@@ -1292,7 +1293,8 @@ function arrSystemKwChanged(n){
   const invCount=Math.max(1,+agv(n,'invCount')||1);
   const unitKw=Math.round((systemKw/dcAcRatio/invCount)*10)/10;
   const invKwEl=a$(n,'invKw');
-  if(invKwEl) invKwEl.value=unitKw;
+  if(invKwEl&&(+invKwEl.value===_lastAutoInvKw[n]||_lastAutoInvKw[n]===null)) invKwEl.value=unitKw;
+  _lastAutoInvKw[n]=unitKw;
   if(gc('hasBatt')) autosizeBatt(); else render();
 }
 function arrStringsChanged(n){
@@ -1458,13 +1460,12 @@ function render(){
   const maxNecVoc=v.hasArr2?Math.max(+necVoc,a2StrVoc*1.25):+necVoc;
   const systemKwRaw=+gv('systemKw');
   const dcAcRatioRaw=+gv('dcAcRatio')||1.2;
-  $('ac-system-kw').textContent=systemKwRaw>0?(systemKwRaw/dcAcRatioRaw).toFixed(1)+' kW':'--';
+  $('ac-system-kw').textContent=((v.invKw*v.invCount).toFixed(1)).replace(/\.0$/,'')+' kW';
   if(v.hasArr2){
     const a2InvAcCalc=a$(2,'inv-ac-calc');
     if(a2InvAcCalc) a2InvAcCalc.textContent=`${v.a2.invKw} kW @ ${v.a2.invV} = ${a2perInvRaw.toFixed(1)} A · ×1.25 = ${(a2perInvRaw*1.25).toFixed(1)} A min.`;
     const a2AcKwEl=a$(2,'ac-system-kw');
-    const a2SysKw=+gv('a2systemKw');
-    if(a2AcKwEl) a2AcKwEl.textContent=a2SysKw>0?(a2SysKw/v.a2.dcAcRatio).toFixed(1)+' kW':'--';
+    if(a2AcKwEl) a2AcKwEl.textContent=((v.a2.invKw*v.a2.invCount).toFixed(1)).replace(/\.0$/,'')+' kW';
   }
   // Auto-fill solar breaker and panel size
   const recBreakerMin=(v.hasArr2?totalInvAcA:parseFloat(invAC))*1.25;
@@ -1682,7 +1683,7 @@ function render(){
   }
 
   // Legend + NEC box share the same column width
-  const LX=SVG_W-300, LY=82, NW=282;
+  const LX=SVG_W-365, LY=82, NW=350;
   el.push(`<rect x="${LX}" y="${LY}" width="${NW}" height="122" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
   el.push(`<text x="${LX+12}" y="${LY+16}" class="sld-head">LEGEND</text>`);
   el.push(`<line x1="${LX+12}" y1="${LY+30}" x2="${LX+44}" y2="${LY+30}" stroke="#c9a10a" stroke-width="2" stroke-dasharray="7 3"/>`);
@@ -1732,56 +1733,56 @@ function render(){
   // NEC calcs box
   const NY=LY+134;
   const accentStyle = `fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600;letter-spacing:.06em`;
-  const baseNecH = v.hasArr2 ? 172 : 100;
+  const baseNecH = v.hasArr2 ? 192 : 120;
   const rsdLine1 = v.hasRSD ? (v.rsdMethod==='pvhcs' ? 'PV Hazard Control System (PVHCS)' : 'Module-Level Power Electronics (MLPE)') : '';
   const rsdLine2 = v.hasRSD ? (v.rsdMethod==='pvhcs' ? 'NEC 690.12(C)(2)' : 'NEC 690.12(C)(1)') : '';
   // Conduit notes always present (4 lines incl. 2-line AC note); RSD section when enabled
-  const necH = baseNecH + 64 + (v.hasRSD ? 40 : 0);
+  const necH = baseNecH + 52 + (v.hasRSD ? 40 : 0);
   // AC roof conduit note — returns [line1, line2] to keep each line short enough to fit the box
   const acMult=+gv('acConduitMult')||1;
   const mPfx=acMult>1?`${acMult}× `:'';
   function acRoofNote(){
     if(hasAcCombiner){
       const size=conduitFor(acConductors,roofTotalAcW.area);
-      return [`Provide ${mPfx}${size} EMT · AC power`,`Roof → elec. room  (${roofTotalAcA.toFixed(1)} A req.)`];
+      return `Provide ${mPfx}${size} EMT · AC power, roof → elec. room (${roofTotalAcA.toFixed(1)} A req.)`;
     }
     if(v.hasArr2){
       const r1=c1.invCount>1?` ×${c1.invCount}`:''; const r2=c2roof.invCount>1?` ×${c2roof.invCount}`:'';
-      return [`A1: ${mPfx}${conduitFor(c1.acConds,c1.perInvAcW.area)} EMT${r1}  ·  A2: ${mPfx}${conduitFor(c2roof.acConds,c2roof.perInvAcW.area)} EMT${r2}`,`AC power  ·  roof → elec. room`];
+      return `A1: ${mPfx}${conduitFor(c1.acConds,c1.perInvAcW.area)} EMT${r1}  ·  A2: ${mPfx}${conduitFor(c2roof.acConds,c2roof.perInvAcW.area)} EMT${r2} · AC power, roof → elec. room`;
     }
     const size=conduitFor(acConductors,perInvAcW.area);
     const runs=c1.invCount>1?` · ×${c1.invCount} runs`:'';
-    return [`Provide ${mPfx}${size} EMT · AC power${runs}`,`Roof → elec. room  (${perInvAcA.toFixed(1)} A req.)`];
+    return `Provide ${mPfx}${size} EMT · AC power${runs}, roof → elec. room (${perInvAcA.toFixed(1)} A req.)`;
   }
   if(v.hasArr2){
     el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="${necH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
     el.push(`<text x="${LX+NW/2}" y="${NY+13}" class="sld-head" text-anchor="middle">PV Electrical Notes (NEC 690)</text>`);
+    el.push(`<text x="${LX+NW/2}" y="${NY+23}" style="fill:#8a90a8;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px;font-style:italic" text-anchor="middle">Calculations are estimated based on preliminary system design.</text>`);
+    el.push(`<text x="${LX+NW/2}" y="${NY+32}" style="fill:#8a90a8;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px;font-style:italic" text-anchor="middle">Consult PV designer and site electrician for final calculations.</text>`);
     // Array 1 section
-    el.push(`<line x1="${LX+6}" y1="${NY+18}" x2="${LX+NW-6}" y2="${NY+18}" stroke="#d0d5e8" stroke-width="0.7"/>`);
-    el.push(`<text x="${LX+10}" y="${NY+29}" style="${accentStyle}">ARRAY 1</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+41}" class="sld-note">Voc: ${stringVoc} V  (max ${necVoc} V)</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+52}" class="sld-note">Isc: ${arrayIsc} A  ·  Inv. AC out: ${parseFloat(invAC).toFixed(1)} A</text>`);
+    el.push(`<line x1="${LX+6}" y1="${NY+38}" x2="${LX+NW-6}" y2="${NY+38}" stroke="#d0d5e8" stroke-width="0.7"/>`);
+    el.push(`<text x="${LX+10}" y="${NY+49}" style="${accentStyle}">ARRAY 1</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+61}" class="sld-note">Voc: ${stringVoc} V  (max ${necVoc} V)</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+72}" class="sld-note">Isc: ${arrayIsc} A  ·  Inv. AC out: ${parseFloat(invAC).toFixed(1)} A</text>`);
     // Array 2 section
-    el.push(`<line x1="${LX+6}" y1="${NY+58}" x2="${LX+NW-6}" y2="${NY+58}" stroke="#d0d5e8" stroke-width="0.7"/>`);
-    el.push(`<text x="${LX+10}" y="${NY+69}" style="${accentStyle}">ARRAY 2</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+81}" class="sld-note">Voc: ${a2StrVoc.toFixed(1)} V  (max ${(a2StrVoc*1.25).toFixed(0)} V)</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+92}" class="sld-note">Isc: ${a2ArrIsc.toFixed(1)} A  ·  Inv. AC out: ${a2InvAcA.toFixed(1)} A</text>`);
+    el.push(`<line x1="${LX+6}" y1="${NY+78}" x2="${LX+NW-6}" y2="${NY+78}" stroke="#d0d5e8" stroke-width="0.7"/>`);
+    el.push(`<text x="${LX+10}" y="${NY+89}" style="${accentStyle}">ARRAY 2</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+101}" class="sld-note">Voc: ${a2StrVoc.toFixed(1)} V  (max ${(a2StrVoc*1.25).toFixed(0)} V)</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+112}" class="sld-note">Isc: ${a2ArrIsc.toFixed(1)} A  ·  Inv. AC out: ${a2InvAcA.toFixed(1)} A</text>`);
     // Totals section
-    el.push(`<line x1="${LX+6}" y1="${NY+98}" x2="${LX+NW-6}" y2="${NY+98}" stroke="#d0d5e8" stroke-width="0.7"/>`);
-    el.push(`<text x="${LX+10}" y="${NY+109}" style="${accentStyle}">TOTALS</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+121}" class="sld-note">DC System Size: ${totalKwDc.toFixed(2)} kW  ·  AC System Size: ${totalAcKw.toFixed(1)} kW</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+133}" class="sld-note">AC out: ${totalInvAcA.toFixed(1)} A  (×1.25 = ${recBreakerMin.toFixed(1)} A)</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+157}" class="sld-note">Breaker: ${bkrLabel}  ·  Panel: ${recPanel}A</text>`);
+    el.push(`<line x1="${LX+6}" y1="${NY+118}" x2="${LX+NW-6}" y2="${NY+118}" stroke="#d0d5e8" stroke-width="0.7"/>`);
+    el.push(`<text x="${LX+10}" y="${NY+129}" style="${accentStyle}">TOTALS</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+141}" class="sld-note">DC System Size: ${totalKwDc.toFixed(2)} kW  ·  AC System Size: ${totalAcKw.toFixed(1)} kW</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+153}" class="sld-note">AC out: ${totalInvAcA.toFixed(1)} A  (×1.25 = ${recBreakerMin.toFixed(1)} A)</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+177}" class="sld-note">Breaker: ${bkrLabel}  ·  Panel: ${recPanel}A</text>`);
     // Conduit notes — always shown (2-line AC note)
-    el.push(`<line x1="${LX+6}" y1="${NY+165}" x2="${LX+NW-6}" y2="${NY+165}" stroke="#d0d5e8" stroke-width="0.7"/>`);
-    el.push(`<text x="${LX+10}" y="${NY+177}" style="${accentStyle}">CONDUIT NOTES</text>`);
-    const[acL1d,acL2d]=acRoofNote();
-    el.push(`<text x="${LX+10}" y="${NY+189}" class="sld-note">${acL1d}</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+201}" class="sld-note">${acL2d}</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+213}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  roof → elec. room  ·  NEC Art. 800</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+225}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
+    el.push(`<line x1="${LX+6}" y1="${NY+185}" x2="${LX+NW-6}" y2="${NY+185}" stroke="#d0d5e8" stroke-width="0.7"/>`);
+    el.push(`<text x="${LX+10}" y="${NY+197}" style="${accentStyle}">CONDUIT NOTES</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+209}" class="sld-note">${acRoofNote()}</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+221}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  roof → elec. room  ·  NEC Art. 800</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+233}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
     if(v.hasRSD){
-      const rY = NY + 229;
+      const rY = NY + 237;
       el.push(`<line x1="${LX+6}" y1="${rY}" x2="${LX+NW-6}" y2="${rY}" stroke="#d0d5e8" stroke-width="0.7"/>`);
       el.push(`<text x="${LX+10}" y="${rY+12}" style="${accentStyle}">RSD COMPLIANCE</text>`);
       el.push(`<text x="${LX+10}" y="${rY+24}" class="sld-note">${rsdLine1}</text>`);
@@ -1790,21 +1791,21 @@ function render(){
   } else {
     el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="${necH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
     el.push(`<text x="${LX+NW/2}" y="${NY+13}" class="sld-head" text-anchor="middle">PV Electrical Notes (NEC 690)</text>`);
-    el.push(`<line x1="${LX+6}" y1="${NY+18}" x2="${LX+NW-6}" y2="${NY+18}" stroke="#d0d5e8" stroke-width="0.7"/>`);
-    el.push(`<text x="${LX+10}" y="${NY+31}" class="sld-note">DC System Size: ${arrayKw} kW  ·  AC System Size: ${totalAcKw.toFixed(1)} kW</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+44}" class="sld-note">Voc: ${stringVoc} V  (max ${necVoc} V)</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+57}" class="sld-note">Isc: ${arrayIsc} A  ·  Inv. AC out: ${invAC} A</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+83}" class="sld-note">Breaker: ${bkrLabel}  ·  Panel: ${recPanel}A</text>`);
+    el.push(`<text x="${LX+NW/2}" y="${NY+23}" style="fill:#8a90a8;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px;font-style:italic" text-anchor="middle">Calculations are estimated based on preliminary system design.</text>`);
+    el.push(`<text x="${LX+NW/2}" y="${NY+32}" style="fill:#8a90a8;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px;font-style:italic" text-anchor="middle">Consult PV designer and site electrician for final calculations.</text>`);
+    el.push(`<line x1="${LX+6}" y1="${NY+38}" x2="${LX+NW-6}" y2="${NY+38}" stroke="#d0d5e8" stroke-width="0.7"/>`);
+    el.push(`<text x="${LX+10}" y="${NY+51}" class="sld-note">DC System Size: ${arrayKw} kW  ·  AC System Size: ${totalAcKw.toFixed(1)} kW</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+64}" class="sld-note">Voc: ${stringVoc} V  (max ${necVoc} V)</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+77}" class="sld-note">Isc: ${arrayIsc} A  ·  Inv. AC out: ${invAC} A</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+103}" class="sld-note">Breaker: ${bkrLabel}  ·  Panel: ${recPanel}A</text>`);
     // Conduit notes — always shown (2-line AC note)
-    el.push(`<line x1="${LX+6}" y1="${NY+92}" x2="${LX+NW-6}" y2="${NY+92}" stroke="#d0d5e8" stroke-width="0.7"/>`);
-    el.push(`<text x="${LX+10}" y="${NY+104}" style="${accentStyle}">CONDUIT NOTES</text>`);
-    const[acL1s,acL2s]=acRoofNote();
-    el.push(`<text x="${LX+10}" y="${NY+116}" class="sld-note">${acL1s}</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+128}" class="sld-note">${acL2s}</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+140}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  roof → elec. room  ·  NEC Art. 800</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+152}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
+    el.push(`<line x1="${LX+6}" y1="${NY+112}" x2="${LX+NW-6}" y2="${NY+112}" stroke="#d0d5e8" stroke-width="0.7"/>`);
+    el.push(`<text x="${LX+10}" y="${NY+124}" style="${accentStyle}">CONDUIT NOTES</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+136}" class="sld-note">${acRoofNote()}</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+148}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  roof → elec. room  ·  NEC Art. 800</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+160}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
     if(v.hasRSD){
-      const rY = NY + 156;
+      const rY = NY + 164;
       el.push(`<line x1="${LX+6}" y1="${rY}" x2="${LX+NW-6}" y2="${rY}" stroke="#d0d5e8" stroke-width="0.7"/>`);
       el.push(`<text x="${LX+10}" y="${rY+12}" style="${accentStyle}">RSD COMPLIANCE</text>`);
       el.push(`<text x="${LX+10}" y="${rY+24}" class="sld-note">${rsdLine1}</text>`);
