@@ -141,8 +141,10 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <span class="sec-arrow open" id="arr1-arrow">&#9654;</span>
     </div>
     <div class="sec-body" id="arr1-body">
-    <label>System size (kW DC)</label>
-    <input type="number" id="systemKw" placeholder="e.g. 10" step="0.1" min="0.1" oninput="systemKwChanged()">
+    <div class="row2">
+      <div><label>System size (kW DC)</label><input type="number" id="systemKw" placeholder="e.g. 10" step="0.1" min="0.1" oninput="systemKwChanged()"></div>
+      <div><label>Total modules</label><input type="number" id="numMods" placeholder="e.g. 24" min="1" oninput="arrNumModsChanged(1)"></div>
+    </div>
     <div id="system-kw-note" class="cnote"></div>
     <div class="row2">
       <div><label>Strings</label><input type="number" id="strings" value="2" min="1" max="500" oninput="stringsChanged()"></div>
@@ -209,8 +211,10 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <span style="font-size:11px;color:var(--muted)">Mirror Array 1 settings</span>
     </div>
     <div id="arr2-fields">
-    <label>System size (kW DC)</label>
-    <input type="number" id="a2systemKw" placeholder="e.g. 10" step="0.1" min="0.1" oninput="arrSystemKwChanged(2)">
+    <div class="row2">
+      <div><label>System size (kW DC)</label><input type="number" id="a2systemKw" placeholder="e.g. 10" step="0.1" min="0.1" oninput="arrSystemKwChanged(2)"></div>
+      <div><label>Total modules</label><input type="number" id="a2numMods" placeholder="e.g. 24" min="1" oninput="arrNumModsChanged(2)"></div>
+    </div>
     <div id="a2system-kw-note" class="cnote"></div>
     <div class="row2">
       <div><label>Strings</label><input type="number" id="a2strings" value="2" min="1" max="500" oninput="arrStringsChanged(2)"></div>
@@ -1251,6 +1255,7 @@ function arrSystemKwChanged(n){
   const{fullStrings,modsLast,totalStrings,actualKw}=calcStrings(totalMods,mps,modW);
   a$(n,'strings').value=totalStrings;
   a$(n,'mods').value=mps;
+  const numModsEl=a$(n,'numMods'); if(numModsEl) numModsEl.value=totalMods;
   const hasPartial=modsLast!==mps&&fullStrings>0;
   const note=a$(n,'system-kw-note');
   if(note){
@@ -1272,6 +1277,7 @@ function arrStringsChanged(n){
   if(strings>0&&mps>0){
     const actual=(strings*mps*modW/1000).toFixed(2);
     const kwEl=a$(n,'systemKw'); if(kwEl) kwEl.value=actual;
+    const numModsEl=a$(n,'numMods'); if(numModsEl) numModsEl.value=strings*mps;
     const note=a$(n,'system-kw-note');
     if(note) note.textContent=`${strings} strings × ${mps} mods = ${strings*mps} modules · ${actual} kW DC`;
   }
@@ -1285,6 +1291,7 @@ function arrModsChanged(n){
     const totalMods=Math.round(systemKw*1000/modW);
     const{fullStrings,modsLast,totalStrings,actualKw}=calcStrings(totalMods,mps,modW);
     const strEl=a$(n,'strings'); if(strEl) strEl.value=totalStrings;
+    const numModsEl=a$(n,'numMods'); if(numModsEl) numModsEl.value=totalMods;
     const hasPartial=modsLast!==mps&&fullStrings>0;
     const note=a$(n,'system-kw-note');
     if(note){
@@ -1296,7 +1303,16 @@ function arrModsChanged(n){
   }
   render();
 }
-function arrModWChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else render(); }
+function arrNumModsChanged(n){
+  const numMods=+agv(n,'numMods');
+  const modW=+agv(n,'modW')||550;
+  if(numMods>0&&modW>0){
+    const kwEl=a$(n,'systemKw');
+    if(kwEl) kwEl.value=(numMods*modW/1000).toFixed(2);
+  }
+  arrSystemKwChanged(n);
+}
+function arrModWChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else if(+agv(n,'numMods')>0) arrNumModsChanged(n); else render(); }
 function arrVocChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else render(); }
 function arrCombVChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else render(); }
 function arrDcAcRatioChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else render(); }
@@ -1639,7 +1655,7 @@ function render(){
   }
 
   // Legend + NEC box share the same column width
-  const LX=SVG_W-240, LY=82, NW=225;
+  const LX=SVG_W-300, LY=82, NW=282;
   el.push(`<rect x="${LX}" y="${LY}" width="${NW}" height="122" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
   el.push(`<text x="${LX+12}" y="${LY+16}" class="sld-head">LEGEND</text>`);
   el.push(`<line x1="${LX+12}" y1="${LY+30}" x2="${LX+44}" y2="${LY+30}" stroke="#c9a10a" stroke-width="2" stroke-dasharray="7 3"/>`);
