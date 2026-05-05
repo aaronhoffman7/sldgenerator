@@ -368,6 +368,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     </div>
     <div id="backfeed-check" class="cwarn" style="margin-top:6px"></div>
     <div class="trow"><span>Rapid shutdown (RSD)</span><label class="tog"><input type="checkbox" id="hasRSD" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div class="trow" id="rsd-method-row"><span>RSD method</span><select id="rsdMethod" onchange="render()"><option value="mlpe">MLPE</option><option value="pvhcs">PVHCS</option></select></div>
     <div class="trow"><span>Production meter</span><label class="tog"><input type="checkbox" id="hasMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Show grounding</span><label class="tog"><input type="checkbox" id="hasGnd" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     </div>
@@ -677,7 +678,7 @@ function vals(){
     hasMvXfmr:gc('hasMvXfmr'),mvKva:+gv('mvKva')||1000,mvQty:Math.max(1,+gv('mvQty')||1),
     mvPriKv:+gv('mvPriKv')||13.8,mvSecV:+gv('mvSecV')||480,
     panelA:+gv('panelA')||200,busbarA:+gv('busbarA')||(+gv('panelA')||200),solarBreaker:+gv('solarBreaker')||40,
-    hasRSD:gc('hasRSD'),hasMeter:gc('hasMeter'),hasGnd:gc('hasGnd')
+    hasRSD:gc('hasRSD'),rsdMethod:gv('rsdMethod')||'mlpe',hasMeter:gc('hasMeter'),hasGnd:gc('hasGnd')
   };
 }
 
@@ -1367,7 +1368,8 @@ function renderArrayColumn(cfg, cx, startY) {
   const iSub=cfg.invCount>1?`${cfg.invCount}× ${cfg.invKw} kW = ${iTotKw} kW · ${cfg.invV}`:`${cfg.invKw} kW · ${cfg.invV}`;
   const invH=cfg.hasRSD?78:64;
   if(cfg.invCount>1){const sh=Math.min(cfg.invCount-1,2);for(let i=sh;i>0;i--) s.push(`<rect x="${cx-100+i*5}" y="${y+i*5}" width="200" height="${invH}" rx="6" fill="${iF}" stroke="${iS}" stroke-width="0.8" opacity="0.45"/>`);}
-  s.push(compBox(cx-100,y,200,invH,iF,iS,iL,iSub,cfg.invModel,cfg.hasRSD?'RSD · NEC 690.12':null));
+  const rsdInvSub=cfg.hasRSD?(cfg.rsdMethod==='pvhcs'?'PVHCS · NEC 690.12(C)(2)':'MLPE · NEC 690.12(C)(1)'):null;
+  s.push(compBox(cx-100,y,200,invH,iF,iS,iL,iSub,cfg.invModel,rsdInvSub));
   const itx=cx+100-4,ity=y+21;
   s.push(`<polygon points="${itx},${ity} ${itx},${ity+22} ${itx+20},${ity+11}" fill="${iF}" stroke="${iS}" stroke-width="1.2"/>`);
   const invBotY=y+invH;
@@ -1377,6 +1379,7 @@ function renderArrayColumn(cfg, cx, startY) {
 function render(){
   if(gc('hasArr2') && gc('arr2-linked')) arr2Sync();
   const v=vals();
+  $('rsd-method-row').style.display = v.hasRSD ? 'flex' : 'none';
   // Compute modsLast for partial last string (when systemKw auto-calculated)
   function getModsLast(sysKw, strings, mods, modW){
     if(!sysKw||sysKw<=0) return mods;
@@ -1503,7 +1506,7 @@ function render(){
 
   let invBot1=col1.invBotY, invBot2=col1.invBotY;
   if(v.hasArr2){
-    const col2=renderArrayColumn({...v.a2, modsLast:a2ModsLast, hasRSD:v.hasRSD, colLabel:'2'}, CX2, PV_START_Y);
+    const col2=renderArrayColumn({...v.a2, modsLast:a2ModsLast, hasRSD:v.hasRSD, rsdMethod:v.rsdMethod, colLabel:'2'}, CX2, PV_START_Y);
     el.push(col2.svg);
     invBot2=col2.invBotY;
   }
@@ -1685,7 +1688,9 @@ function render(){
   const NY=LY+134;
   const accentStyle = `fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600;letter-spacing:.06em`;
   const baseNecH = v.hasArr2 ? 172 : 100;
-  const necH = baseNecH + (hasAcCombiner ? 40 : 0);
+  const rsdLine1 = v.hasRSD ? (v.rsdMethod==='pvhcs' ? 'PVHCS per NEC 690.12(C)(2)' : 'MLPE per NEC 690.12(C)(1)') : '';
+  const rsdLine2 = v.hasRSD ? (v.rsdMethod==='pvhcs' ? 'PV Hazard Control System' : 'Module-level power electronics') : '';
+  const necH = baseNecH + (hasAcCombiner ? 40 : 0) + (v.hasRSD ? 40 : 0);
   if(v.hasArr2){
     el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="${necH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
     el.push(`<text x="${LX+NW/2}" y="${NY+13}" class="sld-head" text-anchor="middle">PV Electrical Notes (NEC 690)</text>`);
@@ -1713,6 +1718,13 @@ function render(){
       el.push(`<text x="${LX+10}" y="${NY+189}" class="sld-note">Power: Provide ${powerConduit} EMT  ·  ${roofTotalAcA.toFixed(1)} A req.</text>`);
       el.push(`<text x="${LX+10}" y="${NY+201}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  NEC Art. 800</text>`);
     }
+    if(v.hasRSD){
+      const rY = NY + 165 + (hasAcCombiner ? 40 : 0);
+      el.push(`<line x1="${LX+6}" y1="${rY}" x2="${LX+NW-6}" y2="${rY}" stroke="#d0d5e8" stroke-width="0.7"/>`);
+      el.push(`<text x="${LX+10}" y="${rY+12}" style="${accentStyle}">RSD COMPLIANCE</text>`);
+      el.push(`<text x="${LX+10}" y="${rY+24}" class="sld-note">${rsdLine1}</text>`);
+      el.push(`<text x="${LX+10}" y="${rY+36}" class="sld-note">${rsdLine2}</text>`);
+    }
   } else {
     el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="${necH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
     el.push(`<text x="${LX+NW/2}" y="${NY+13}" class="sld-head" text-anchor="middle">PV Electrical Notes (NEC 690)</text>`);
@@ -1728,6 +1740,13 @@ function render(){
       el.push(`<text x="${LX+10}" y="${NY+104}" style="${accentStyle}">CONDUIT NOTES</text>`);
       el.push(`<text x="${LX+10}" y="${NY+116}" class="sld-note">Power: Provide ${powerConduit} EMT  ·  ${roofTotalAcA.toFixed(1)} A req.</text>`);
       el.push(`<text x="${LX+10}" y="${NY+128}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  NEC Art. 800</text>`);
+    }
+    if(v.hasRSD){
+      const rY = NY + 92 + (hasAcCombiner ? 40 : 0);
+      el.push(`<line x1="${LX+6}" y1="${rY}" x2="${LX+NW-6}" y2="${rY}" stroke="#d0d5e8" stroke-width="0.7"/>`);
+      el.push(`<text x="${LX+10}" y="${rY+12}" style="${accentStyle}">RSD COMPLIANCE</text>`);
+      el.push(`<text x="${LX+10}" y="${rY+24}" class="sld-note">${rsdLine1}</text>`);
+      el.push(`<text x="${LX+10}" y="${rY+36}" class="sld-note">${rsdLine2}</text>`);
     }
   }
 
