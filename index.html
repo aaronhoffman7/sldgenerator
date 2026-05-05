@@ -1948,7 +1948,7 @@ function exportPDF(){
 
   const img=new Image();
   img.onload=function(){
-    const scale=4;
+    const scale=2;
     const canvas=document.createElement('canvas');
     canvas.width=W*scale; canvas.height=H*scale;
     const ctx=canvas.getContext('2d');
@@ -2003,7 +2003,7 @@ function exportPDF(){
     function finish(){
       const {jsPDF}=window.jspdf;
       const pdf=new jsPDF({orientation:W>=H?'landscape':'portrait',unit:'px',format:[W,H],hotfixes:['px_scaling']});
-      pdf.addImage(canvas.toDataURL('image/png',1.0),'PNG',0,0,W,H);
+      pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',0,0,W,H);
       pdf.save((v.projName||'sld').replace(/[^a-z0-9]/gi,'_')+'_SLD.pdf');
     }
 
