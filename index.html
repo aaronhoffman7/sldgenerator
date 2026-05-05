@@ -1354,13 +1354,11 @@ function renderArrayColumn(cfg, cx, startY) {
     s.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8',title,`${cfg.combV} VDC max`,`${cfg.strings} str · ${cfg.combFuse}A OCP · NEC 690.9`));
     y+=54; s.push(wireDC(cx,y,cx,y+W)); y+=W;
   }
-  if(cfg.hasRSD){
-    s.push(discBox(BX+15,y,BW-30,54,'#f5f7fc','#a0aac8','DC Disconnect',`${cfg.combV} VDC · ${Math.ceil(parseFloat(arrayIsc)*1.25)}A`,'NEC 690.13 / 690.15'));
-    y+=54;
-    s.push(wireDC(cx,y,cx,y+W));
-    s.push(wlabel(cx+10,y+W/2,'DC',false));
-    y+=W;
-  }
+  s.push(discBox(BX+15,y,BW-30,54,'#f5f7fc','#a0aac8','DC Disconnect',`${cfg.combV} VDC · ${Math.ceil(parseFloat(arrayIsc)*1.25)}A`,'NEC 690.13 / 690.15'));
+  y+=54;
+  s.push(wireDC(cx,y,cx,y+W));
+  s.push(wlabel(cx+10,y+W/2,'DC',false));
+  y+=W;
   const iF=cfg.invType==='hybrid'?'#ebf8f3':'#edf2ff';
   const iS=cfg.invType==='hybrid'?'#1e8a60':'#3a6bc0';
   const iL=cfg.invType==='hybrid'?'Hybrid Inverter':cfg.invType==='micro'?'Microinverters':cfg.invType==='central'?'Central Inverter':cfg.invCount>1?'String Inverters':'String Inverter';
@@ -1585,7 +1583,10 @@ function render(){
   el.push(wireAC(MCX,y,MCX,y+W));
   el.push(wlabel(MCX+10,y+W/2,'AC',true));
   y+=W;
-  el.push(discBox(BX+15,y,BW-30,54,'#edf2ff','#3a6bc0','AC Disconnect',`${v.invV} · ${recBreaker}A`,'NEC 690.15 / 705.20'));
+  const acDiscY=y;
+  const acDiscLabel=(v.hasRSD&&v.rsdMethod==='mlpe')?'AC Disconnect / RSD Init.':'AC Disconnect';
+  const acDiscNec=(v.hasRSD&&v.rsdMethod==='mlpe')?'NEC 690.15 / 705.20 / 690.12':'NEC 690.15 / 705.20';
+  el.push(discBox(BX+15,y,BW-30,54,'#edf2ff','#3a6bc0',acDiscLabel,`${v.invV} · ${recBreaker}A`,acDiscNec));
   y+=54;
 
   // Production meter
@@ -1598,6 +1599,7 @@ function render(){
 
   // Main panel
   el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+  const panelY=y;
   const panelSub=`${recPanel}A · ${v.invV}`;
   el.push(compBox(BX,y,BW,64,'#f0eaff','#6b45c0','Main Service Panel',panelSub,`Solar backfeed: ${recBreaker}A`));
   const panelBot=y+64; y=panelBot;
@@ -1748,6 +1750,25 @@ function render(){
       el.push(`<text x="${LX+10}" y="${rY+24}" class="sld-note">${rsdLine1}</text>`);
       el.push(`<text x="${LX+10}" y="${rY+36}" class="sld-note">${rsdLine2}</text>`);
     }
+  }
+
+  // ── RSD diagram elements (PVHCS) ────────────────────────────────────────
+  if(v.hasRSD && v.rsdMethod==='pvhcs'){
+    const pvC='#7a5ca0', pvF='#f4f0ff';
+    const RSD_X=MCX+BW/2+20;
+    const ctrlW=130, ctrlH=46, initW=130, initH=40;
+    const ctrlY=acDiscY+Math.round((54-ctrlH)/2);
+    const initY=panelY+Math.round((64-initH)/2);
+    const ctrlCX=RSD_X+ctrlW/2;
+    // Horizontal wire: AC disconnect right edge → PVHCS Controller
+    el.push(`<line x1="${MCX+BW/2-15}" y1="${acDiscY+27}" x2="${RSD_X}" y2="${ctrlY+Math.round(ctrlH/2)}" stroke="${pvC}" stroke-width="1" stroke-dasharray="5 3"/>`);
+    // Vertical control wire: PVHCS Controller → RSD Initiation Device
+    el.push(`<line x1="${ctrlCX}" y1="${ctrlY+ctrlH}" x2="${ctrlCX}" y2="${initY}" stroke="${pvC}" stroke-width="1" stroke-dasharray="5 3"/>`);
+    el.push(`<text x="${ctrlCX+4}" y="${Math.round((ctrlY+ctrlH+initY)/2)+4}" class="sld-note" style="fill:${pvC};font-style:italic">control wiring</text>`);
+    // PVHCS Controller box
+    el.push(compBox(RSD_X,ctrlY,ctrlW,ctrlH,pvF,pvC,'PVHCS Controller','Comm. to PHCUs at array','NEC 690.12(C)(2)'));
+    // RSD Initiation Device box
+    el.push(compBox(RSD_X,initY,initW,initH,pvF,pvC,'RSD Initiation Device','At service entrance','NEC 690.12(B)(2)'));
   }
 
   const overlayBottom=NY+necH+8+210;
