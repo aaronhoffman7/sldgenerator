@@ -1692,7 +1692,20 @@ function render(){
   const baseNecH = v.hasArr2 ? 172 : 100;
   const rsdLine1 = v.hasRSD ? (v.rsdMethod==='pvhcs' ? 'PVHCS per NEC 690.12(C)(2)' : 'MLPE per NEC 690.12(C)(1)') : '';
   const rsdLine2 = v.hasRSD ? (v.rsdMethod==='pvhcs' ? 'PV Hazard Control System' : 'Module-level power electronics') : '';
-  const necH = baseNecH + (hasAcCombiner ? 40 : 0) + (v.hasRSD ? 40 : 0);
+  // Conduit notes always present (3 lines); RSD section when enabled
+  const necH = baseNecH + 52 + (v.hasRSD ? 40 : 0);
+  // AC roof conduit note — text varies by combiner mode and array count
+  function acRoofNote(){
+    if(hasAcCombiner){
+      return `Provide ${conduitFor(acConductors,roofTotalAcW.area)} EMT · AC power, roof → elec. room (${roofTotalAcA.toFixed(1)} A req.)`;
+    }
+    if(v.hasArr2){
+      const r1=c1.invCount>1?` ×${c1.invCount}`:''; const r2=c2roof.invCount>1?` ×${c2roof.invCount}`:'';
+      return `A1: ${conduitFor(c1.acConds,c1.perInvAcW.area)} EMT${r1}  A2: ${conduitFor(c2roof.acConds,c2roof.perInvAcW.area)} EMT${r2} · AC power, roof → elec. room`;
+    }
+    const runs=c1.invCount>1?` · ×${c1.invCount} runs`:'';
+    return `Provide ${conduitFor(acConductors,perInvAcW.area)} EMT${runs} · AC power, roof → elec. room (${perInvAcA.toFixed(1)} A req.)`;
+  }
   if(v.hasArr2){
     el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="${necH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
     el.push(`<text x="${LX+NW/2}" y="${NY+13}" class="sld-head" text-anchor="middle">PV Electrical Notes (NEC 690)</text>`);
@@ -1711,17 +1724,15 @@ function render(){
     el.push(`<text x="${LX+10}" y="${NY+109}" style="${accentStyle}">TOTALS</text>`);
     el.push(`<text x="${LX+10}" y="${NY+121}" class="sld-note">DC System: ${totalKwDc.toFixed(2)} kW  ·  AC System: ${totalAcKw.toFixed(1)} kW</text>`);
     el.push(`<text x="${LX+10}" y="${NY+133}" class="sld-note">AC out: ${totalInvAcA.toFixed(1)} A  (×1.25 = ${recBreakerMin.toFixed(1)} A)</text>`);
-    if(!hasAcCombiner) el.push(`<text x="${LX+10}" y="${NY+145}" class="sld-note">Roof: ${roofConduitSvgLine()}</text>`);
     el.push(`<text x="${LX+10}" y="${NY+157}" class="sld-note">Breaker: ${recBreaker}A  Panel: ${recPanel}A</text>`);
-    if(hasAcCombiner){
-      const powerConduit = conduitFor(acConductors, roofTotalAcW.area);
-      el.push(`<line x1="${LX+6}" y1="${NY+165}" x2="${LX+NW-6}" y2="${NY+165}" stroke="#d0d5e8" stroke-width="0.7"/>`);
-      el.push(`<text x="${LX+10}" y="${NY+177}" style="${accentStyle}">CONDUIT NOTES</text>`);
-      el.push(`<text x="${LX+10}" y="${NY+189}" class="sld-note">Power: Provide ${powerConduit} EMT  ·  ${roofTotalAcA.toFixed(1)} A req.</text>`);
-      el.push(`<text x="${LX+10}" y="${NY+201}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  NEC Art. 800</text>`);
-    }
+    // Conduit notes — always shown
+    el.push(`<line x1="${LX+6}" y1="${NY+165}" x2="${LX+NW-6}" y2="${NY+165}" stroke="#d0d5e8" stroke-width="0.7"/>`);
+    el.push(`<text x="${LX+10}" y="${NY+177}" style="${accentStyle}">CONDUIT NOTES</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+189}" class="sld-note">${acRoofNote()}</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+201}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  NEC Art. 800</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+213}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
     if(v.hasRSD){
-      const rY = NY + 165 + (hasAcCombiner ? 40 : 0);
+      const rY = NY + 217;
       el.push(`<line x1="${LX+6}" y1="${rY}" x2="${LX+NW-6}" y2="${rY}" stroke="#d0d5e8" stroke-width="0.7"/>`);
       el.push(`<text x="${LX+10}" y="${rY+12}" style="${accentStyle}">RSD COMPLIANCE</text>`);
       el.push(`<text x="${LX+10}" y="${rY+24}" class="sld-note">${rsdLine1}</text>`);
@@ -1734,17 +1745,15 @@ function render(){
     el.push(`<text x="${LX+10}" y="${NY+31}" class="sld-note">DC System: ${arrayKw} kW  ·  AC System: ${totalAcKw.toFixed(1)} kW</text>`);
     el.push(`<text x="${LX+10}" y="${NY+44}" class="sld-note">Voc: ${stringVoc} V  (max ${necVoc} V)</text>`);
     el.push(`<text x="${LX+10}" y="${NY+57}" class="sld-note">Isc: ${arrayIsc} A  ·  Inv. AC out: ${invAC} A</text>`);
-    if(!hasAcCombiner) el.push(`<text x="${LX+10}" y="${NY+70}" class="sld-note">Roof: ${roofConduitSvgLine()}</text>`);
     el.push(`<text x="${LX+10}" y="${NY+83}" class="sld-note">Breaker: ${recBreaker}A  Panel: ${recPanel}A</text>`);
-    if(hasAcCombiner){
-      const powerConduit = conduitFor(acConductors, roofTotalAcW.area);
-      el.push(`<line x1="${LX+6}" y1="${NY+92}" x2="${LX+NW-6}" y2="${NY+92}" stroke="#d0d5e8" stroke-width="0.7"/>`);
-      el.push(`<text x="${LX+10}" y="${NY+104}" style="${accentStyle}">CONDUIT NOTES</text>`);
-      el.push(`<text x="${LX+10}" y="${NY+116}" class="sld-note">Power: Provide ${powerConduit} EMT  ·  ${roofTotalAcA.toFixed(1)} A req.</text>`);
-      el.push(`<text x="${LX+10}" y="${NY+128}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  NEC Art. 800</text>`);
-    }
+    // Conduit notes — always shown
+    el.push(`<line x1="${LX+6}" y1="${NY+92}" x2="${LX+NW-6}" y2="${NY+92}" stroke="#d0d5e8" stroke-width="0.7"/>`);
+    el.push(`<text x="${LX+10}" y="${NY+104}" style="${accentStyle}">CONDUIT NOTES</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+116}" class="sld-note">${acRoofNote()}</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+128}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  NEC Art. 800</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+140}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
     if(v.hasRSD){
-      const rY = NY + 92 + (hasAcCombiner ? 40 : 0);
+      const rY = NY + 144;
       el.push(`<line x1="${LX+6}" y1="${rY}" x2="${LX+NW-6}" y2="${rY}" stroke="#d0d5e8" stroke-width="0.7"/>`);
       el.push(`<text x="${LX+10}" y="${rY+12}" style="${accentStyle}">RSD COMPLIANCE</text>`);
       el.push(`<text x="${LX+10}" y="${rY+24}" class="sld-note">${rsdLine1}</text>`);
