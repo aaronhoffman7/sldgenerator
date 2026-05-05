@@ -752,9 +752,9 @@ function renderPVArray(v, cx, startY) {
   return { svg: s, botY: sym.botTermY, envRightX: envX + envW };
 }
 
-function compBox(x,y,w,h,fill,stroke,title,sub1,sub2){
+function compBox(x,y,w,h,fill,stroke,title,sub1,sub2,sub3){
   let s=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
-  const lines=[title,sub1,sub2].filter(Boolean);
+  const lines=[title,sub1,sub2,sub3].filter(Boolean);
   const lh=14,total=lines.length*lh;
   let ty=y+h/2-total/2+lh*0.75;
   lines.forEach((l,i)=>{const cls=i===0?'sld-lbl':'sld-sub';s+=`<text x="${x+w/2}" y="${ty+i*lh}" class="${cls}" text-anchor="middle">${esc(l)}</text>`;});
@@ -1350,11 +1350,11 @@ function renderArrayColumn(cfg, cx, startY) {
   s.push(wireDC(cx,y,cx,y+PV_DROP)); y+=PV_DROP;
   if(cfg.hasCombiner){
     const title=cfg.colLabel?`String Combiner ${cfg.colLabel}`:'String Combiner(s)';
-    s.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8',title,`${cfg.combV} VDC max`,`${cfg.strings} inputs · ${cfg.combFuse}A fuse`));
+    s.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8',title,`${cfg.combV} VDC max`,`${cfg.strings} str · ${cfg.combFuse}A OCP · NEC 690.9`));
     y+=54; s.push(wireDC(cx,y,cx,y+W)); y+=W;
   }
   if(cfg.hasRSD){
-    s.push(discBox(BX+15,y,BW-30,54,'#f5f7fc','#a0aac8','DC Disconnect / RSD',`${cfg.combV} VDC · ${Math.ceil(parseFloat(arrayIsc)*1.25)}A`,'NEC 690.12'));
+    s.push(discBox(BX+15,y,BW-30,54,'#f5f7fc','#a0aac8','DC Disconnect',`${cfg.combV} VDC · ${Math.ceil(parseFloat(arrayIsc)*1.25)}A`,'NEC 690.13 / 690.15'));
     y+=54;
     s.push(wireDC(cx,y,cx,y+W));
     s.push(wlabel(cx+10,y+W/2,'DC',false));
@@ -1365,12 +1365,13 @@ function renderArrayColumn(cfg, cx, startY) {
   const iL=cfg.invType==='hybrid'?'Hybrid Inverter':cfg.invType==='micro'?'Microinverters':cfg.invType==='central'?'Central Inverter':cfg.invCount>1?'String Inverters':'String Inverter';
   const iTotKw=(cfg.invKw*cfg.invCount).toFixed(1).replace(/\.0$/,'');
   const iSub=cfg.invCount>1?`${cfg.invCount}× ${cfg.invKw} kW = ${iTotKw} kW · ${cfg.invV}`:`${cfg.invKw} kW · ${cfg.invV}`;
-  if(cfg.invCount>1){const sh=Math.min(cfg.invCount-1,2);for(let i=sh;i>0;i--) s.push(`<rect x="${cx-100+i*5}" y="${y+i*5}" width="200" height="64" rx="6" fill="${iF}" stroke="${iS}" stroke-width="0.8" opacity="0.45"/>`);}
-  s.push(compBox(cx-100,y,200,64,iF,iS,iL,iSub,cfg.invModel));
+  const invH=cfg.hasRSD?78:64;
+  if(cfg.invCount>1){const sh=Math.min(cfg.invCount-1,2);for(let i=sh;i>0;i--) s.push(`<rect x="${cx-100+i*5}" y="${y+i*5}" width="200" height="${invH}" rx="6" fill="${iF}" stroke="${iS}" stroke-width="0.8" opacity="0.45"/>`);}
+  s.push(compBox(cx-100,y,200,invH,iF,iS,iL,iSub,cfg.invModel,cfg.hasRSD?'RSD · NEC 690.12':null));
   const itx=cx+100-4,ity=y+21;
   s.push(`<polygon points="${itx},${ity} ${itx},${ity+22} ${itx+20},${ity+11}" fill="${iF}" stroke="${iS}" stroke-width="1.2"/>`);
-  const invBotY=y+64;
-  return {svg:s.join('\n'), invBotY, envRightX:pv.envRightX, dcBusY:invBotY-64-Math.round(W/2)};
+  const invBotY=y+invH;
+  return {svg:s.join('\n'), invBotY, envRightX:pv.envRightX, dcBusY:invBotY-invH-Math.round(W/2)};
 }
 
 function render(){
@@ -1450,7 +1451,7 @@ function render(){
     const recBattFuse=nextStandardBreaker(Math.ceil(battFuseMin));
     $('battDcFuse').value=recBattFuse;
     v.battDcFuse=recBattFuse;
-    $('batt-fuse-calc').textContent=`NEC 706.20: ${battDcAraw.toFixed(1)} A × 1.25 = ${battFuseMin.toFixed(1)} A → ${recBattFuse}A std. (@ ${battVdc}V min)`;
+    $('batt-fuse-calc').textContent=`NEC 706.30: ${battDcAraw.toFixed(1)} A × 1.25 = ${battFuseMin.toFixed(1)} A → ${recBattFuse}A std. (@ ${battVdc}V min)`;
   } else {
     $('s-batt').textContent='None';
     $('batt-calc').textContent='';
@@ -1581,8 +1582,8 @@ function render(){
   el.push(wireAC(MCX,y,MCX,y+W));
   el.push(wlabel(MCX+10,y+W/2,'AC',true));
   y+=W;
-  el.push(discBox(BX+15,y,BW-30,46,'#edf2ff','#3a6bc0','AC Disconnect',`${v.invV} · ${recBreaker}A`));
-  y+=46;
+  el.push(discBox(BX+15,y,BW-30,54,'#edf2ff','#3a6bc0','AC Disconnect',`${v.invV} · ${recBreaker}A`,'NEC 690.15 / 705.20'));
+  y+=54;
 
   // Production meter
   if(v.hasMeter){
@@ -1604,7 +1605,7 @@ function render(){
   el.push(wlabel(MCX+58,y+15,'Utility Meter',true));
   y+=28;
   el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
-  el.push(compBox(MCX-100,y,200,44,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,'27/59/81/25A · OV/UV/OF/UF/Sync'));
+  el.push(compBox(MCX-100,y,200,44,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,'27/59/81/25 · UV/OV/UF/OF/Sync'));
   y+=44;
 
   // MV step-up transformer
