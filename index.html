@@ -372,7 +372,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     </div>
     <div id="backfeed-check" class="cwarn" style="margin-top:6px"></div>
     <div class="trow"><span>Rapid shutdown (RSD)</span><label class="tog"><input type="checkbox" id="hasRSD" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    <div class="trow" id="rsd-method-row"><span>RSD method</span><select id="rsdMethod" onchange="render()"><option value="mlpe">MLPE</option><option value="pvhcs">PVHCS</option></select></div>
+    <div class="trow" id="rsd-method-row"><span>RSD method</span><select id="rsdMethod" onchange="render()"><option value="mlpe">Module-Level Power Electronics (MLPE)</option><option value="pvhcs">PV Hazard Control System (PVHCS)</option></select></div>
     <div class="trow"><span>Production meter</span><label class="tog"><input type="checkbox" id="hasMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Show grounding</span><label class="tog"><input type="checkbox" id="hasGnd" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     </div>
@@ -389,6 +389,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="sec-subtitle" style="margin:10px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Roof → Electrical Room</div>
     <div id="roof-body">
     <div class="trow"><span>AC combiner on roof</span><label class="tog"><input type="checkbox" id="hasAcCombiner" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div class="trow" style="margin-top:8px"><span>AC conduit qty</span><select id="acConduitMult" onchange="render()" style="width:auto;min-width:90px"><option value="1">×1 (min.)</option><option value="2">×2</option><option value="3">×3</option></select></div>
     <div id="roof-branch-row" style="display:none">
       <div class="crow">Inv → combiner (per inverter)</div>
       <div class="cval" id="c-roof-branch">--</div>
@@ -428,7 +429,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 <!-- Save Modal -->
 <div id="save-modal" class="modal-backdrop" onclick="if(event.target===this)closeSaveModal()">
   <div class="modal">
-    <h2>Save Project</h2>
+    <h2 id="save-modal-title">Save Project</h2>
+    <div id="save-overwrite-note" style="display:none;font-size:10px;color:var(--muted);margin-bottom:10px;padding:6px 8px;background:var(--surface2);border-radius:4px;border-left:2px solid var(--accent2)">Overwriting: <span id="save-overwrite-name" style="color:var(--text)"></span></div>
     <label>File name</label>
     <input type="text" id="save-file-name" placeholder="My Solar Project">
     <label>Saved by</label>
@@ -436,7 +438,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div style="font-size:11px;color:var(--muted);margin-top:10px">Date: <span id="save-date-display"></span></div>
     <div class="modal-row">
       <button class="hbtn" onclick="closeSaveModal()">Cancel</button>
-      <button class="hbtn primary" onclick="saveProject()">Save</button>
+      <button class="hbtn" id="save-as-new-btn" style="display:none" onclick="saveProject(true)">Save as new</button>
+      <button class="hbtn primary" onclick="saveProject(false)">Save</button>
     </div>
   </div>
 </div>
@@ -459,6 +462,8 @@ const gc=id=>$(id)?$(id).checked:false;
 
 // ── Project save / load ──────────────────────────────────────────────────────
 const SLD_KEY_PREFIX = 'sld_proj_';
+let _currentProjectKey = null; // tracks the active save slot for overwrite
+let _lastAutoBreaker = null, _lastAutoPanel = null;
 
 // IndexedDB for DAE files (localStorage is too small for most .dae exports)
 const _idbName = 'sld_dae_db', _idbStore = 'dae';
@@ -532,17 +537,35 @@ function openSaveModal(){
   const proj = gv('projName') || 'Untitled';
   $('save-file-name').value = proj;
   $('save-date-display').textContent = new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+  const hasExisting = !!_currentProjectKey;
+  if(hasExisting){
+    const existing = JSON.parse(localStorage.getItem(_currentProjectKey) || 'null');
+    $('save-overwrite-name').textContent = existing ? existing.name : 'previous save';
+    $('save-overwrite-note').style.display = 'block';
+    $('save-as-new-btn').style.display = 'inline-flex';
+    $('save-modal-title').textContent = 'Save Project';
+  } else {
+    $('save-overwrite-note').style.display = 'none';
+    $('save-as-new-btn').style.display = 'none';
+    $('save-modal-title').textContent = 'Save Project';
+  }
   $('save-modal').classList.add('open');
   $('save-file-name').focus();
 }
 function closeSaveModal(){ $('save-modal').classList.remove('open'); }
 
-async function saveProject(){
+async function saveProject(asNew){
   const name = $('save-file-name').value.trim() || 'Untitled';
   const savedBy = $('save-by-name').value.trim();
   const ts = Date.now();
   const date = new Date(ts).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
-  const key = SLD_KEY_PREFIX + ts;
+  let key;
+  if(!asNew && _currentProjectKey){
+    key = _currentProjectKey;
+  } else {
+    key = SLD_KEY_PREFIX + ts;
+    _currentProjectKey = key;
+  }
   const record = { name, savedBy, date, timestamp: ts, hasDae: !!_lastDaeXml, inputs: collectInputState() };
   localStorage.setItem(key, JSON.stringify(record));
   if(_lastDaeXml) await idbPut(key, _lastDaeXml);
@@ -583,6 +606,7 @@ function renderProjectsList(){
 async function loadProject(key){
   const data = JSON.parse(localStorage.getItem(key) || 'null');
   if(!data) return;
+  _currentProjectKey = key;
   restoreInputState(data.inputs); // sets _daeDismissed before renderDaePreview
   if(data.hasDae){
     const xml = await idbGet(key);
@@ -599,6 +623,7 @@ async function deleteProject(key){
   if(!confirm('Delete this saved project?')) return;
   localStorage.removeItem(key);
   await idbDel(key);
+  if(_currentProjectKey === key) _currentProjectKey = null;
   renderProjectsList();
 }
 
@@ -1382,7 +1407,7 @@ function renderArrayColumn(cfg, cx, startY) {
   const iSub=cfg.invCount>1?`${cfg.invCount}× ${cfg.invKw} kW = ${iTotKw} kW · ${cfg.invV}`:`${cfg.invKw} kW · ${cfg.invV}`;
   const invH=cfg.hasRSD?78:64;
   if(cfg.invCount>1){const sh=Math.min(cfg.invCount-1,2);for(let i=sh;i>0;i--) s.push(`<rect x="${cx-100+i*5}" y="${y+i*5}" width="200" height="${invH}" rx="6" fill="${iF}" stroke="${iS}" stroke-width="0.8" opacity="0.45"/>`);}
-  const rsdInvSub=cfg.hasRSD?(cfg.rsdMethod==='pvhcs'?'PVHCS · NEC 690.12(C)(2)':'MLPE · NEC 690.12(C)(1)'):null;
+  const rsdInvSub=cfg.hasRSD?(cfg.rsdMethod==='pvhcs'?'PV Hazard Control System (PVHCS)':'Module-Level Power Electronics (MLPE)'):null;
   s.push(compBox(cx-100,y,200,invH,iF,iS,iL,iSub,cfg.invModel,rsdInvSub));
   const itx=cx+100-4,ity=y+21;
   s.push(`<polygon points="${itx},${ity} ${itx},${ity+22} ${itx+20},${ity+11}" fill="${iF}" stroke="${iS}" stroke-width="1.2"/>`);
@@ -1444,12 +1469,14 @@ function render(){
   // Auto-fill solar breaker and panel size
   const recBreakerMin=(v.hasArr2?totalInvAcA:parseFloat(invAC))*1.25;
   const recBreaker=nextStandardBreaker(Math.ceil(recBreakerMin));
-  $('solarBreaker').value=recBreaker;
+  const bkrPoles=(v.invV||'').includes('1ph')?'2-P':'3-P';
+  const bkrLabel=`${recBreaker}A ${bkrPoles}`;
+  if(+gv('solarBreaker')===_lastAutoBreaker||_lastAutoBreaker===null){$('solarBreaker').value=recBreaker;} _lastAutoBreaker=recBreaker;
   $('breaker-math').textContent=v.hasArr2
     ?`Arr1: ${parseFloat(invAC).toFixed(1)} A\nArr2: ${a2InvAcA.toFixed(1)} A\nTotal: ${totalInvAcA.toFixed(1)} A\n× 1.25 = ${recBreakerMin.toFixed(1)} A\n→ ${recBreaker}A std.`
     :`${parseFloat(invAC).toFixed(1)} A\n× 1.25 = ${recBreakerMin.toFixed(1)} A\n→ ${recBreaker}A std.`;
   const recPanel=nextPanelSize(Math.ceil(recBreaker*5));
-  $('panelA').value=recPanel;
+  if(+gv('panelA')===_lastAutoPanel||_lastAutoPanel===null){$('panelA').value=recPanel;} _lastAutoPanel=recPanel;
   $('s-kw').textContent=(v.hasArr2?totalKwDc.toFixed(2):arrayKw)+' kW DC';
   $('s-voc').textContent=stringVoc+' V';
   $('s-isc').textContent=arrayIsc+' A';
@@ -1602,7 +1629,7 @@ function render(){
   const acDiscY=y;
   const acDiscLabel=(v.hasRSD&&v.rsdMethod==='mlpe')?'AC Disconnect / RSD Init.':'AC Disconnect';
   const acDiscNec=(v.hasRSD&&v.rsdMethod==='mlpe')?'NEC 690.15 / 705.20 / 690.12':'NEC 690.15 / 705.20';
-  el.push(discBox(BX+15,y,BW-30,54,'#edf2ff','#3a6bc0',acDiscLabel,`${v.invV} · ${recBreaker}A`,acDiscNec));
+  el.push(discBox(BX+15,y,BW-30,54,'#edf2ff','#3a6bc0',acDiscLabel,`${v.invV} · ${bkrLabel}`,acDiscNec));
   y+=54;
 
   // Production meter
@@ -1617,7 +1644,7 @@ function render(){
   el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
   const panelY=y;
   const panelSub=`${recPanel}A · ${v.invV}`;
-  el.push(compBox(BX,y,BW,64,'#f0eaff','#6b45c0','Main Service Panel',panelSub,`Solar backfeed: ${recBreaker}A`));
+  el.push(compBox(BX,y,BW,64,'#f0eaff','#6b45c0','Main Service Panel',panelSub,`Solar backfeed: ${bkrLabel}`));
   const panelBot=y+64; y=panelBot;
 
   // Utility meter
@@ -1706,21 +1733,25 @@ function render(){
   const NY=LY+134;
   const accentStyle = `fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600;letter-spacing:.06em`;
   const baseNecH = v.hasArr2 ? 172 : 100;
-  const rsdLine1 = v.hasRSD ? (v.rsdMethod==='pvhcs' ? 'PVHCS per NEC 690.12(C)(2)' : 'MLPE per NEC 690.12(C)(1)') : '';
-  const rsdLine2 = v.hasRSD ? (v.rsdMethod==='pvhcs' ? 'PV Hazard Control System' : 'Module-level power electronics') : '';
-  // Conduit notes always present (3 lines); RSD section when enabled
-  const necH = baseNecH + 52 + (v.hasRSD ? 40 : 0);
-  // AC roof conduit note — text varies by combiner mode and array count
+  const rsdLine1 = v.hasRSD ? (v.rsdMethod==='pvhcs' ? 'PV Hazard Control System (PVHCS)' : 'Module-Level Power Electronics (MLPE)') : '';
+  const rsdLine2 = v.hasRSD ? (v.rsdMethod==='pvhcs' ? 'NEC 690.12(C)(2)' : 'NEC 690.12(C)(1)') : '';
+  // Conduit notes always present (4 lines incl. 2-line AC note); RSD section when enabled
+  const necH = baseNecH + 64 + (v.hasRSD ? 40 : 0);
+  // AC roof conduit note — returns [line1, line2] to keep each line short enough to fit the box
+  const acMult=+gv('acConduitMult')||1;
+  const mPfx=acMult>1?`${acMult}× `:'';
   function acRoofNote(){
     if(hasAcCombiner){
-      return `Provide ${conduitFor(acConductors,roofTotalAcW.area)} EMT · AC power, roof → elec. room (${roofTotalAcA.toFixed(1)} A req.)`;
+      const size=conduitFor(acConductors,roofTotalAcW.area);
+      return [`Provide ${mPfx}${size} EMT · AC power`,`Roof → elec. room  (${roofTotalAcA.toFixed(1)} A req.)`];
     }
     if(v.hasArr2){
       const r1=c1.invCount>1?` ×${c1.invCount}`:''; const r2=c2roof.invCount>1?` ×${c2roof.invCount}`:'';
-      return `A1: ${conduitFor(c1.acConds,c1.perInvAcW.area)} EMT${r1}  A2: ${conduitFor(c2roof.acConds,c2roof.perInvAcW.area)} EMT${r2} · AC power, roof → elec. room`;
+      return [`A1: ${mPfx}${conduitFor(c1.acConds,c1.perInvAcW.area)} EMT${r1}  ·  A2: ${mPfx}${conduitFor(c2roof.acConds,c2roof.perInvAcW.area)} EMT${r2}`,`AC power  ·  roof → elec. room`];
     }
+    const size=conduitFor(acConductors,perInvAcW.area);
     const runs=c1.invCount>1?` · ×${c1.invCount} runs`:'';
-    return `Provide ${conduitFor(acConductors,perInvAcW.area)} EMT${runs} · AC power, roof → elec. room (${perInvAcA.toFixed(1)} A req.)`;
+    return [`Provide ${mPfx}${size} EMT · AC power${runs}`,`Roof → elec. room  (${perInvAcA.toFixed(1)} A req.)`];
   }
   if(v.hasArr2){
     el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="${necH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
@@ -1738,17 +1769,19 @@ function render(){
     // Totals section
     el.push(`<line x1="${LX+6}" y1="${NY+98}" x2="${LX+NW-6}" y2="${NY+98}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+109}" style="${accentStyle}">TOTALS</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+121}" class="sld-note">DC System: ${totalKwDc.toFixed(2)} kW  ·  AC System: ${totalAcKw.toFixed(1)} kW</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+121}" class="sld-note">DC System Size: ${totalKwDc.toFixed(2)} kW  ·  AC System Size: ${totalAcKw.toFixed(1)} kW</text>`);
     el.push(`<text x="${LX+10}" y="${NY+133}" class="sld-note">AC out: ${totalInvAcA.toFixed(1)} A  (×1.25 = ${recBreakerMin.toFixed(1)} A)</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+157}" class="sld-note">Breaker: ${recBreaker}A  Panel: ${recPanel}A</text>`);
-    // Conduit notes — always shown
+    el.push(`<text x="${LX+10}" y="${NY+157}" class="sld-note">Breaker: ${bkrLabel}  ·  Panel: ${recPanel}A</text>`);
+    // Conduit notes — always shown (2-line AC note)
     el.push(`<line x1="${LX+6}" y1="${NY+165}" x2="${LX+NW-6}" y2="${NY+165}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+177}" style="${accentStyle}">CONDUIT NOTES</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+189}" class="sld-note">${acRoofNote()}</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+201}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  NEC Art. 800</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+213}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
+    const[acL1d,acL2d]=acRoofNote();
+    el.push(`<text x="${LX+10}" y="${NY+189}" class="sld-note">${acL1d}</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+201}" class="sld-note">${acL2d}</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+213}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  roof → elec. room  ·  NEC Art. 800</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+225}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
     if(v.hasRSD){
-      const rY = NY + 217;
+      const rY = NY + 229;
       el.push(`<line x1="${LX+6}" y1="${rY}" x2="${LX+NW-6}" y2="${rY}" stroke="#d0d5e8" stroke-width="0.7"/>`);
       el.push(`<text x="${LX+10}" y="${rY+12}" style="${accentStyle}">RSD COMPLIANCE</text>`);
       el.push(`<text x="${LX+10}" y="${rY+24}" class="sld-note">${rsdLine1}</text>`);
@@ -1758,18 +1791,20 @@ function render(){
     el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="${necH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
     el.push(`<text x="${LX+NW/2}" y="${NY+13}" class="sld-head" text-anchor="middle">PV Electrical Notes (NEC 690)</text>`);
     el.push(`<line x1="${LX+6}" y1="${NY+18}" x2="${LX+NW-6}" y2="${NY+18}" stroke="#d0d5e8" stroke-width="0.7"/>`);
-    el.push(`<text x="${LX+10}" y="${NY+31}" class="sld-note">DC System: ${arrayKw} kW  ·  AC System: ${totalAcKw.toFixed(1)} kW</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+31}" class="sld-note">DC System Size: ${arrayKw} kW  ·  AC System Size: ${totalAcKw.toFixed(1)} kW</text>`);
     el.push(`<text x="${LX+10}" y="${NY+44}" class="sld-note">Voc: ${stringVoc} V  (max ${necVoc} V)</text>`);
     el.push(`<text x="${LX+10}" y="${NY+57}" class="sld-note">Isc: ${arrayIsc} A  ·  Inv. AC out: ${invAC} A</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+83}" class="sld-note">Breaker: ${recBreaker}A  Panel: ${recPanel}A</text>`);
-    // Conduit notes — always shown
+    el.push(`<text x="${LX+10}" y="${NY+83}" class="sld-note">Breaker: ${bkrLabel}  ·  Panel: ${recPanel}A</text>`);
+    // Conduit notes — always shown (2-line AC note)
     el.push(`<line x1="${LX+6}" y1="${NY+92}" x2="${LX+NW-6}" y2="${NY+92}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+104}" style="${accentStyle}">CONDUIT NOTES</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+116}" class="sld-note">${acRoofNote()}</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+128}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  NEC Art. 800</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+140}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
+    const[acL1s,acL2s]=acRoofNote();
+    el.push(`<text x="${LX+10}" y="${NY+116}" class="sld-note">${acL1s}</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+128}" class="sld-note">${acL2s}</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+140}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  roof → elec. room  ·  NEC Art. 800</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+152}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
     if(v.hasRSD){
-      const rY = NY + 144;
+      const rY = NY + 156;
       el.push(`<line x1="${LX+6}" y1="${rY}" x2="${LX+NW-6}" y2="${rY}" stroke="#d0d5e8" stroke-width="0.7"/>`);
       el.push(`<text x="${LX+10}" y="${rY+12}" style="${accentStyle}">RSD COMPLIANCE</text>`);
       el.push(`<text x="${LX+10}" y="${rY+24}" class="sld-note">${rsdLine1}</text>`);
@@ -1848,17 +1883,17 @@ function render(){
       $('c-roof-branch').textContent = `#${perInvAcW.awg} AWG · ${conduitFor(acConductors, perInvAcW.area)} EMT · ×${v.invCount} runs  (${perInvAcA.toFixed(1)} A req.)`;
     }
     roofMainLbl.textContent = v.hasArr2 ? 'AC combiner → elec. room (combined run)' : 'Combiner → elec. room (single run)';
-    $('c-roof-main').textContent = `#${roofTotalAcW.awg} AWG · ${conduitFor(acConductors, roofTotalAcW.area)} EMT  (${roofTotalAcA.toFixed(1)} A req.)`;
+    $('c-roof-main').textContent = `#${roofTotalAcW.awg} AWG · ${mPfx}${conduitFor(acConductors, roofTotalAcW.area)} EMT  (${roofTotalAcA.toFixed(1)} A req.)`;
   } else {
     roofBranchRow.style.display = 'none';
     if(v.hasArr2){
       const r1=c1.invCount>1?` ×${c1.invCount} runs`:'';
       const r2=c2roof.invCount>1?` ×${c2roof.invCount} runs`:'';
       roofMainLbl.textContent = 'Direct runs (all inverters → elec. room)';
-      $('c-roof-main').textContent = `Arr1: #${c1.perInvAcW.awg} AWG${r1}  (${(c1.perInvAcA*c1.invCount).toFixed(1)} A) · Arr2: #${c2roof.perInvAcW.awg} AWG${r2}  (${(c2roof.perInvAcA*c2roof.invCount).toFixed(1)} A)`;
+      $('c-roof-main').textContent = `Arr1: ${mPfx}#${c1.perInvAcW.awg} AWG${r1}  (${(c1.perInvAcA*c1.invCount).toFixed(1)} A) · Arr2: ${mPfx}#${c2roof.perInvAcW.awg} AWG${r2}  (${(c2roof.perInvAcA*c2roof.invCount).toFixed(1)} A)`;
     } else {
       roofMainLbl.textContent = v.invCount > 1 ? `Direct runs (×${v.invCount} inverters → elec. room)` : 'Direct run (inverter → elec. room)';
-      $('c-roof-main').textContent = `#${perInvAcW.awg} AWG · ${conduitFor(acConductors, perInvAcW.area)} EMT${perInvLabel}  (${perInvAcA.toFixed(1)} A req.)`;
+      $('c-roof-main').textContent = `#${perInvAcW.awg} AWG · ${mPfx}${conduitFor(acConductors, perInvAcW.area)} EMT${perInvLabel}  (${perInvAcA.toFixed(1)} A req.)`;
     }
   }
   $('c-roof-comm').textContent = `Cat6 · ×${roofCommRuns} cable${roofCommRuns>1?'s':''} · ${roofCommCond} EMT  (NEC 800/725 Cl.2)`;
