@@ -1744,15 +1744,15 @@ function render(){
   function acRoofNote(){
     if(hasAcCombiner){
       const size=conduitFor(acConductors,roofTotalAcW.area);
-      return `Provide ${mPfx}${size} EMT · AC power, roof → elec. room (${roofTotalAcA.toFixed(1)} A req.)`;
+      return `Provide ${mPfx}${size} EMT for AC power, roof → elec. room (${roofTotalAcA.toFixed(1)} A req.)`;
     }
     if(v.hasArr2){
       const r1=c1.invCount>1?` ×${c1.invCount}`:''; const r2=c2roof.invCount>1?` ×${c2roof.invCount}`:'';
-      return `A1: ${mPfx}${conduitFor(c1.acConds,c1.perInvAcW.area)} EMT${r1}  ·  A2: ${mPfx}${conduitFor(c2roof.acConds,c2roof.perInvAcW.area)} EMT${r2} · AC power, roof → elec. room`;
+      return `Provide ${mPfx}${conduitFor(c1.acConds,c1.perInvAcW.area)} EMT${r1} (A1) + ${mPfx}${conduitFor(c2roof.acConds,c2roof.perInvAcW.area)} EMT${r2} (A2) for AC power, roof → elec. room`;
     }
     const size=conduitFor(acConductors,perInvAcW.area);
     const runs=c1.invCount>1?` · ×${c1.invCount} runs`:'';
-    return `Provide ${mPfx}${size} EMT · AC power${runs}, roof → elec. room (${perInvAcA.toFixed(1)} A req.)`;
+    return `Provide ${mPfx}${size} EMT for AC power${runs}, roof → elec. room (${perInvAcA.toFixed(1)} A req.)`;
   }
   if(v.hasArr2){
     el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="${necH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
@@ -1779,7 +1779,7 @@ function render(){
     el.push(`<line x1="${LX+6}" y1="${NY+185}" x2="${LX+NW-6}" y2="${NY+185}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+197}" style="${accentStyle}">CONDUIT NOTES</text>`);
     el.push(`<text x="${LX+10}" y="${NY+209}" class="sld-note">${acRoofNote()}</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+221}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  roof → elec. room  ·  NEC Art. 800</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+221}" class="sld-note">Provide ${roofCommCond} EMT for PV inverter communications, roof → elec. room · NEC Art. 800</text>`);
     el.push(`<text x="${LX+10}" y="${NY+233}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
     if(v.hasRSD){
       const rY = NY + 237;
@@ -1802,7 +1802,7 @@ function render(){
     el.push(`<line x1="${LX+6}" y1="${NY+112}" x2="${LX+NW-6}" y2="${NY+112}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+124}" style="${accentStyle}">CONDUIT NOTES</text>`);
     el.push(`<text x="${LX+10}" y="${NY+136}" class="sld-note">${acRoofNote()}</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+148}" class="sld-note">Comms: Provide ${roofCommCond} EMT  ·  roof → elec. room  ·  NEC Art. 800</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+148}" class="sld-note">Provide ${roofCommCond} EMT for PV inverter communications, roof → elec. room · NEC Art. 800</text>`);
     el.push(`<text x="${LX+10}" y="${NY+160}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
     if(v.hasRSD){
       const rY = NY + 164;
