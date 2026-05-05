@@ -1693,16 +1693,16 @@ function render(){
     el.push(`<line x1="${LX+6}" y1="${NY+18}" x2="${LX+NW-6}" y2="${NY+18}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+29}" style="${accentStyle}">ARRAY 1</text>`);
     el.push(`<text x="${LX+10}" y="${NY+41}" class="sld-note">Voc: ${stringVoc} V  (max ${necVoc} V)</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+52}" class="sld-note">Isc: ${arrayIsc} A  ·  AC: ${parseFloat(invAC).toFixed(1)} A</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+52}" class="sld-note">Isc: ${arrayIsc} A  ·  Inv. AC out: ${parseFloat(invAC).toFixed(1)} A</text>`);
     // Array 2 section
     el.push(`<line x1="${LX+6}" y1="${NY+58}" x2="${LX+NW-6}" y2="${NY+58}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+69}" style="${accentStyle}">ARRAY 2</text>`);
     el.push(`<text x="${LX+10}" y="${NY+81}" class="sld-note">Voc: ${a2StrVoc.toFixed(1)} V  (max ${(a2StrVoc*1.25).toFixed(0)} V)</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+92}" class="sld-note">Isc: ${a2ArrIsc.toFixed(1)} A  ·  AC: ${a2InvAcA.toFixed(1)} A</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+92}" class="sld-note">Isc: ${a2ArrIsc.toFixed(1)} A  ·  Inv. AC out: ${a2InvAcA.toFixed(1)} A</text>`);
     // Totals section
     el.push(`<line x1="${LX+6}" y1="${NY+98}" x2="${LX+NW-6}" y2="${NY+98}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+109}" style="${accentStyle}">TOTALS</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+121}" class="sld-note">DC: ${totalKwDc.toFixed(2)} kW  ·  AC: ${totalAcKw.toFixed(1)} kW</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+121}" class="sld-note">DC System: ${totalKwDc.toFixed(2)} kW  ·  AC System: ${totalAcKw.toFixed(1)} kW</text>`);
     el.push(`<text x="${LX+10}" y="${NY+133}" class="sld-note">AC out: ${totalInvAcA.toFixed(1)} A  (×1.25 = ${recBreakerMin.toFixed(1)} A)</text>`);
     if(!hasAcCombiner) el.push(`<text x="${LX+10}" y="${NY+145}" class="sld-note">Roof: ${roofConduitSvgLine()}</text>`);
     el.push(`<text x="${LX+10}" y="${NY+157}" class="sld-note">Breaker: ${recBreaker}A  Panel: ${recPanel}A</text>`);
@@ -1717,9 +1717,9 @@ function render(){
     el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="${necH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
     el.push(`<text x="${LX+NW/2}" y="${NY+13}" class="sld-head" text-anchor="middle">PV Electrical Notes (NEC 690)</text>`);
     el.push(`<line x1="${LX+6}" y1="${NY+18}" x2="${LX+NW-6}" y2="${NY+18}" stroke="#d0d5e8" stroke-width="0.7"/>`);
-    el.push(`<text x="${LX+10}" y="${NY+31}" class="sld-note">DC: ${arrayKw} kW  ·  AC: ${totalAcKw.toFixed(1)} kW</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+31}" class="sld-note">DC System: ${arrayKw} kW  ·  AC System: ${totalAcKw.toFixed(1)} kW</text>`);
     el.push(`<text x="${LX+10}" y="${NY+44}" class="sld-note">Voc: ${stringVoc} V  (max ${necVoc} V)</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+57}" class="sld-note">Isc: ${arrayIsc} A  ·  AC: ${invAC} A</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+57}" class="sld-note">Isc: ${arrayIsc} A  ·  Inv. AC out: ${invAC} A</text>`);
     if(!hasAcCombiner) el.push(`<text x="${LX+10}" y="${NY+70}" class="sld-note">Roof: ${roofConduitSvgLine()}</text>`);
     el.push(`<text x="${LX+10}" y="${NY+83}" class="sld-note">Breaker: ${recBreaker}A  Panel: ${recPanel}A</text>`);
     if(hasAcCombiner){
