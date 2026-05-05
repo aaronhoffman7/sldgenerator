@@ -1471,13 +1471,15 @@ function render(){
   const recBreakerMin=(v.hasArr2?totalInvAcA:parseFloat(invAC))*1.25;
   const recBreaker=nextStandardBreaker(Math.ceil(recBreakerMin));
   const bkrPoles=(v.invV||'').includes('1ph')?'2-P':'3-P';
-  const bkrLabel=`${recBreaker}A ${bkrPoles}`;
   if(+gv('solarBreaker')===_lastAutoBreaker||_lastAutoBreaker===null){$('solarBreaker').value=recBreaker;} _lastAutoBreaker=recBreaker;
   $('breaker-math').textContent=v.hasArr2
     ?`Arr1: ${parseFloat(invAC).toFixed(1)} A\nArr2: ${a2InvAcA.toFixed(1)} A\nTotal: ${totalInvAcA.toFixed(1)} A\n× 1.25 = ${recBreakerMin.toFixed(1)} A\n→ ${recBreaker}A std.`
     :`${parseFloat(invAC).toFixed(1)} A\n× 1.25 = ${recBreakerMin.toFixed(1)} A\n→ ${recBreaker}A std.`;
   const recPanel=nextPanelSize(Math.ceil(recBreaker*5));
   if(+gv('panelA')===_lastAutoPanel||_lastAutoPanel===null){$('panelA').value=recPanel;} _lastAutoPanel=recPanel;
+  const activeBreaker=+gv('solarBreaker')||recBreaker;
+  const activePanel=+gv('panelA')||recPanel;
+  const bkrLabel=`${activeBreaker}A ${bkrPoles}`;
   $('s-kw').textContent=(v.hasArr2?totalKwDc.toFixed(2):arrayKw)+' kW DC';
   $('s-voc').textContent=stringVoc+' V';
   $('s-isc').textContent=arrayIsc+' A';
@@ -1504,7 +1506,7 @@ function render(){
   $('s-nec').textContent=Math.ceil(maxNecVoc)+' V';
 
   // ── Layout constants (shift when Array 2 active) ─────────────────────────
-  const SVG_W=v.hasArr2?1300:1100;
+  const SVG_W=v.hasArr2?1550:1200;
   const CX1=v.hasArr2?190:220;
   const CX2=570;
   const MCX=v.hasArr2?Math.round((CX1+CX2)/2):CX1; // merge / downstream centre
@@ -1644,7 +1646,7 @@ function render(){
   // Main panel
   el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
   const panelY=y;
-  const panelSub=`${recPanel}A · ${v.invV}`;
+  const panelSub=`${activePanel}A · ${v.invV}`;
   el.push(compBox(BX,y,BW,64,'#f0eaff','#6b45c0','Main Service Panel',panelSub,`Solar backfeed: ${bkrLabel}`));
   const panelBot=y+64; y=panelBot;
 
@@ -1683,7 +1685,7 @@ function render(){
   }
 
   // Legend + NEC box share the same column width
-  const LX=SVG_W-365, LY=82, NW=350;
+  const LX=SVG_W-445, LY=82, NW=430;
   el.push(`<rect x="${LX}" y="${LY}" width="${NW}" height="122" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
   el.push(`<text x="${LX+12}" y="${LY+16}" class="sld-head">LEGEND</text>`);
   el.push(`<line x1="${LX+12}" y1="${LY+30}" x2="${LX+44}" y2="${LY+30}" stroke="#c9a10a" stroke-width="2" stroke-dasharray="7 3"/>`);
@@ -1774,7 +1776,7 @@ function render(){
     el.push(`<text x="${LX+10}" y="${NY+129}" style="${accentStyle}">TOTALS</text>`);
     el.push(`<text x="${LX+10}" y="${NY+141}" class="sld-note">DC System Size: ${totalKwDc.toFixed(2)} kW  ·  AC System Size: ${totalAcKw.toFixed(1)} kW</text>`);
     el.push(`<text x="${LX+10}" y="${NY+153}" class="sld-note">AC out: ${totalInvAcA.toFixed(1)} A  (×1.25 = ${recBreakerMin.toFixed(1)} A)</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+177}" class="sld-note">Breaker: ${bkrLabel}  ·  Panel: ${recPanel}A</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+177}" class="sld-note">Breaker: ${bkrLabel}  ·  Panel: ${activePanel}A</text>`);
     // Conduit notes — always shown (2-line AC note)
     el.push(`<line x1="${LX+6}" y1="${NY+185}" x2="${LX+NW-6}" y2="${NY+185}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+197}" style="${accentStyle}">CONDUIT NOTES</text>`);
@@ -1797,7 +1799,7 @@ function render(){
     el.push(`<text x="${LX+10}" y="${NY+51}" class="sld-note">DC System Size: ${arrayKw} kW  ·  AC System Size: ${totalAcKw.toFixed(1)} kW</text>`);
     el.push(`<text x="${LX+10}" y="${NY+64}" class="sld-note">Voc: ${stringVoc} V  (max ${necVoc} V)</text>`);
     el.push(`<text x="${LX+10}" y="${NY+77}" class="sld-note">Isc: ${arrayIsc} A  ·  Inv. AC out: ${invAC} A</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+103}" class="sld-note">Breaker: ${bkrLabel}  ·  Panel: ${recPanel}A</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+103}" class="sld-note">Breaker: ${bkrLabel}  ·  Panel: ${activePanel}A</text>`);
     // Conduit notes — always shown (2-line AC note)
     el.push(`<line x1="${LX+6}" y1="${NY+112}" x2="${LX+NW-6}" y2="${NY+112}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+124}" style="${accentStyle}">CONDUIT NOTES</text>`);
