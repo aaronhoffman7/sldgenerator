@@ -1829,7 +1829,7 @@ function render(){
     el.push(`<line x1="${ctrlCX}" y1="${ctrlY+ctrlH}" x2="${ctrlCX}" y2="${initY}" stroke="${pvC}" stroke-width="1" stroke-dasharray="5 3"/>`);
     el.push(`<text x="${ctrlCX+4}" y="${Math.round((ctrlY+ctrlH+initY)/2)+4}" class="sld-note" style="fill:${pvC};font-style:italic">control wiring</text>`);
     // PVHCS Controller box
-    el.push(compBox(RSD_X,ctrlY,ctrlW,ctrlH,pvF,pvC,'PVHCS Controller','Comm. to PHCUs at array','NEC 690.12(C)(2)'));
+    el.push(compBox(RSD_X,ctrlY,ctrlW,ctrlH,pvF,pvC,'PVHCS Controller','Control signal to array equipment','NEC 690.12(C)(2)'));
     // RSD Initiation Device box
     el.push(compBox(RSD_X,initY,initW,initH,pvF,pvC,'RSD Initiation Device','At service entrance','NEC 690.12(B)(2)'));
   }
