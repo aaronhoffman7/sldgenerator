@@ -805,14 +805,14 @@ function meterCircle(cx,cy){return`<circle cx="${cx}" cy="${cy}" r="15" fill="#f
 function wlabel(x,y,txt,ac,anchor='middle'){const col=ac?'#3d8ef8':'#c9a10a';return`<text x="${x}" y="${y}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="${anchor}">${esc(txt)}</text>`;}
 function spdSym(cx,y,isAc,side){
   const col=isAc?'#3d8ef8':'#c9a10a', sw=isAc?2.5:2;
-  const blen=38, bw=36, bh=22;
+  const blen=38, bw=58, bh=22;
   const armX=side==='left'?cx-blen:cx+blen;
   const bx=side==='left'?armX-bw:armX;
   let s=`<line x1="${cx}" y1="${y}" x2="${armX}" y2="${y}" stroke="${col}" stroke-width="${sw}"/>`;
   s+=`<rect x="${bx}" y="${y-bh/2}" width="${bw}" height="${bh}" rx="4" fill="${isAc?'#edf2ff':'#fffbe6'}" stroke="${col}" stroke-width="1"/>`;
-  const lx=bx+bw/2;
-  s+=`<text x="${lx}" y="${y+4}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:10px;font-weight:700" text-anchor="middle">&#9889;</text>`;
-  s+=`<text x="${lx}" y="${y+bh/2+9}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:8px" text-anchor="middle">SPD · ${isAc?'NEC 230.67':'NEC 242'}</text>`;
+  s+=`<text x="${bx+13}" y="${y+4}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:10px;font-weight:700" text-anchor="middle">&#9889;</text>`;
+  s+=`<text x="${bx+38}" y="${y+2}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:700" text-anchor="middle">SPD</text>`;
+  s+=`<text x="${bx+38}" y="${y+12}" style="fill:#909090;font-family:'Avenir Next','Avenir',sans-serif;font-size:7px" text-anchor="middle">${isAc?'NEC 230.67':'NEC 242'}</text>`;
   return s;
 }
 function egcAwg(ocpdA){
@@ -1602,14 +1602,6 @@ function render(){
     el.push(col2.svg);
     invBot2=col2.invBotY;
   }
-  if(v.hasMonitoring){
-    const monW=140, monH=36;
-    const monBoundRight = v.hasBatt ? BATTCX - 115 - 10 : SVG_W - 50;
-    const monX = Math.min(CX1 + 130, monBoundRight - monW);
-    const monY = col1.invMidY - monH/2;
-    el.push(compBox(monX,monY,monW,monH,'#f5f7fc','#a0aac8','Data Logger / Gateway','PV Monitoring · NEC Art. 800'));
-    el.push(`<line x1="${CX1+116}" y1="${col1.invMidY}" x2="${monX}" y2="${col1.invMidY}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3"/>`);
-  }
 
   // ── AC merge bus ──────────────────────────────────────────────────────────
   const mergeY=Math.max(invBot1,invBot2);
@@ -1709,6 +1701,15 @@ function render(){
   const panelSub=`${activePanel}A · ${v.invV}`;
   el.push(compBox(BX,y,BW,64,'#f0eaff','#6b45c0','Main Service Panel',panelSub,`Solar backfeed: ${bkrLabel}`));
   const panelBot=y+64; y=panelBot;
+
+  // Data logger / gateway — physically near the panel, comm wire from panel right edge
+  if(v.hasMonitoring){
+    const monW=175, monH=36;
+    const monX=BX+BW+14;
+    const monMidY=panelY+32;
+    el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Data Logger / Gateway','PV Monitoring · NEC Art. 800'));
+    el.push(`<line x1="${BX+BW}" y1="${monMidY}" x2="${monX}" y2="${monMidY}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3"/>`);
+  }
 
   // AC SPD between panel and utility meter
   if(v.hasSPD){
