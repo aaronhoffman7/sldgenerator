@@ -812,11 +812,7 @@ function spdSym(cx,y,isAc,side){
   s+=`<rect x="${bx}" y="${y-bh/2}" width="${bw}" height="${bh}" rx="4" fill="${isAc?'#edf2ff':'#fffbe6'}" stroke="${col}" stroke-width="1"/>`;
   const lx=bx+bw/2;
   s+=`<text x="${lx}" y="${y+4}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:10px;font-weight:700" text-anchor="middle">&#9889;</text>`;
-  s+=`<text x="${lx}" y="${y+bh/2+9}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:8px" text-anchor="middle">SPD</text>`;
-  s+=`<text x="${lx}" y="${y+bh/2+18}" style="fill:#909090;font-family:'Avenir Next','Avenir',sans-serif;font-size:7px" text-anchor="middle">${isAc?'NEC 230.67':'NEC 242'}</text>`;
-  const gbot=y+bh/2;
-  s+=`<line x1="${lx}" y1="${gbot}" x2="${lx}" y2="${gbot+6}" stroke="#8090b8" stroke-width="1"/>`;
-  s+=gndSym(lx,gbot+6);
+  s+=`<text x="${lx}" y="${y+bh/2+9}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:8px" text-anchor="middle">SPD · ${isAc?'NEC 230.67':'NEC 242'}</text>`;
   return s;
 }
 function egcAwg(ocpdA){
@@ -1434,14 +1430,14 @@ function renderArrayColumn(cfg, cx, startY) {
   s.push(wlabel(pv.envRightX+12, y-4, `Voc=${stringVoc}V  Isc=${arrayIsc}A`, false, 'start'));
   const PV_DROP=W+24;
   s.push(wireDC(cx,y,cx,y+PV_DROP));
-  s.push(wlabel(BX-4, y+PV_DROP/2+4, `#${dcRows.strW.awg} AWG`, false, 'end'));
+  s.push(wlabel(BX-4, y+PV_DROP/2+4, `#${dcRows.strW.awg} THWN-2`, false, 'end'));
   y+=PV_DROP;
   if(cfg.hasCombiner){
     const title=cfg.colLabel?`String Combiner ${cfg.colLabel}`:'String Combiner(s)';
     s.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8',title,`${cfg.combV} VDC max`,`${cfg.strings} str · ${cfg.combFuse}A OCP · NEC 690.9`));
     y+=54;
     s.push(wireDC(cx,y,cx,y+W));
-    s.push(wlabel(BX-4, y+W/2+4, `#${dcRows.dcW.awg} AWG`, false, 'end'));
+    s.push(wlabel(BX-4, y+W/2+4, `#${dcRows.dcW.awg} THWN-2`, false, 'end'));
     y+=W;
   }
   s.push(discBox(BX+15,y,BW-30,54,'#f5f7fc','#a0aac8','DC Disconnect',`${cfg.combV} VDC · ${Math.ceil(parseFloat(arrayIsc)*1.25)}A`,'NEC 690.13 / 690.15'));
@@ -1449,7 +1445,7 @@ function renderArrayColumn(cfg, cx, startY) {
   if(cfg.hasSPD) s.push(spdSym(cx, y+Math.round(W/2), false, 'left'));
   s.push(wireDC(cx,y,cx,y+W));
   s.push(wlabel(cx+10,y+W/2,'DC',false));
-  s.push(wlabel(BX-4, y+W/2+4, `#${dcRows.dcW.awg} AWG`, false, 'end'));
+  s.push(wlabel(BX-4, y+W/2+4, `#${dcRows.dcW.awg} THWN-2`, false, 'end'));
   y+=W;
   const iF=cfg.invType==='hybrid'?'#ebf8f3':'#edf2ff';
   const iS=cfg.invType==='hybrid'?'#1e8a60':'#3a6bc0';
@@ -1607,11 +1603,12 @@ function render(){
     invBot2=col2.invBotY;
   }
   if(v.hasMonitoring){
-    const monW=150, monH=36;
-    const monCX=Math.max(monW/2+6, CX1-80-monW/2-20);
-    const monX=monCX-monW/2, monY=col1.invMidY-monH/2;
+    const monW=140, monH=36;
+    const monBoundRight = v.hasBatt ? BATTCX - 115 - 10 : SVG_W - 50;
+    const monX = Math.min(CX1 + 130, monBoundRight - monW);
+    const monY = col1.invMidY - monH/2;
     el.push(compBox(monX,monY,monW,monH,'#f5f7fc','#a0aac8','Data Logger / Gateway','PV Monitoring · NEC Art. 800'));
-    el.push(`<line x1="${monX+monW}" y1="${col1.invMidY}" x2="${CX1-100}" y2="${col1.invMidY}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3"/>`);
+    el.push(`<line x1="${CX1+116}" y1="${col1.invMidY}" x2="${monX}" y2="${col1.invMidY}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3"/>`);
   }
 
   // ── AC merge bus ──────────────────────────────────────────────────────────
@@ -1688,7 +1685,7 @@ function render(){
   const acMainWire=wireFor(totalInvAcA*1.25);
   el.push(wireAC(MCX,y,MCX,y+W));
   el.push(wlabel(MCX+10,y+W/2,'AC',true));
-  el.push(wlabel(MCX-10,y+W/2+10,`#${acMainWire.awg} AWG`,true,'end'));
+  el.push(wlabel(MCX-10,y+W/2+10,`#${acMainWire.awg} THWN-2`,true,'end'));
   y+=W;
   const acDiscY=y;
   const isMlpeRsd=v.hasRSD&&(v.invType==='micro'||v.rsdMethod==='mlpe');
@@ -1702,7 +1699,7 @@ function render(){
   if(v.hasMeter){
     el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
     el.push(meterCircle(MCX,y+14));
-    el.push(wlabel(MCX+52,y+15,'Prod. Meter',true));
+    el.push(wlabel(MCX+22,y+15,'PV Production Meter',true,'start'));
     y+=28;
   }
 
@@ -1722,8 +1719,8 @@ function render(){
   // Utility meter
   el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
   el.push(meterCircle(MCX,y+14));
-  el.push(wlabel(MCX+20,y+15,v.hasNetMeter?'Bidirectional Net Meter':'Utility Meter',true));
-  if(v.hasNetMeter) el.push(wlabel(MCX+20,y+27,'NEC 705.12 · Bidirectional',true));
+  el.push(wlabel(MCX+22,y+15,v.hasNetMeter?'Net Energy Meter (NEM)':'Utility Revenue Meter',true,'start'));
+  if(v.hasNetMeter) el.push(wlabel(MCX+22,y+27,'Bidirectional · Utility-supplied',true,'start'));
   y+=28;
   // Utility visible disconnect (NEC 705.22) — required when AC disconnect not accessible to utility
   if(v.hasUtilDisc){
