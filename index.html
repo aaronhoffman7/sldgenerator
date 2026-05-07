@@ -372,7 +372,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     </div>
     <div id="backfeed-check" class="cwarn" style="margin-top:6px"></div>
     <div class="trow"><span>Rapid shutdown (RSD)</span><label class="tog"><input type="checkbox" id="hasRSD" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    <div class="trow" id="rsd-method-row"><span>RSD method</span><select id="rsdMethod" onchange="render()"><option value="mlpe">Module-Level Power Electronics (MLPE)</option><option value="pvhcs">PV Hazard Control System (PVHCS)</option></select></div>
+    <div class="trow" id="rsd-method-row"><span>RSD method</span><select id="rsdMethod" onchange="render()"><option value="mlpe">MLPE — Microinverters or DC Optimizers (integrated PVHCS)</option><option value="pvhcs">Dedicated RSD Receivers — add-on PVHCS for string inverters</option></select></div>
     <div class="trow"><span>Production meter</span><label class="tog"><input type="checkbox" id="hasMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Show grounding</span><label class="tog"><input type="checkbox" id="hasGnd" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     </div>
@@ -1409,7 +1409,7 @@ function renderArrayColumn(cfg, cx, startY) {
   const iSub=cfg.invCount>1?`${cfg.invCount}× ${cfg.invKw} kW = ${iTotKw} kW · ${cfg.invV}`:`${cfg.invKw} kW · ${cfg.invV}`;
   const invH=cfg.hasRSD?78:64;
   if(cfg.invCount>1){const sh=Math.min(cfg.invCount-1,2);for(let i=sh;i>0;i--) s.push(`<rect x="${cx-100+i*5}" y="${y+i*5}" width="200" height="${invH}" rx="6" fill="${iF}" stroke="${iS}" stroke-width="0.8" opacity="0.45"/>`);}
-  const rsdInvSub=cfg.hasRSD?(cfg.rsdMethod==='pvhcs'?'PV Hazard Control System (PVHCS)':'Module-Level Power Electronics (MLPE)'):null;
+  const rsdInvSub=cfg.hasRSD?(cfg.rsdMethod==='pvhcs'?'Dedicated RSD Receivers · NEC 690.12(C)':'MLPE · Integrated module shutdown · NEC 690.12(C)'):null;
   s.push(compBox(cx-100,y,200,invH,iF,iS,iL,iSub,cfg.invModel,rsdInvSub));
   const itx=cx+100-4,ity=y+21;
   s.push(`<polygon points="${itx},${ity} ${itx},${ity+22} ${itx+20},${ity+11}" fill="${iF}" stroke="${iS}" stroke-width="1.2"/>`);
@@ -1632,7 +1632,8 @@ function render(){
   const acDiscY=y;
   const acDiscLabel=(v.hasRSD&&v.rsdMethod==='mlpe')?'AC Disconnect / RSD Init.':'AC Disconnect';
   const acDiscNec=(v.hasRSD&&v.rsdMethod==='mlpe')?'NEC 690.15 / 705.20 / 690.12':'NEC 690.15 / 705.20';
-  el.push(discBox(BX+15,y,BW-30,54,'#edf2ff','#3a6bc0',acDiscLabel,`${v.invV} · ${bkrLabel}`,acDiscNec));
+  const acDiscW=(v.hasRSD&&v.rsdMethod==='mlpe')?190:BW-30;
+  el.push(discBox(MCX-acDiscW/2,y,acDiscW,54,'#edf2ff','#3a6bc0',acDiscLabel,`${v.invV} · ${bkrLabel}`,acDiscNec));
   y+=54;
 
   // Production meter
@@ -1736,8 +1737,8 @@ function render(){
   const NY=LY+134;
   const accentStyle = `fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600;letter-spacing:.06em`;
   const baseNecH = v.hasArr2 ? 192 : 120;
-  const rsdLine1 = v.hasRSD ? (v.rsdMethod==='pvhcs' ? 'PV Hazard Control System (PVHCS)' : 'Module-Level Power Electronics (MLPE)') : '';
-  const rsdLine2 = v.hasRSD ? (v.rsdMethod==='pvhcs' ? 'NEC 690.12(C)(2)' : 'NEC 690.12(C)(1)') : '';
+  const rsdLine1 = v.hasRSD ? (v.rsdMethod==='pvhcs' ? 'RSD: Dedicated shutdown receivers (PVHCS)' : 'RSD: MLPE — integrated module-level shutdown') : '';
+  const rsdLine2 = v.hasRSD ? 'NEC 690.12(C)' : '';
   // Conduit notes always present (4 lines incl. 2-line AC note); RSD section when enabled
   const necH = baseNecH + 52 + (v.hasRSD ? 40 : 0);
   // AC roof conduit note — returns [line1, line2] to keep each line short enough to fit the box
@@ -1819,7 +1820,7 @@ function render(){
   if(v.hasRSD && v.rsdMethod==='pvhcs'){
     const pvC='#7a5ca0', pvF='#f4f0ff';
     const RSD_X=MCX+BW/2+20;
-    const ctrlW=130, ctrlH=46, initW=130, initH=40;
+    const ctrlW=200, ctrlH=54, initW=170, initH=50;
     const ctrlY=acDiscY+Math.round((54-ctrlH)/2);
     const initY=panelY+Math.round((64-initH)/2);
     const ctrlCX=RSD_X+ctrlW/2;
@@ -1829,9 +1830,9 @@ function render(){
     el.push(`<line x1="${ctrlCX}" y1="${ctrlY+ctrlH}" x2="${ctrlCX}" y2="${initY}" stroke="${pvC}" stroke-width="1" stroke-dasharray="5 3"/>`);
     el.push(`<text x="${ctrlCX+4}" y="${Math.round((ctrlY+ctrlH+initY)/2)+4}" class="sld-note" style="fill:${pvC};font-style:italic">control wiring</text>`);
     // PVHCS Controller box
-    el.push(compBox(RSD_X,ctrlY,ctrlW,ctrlH,pvF,pvC,'PVHCS Controller','Control signal to array equipment','NEC 690.12(C)(2)'));
-    // RSD Initiation Device box
-    el.push(compBox(RSD_X,initY,initW,initH,pvF,pvC,'RSD Initiation Device','At service entrance','NEC 690.12(B)(2)'));
+    el.push(compBox(RSD_X,ctrlY,ctrlW,ctrlH,pvF,pvC,'RSD Transmitter','Signal to shutdown receivers','NEC 690.12(C)'));
+    // RSD Initiating Device box
+    el.push(compBox(RSD_X,initY,initW,initH,pvF,pvC,'RSD Initiating Device','Listed · At service entrance','NEC 690.12(A)'));
   }
 
   const overlayBottom=NY+necH+8+210;
