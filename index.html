@@ -1389,8 +1389,24 @@ function renderArrayColumn(cfg, cx, startY) {
   const stringVoc=(cfg.mods*cfg.voc).toFixed(1);
   const arrayIsc=(cfg.strings*cfg.isc).toFixed(1);
   let y=pv.botY;
+
+  if(cfg.invType==='micro'){
+    // ── Microinverter path: AC output at module level ───────────────────────
+    s.push(wlabel(pv.envRightX+12, y-4, `Voc=${stringVoc}V  Isc=${arrayIsc}A (module)`, false, 'start'));
+    s.push(`<text x="${pv.envRightX+12}" y="${y+10}" style="fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="start">Microinverter per module · AC output</text>`);
+    const PV_DROP=W+24;
+    s.push(wireAC(cx,y,cx,y+PV_DROP)); y+=PV_DROP;
+    if(cfg.hasCombiner){
+      const title=cfg.colLabel?`AC Combiner ${cfg.colLabel}`:'AC Combiner';
+      s.push(compBox(BX,y,BW,44,'#edf2ff','#3a6bc0',title,`${cfg.invV} AC`,'NEC 705.12'));
+      y+=44; s.push(wireAC(cx,y,cx,y+W)); y+=W;
+    }
+    return {svg:s.join('\n'), invBotY:y, envRightX:pv.envRightX, dcBusY:null};
+  }
+
+  // ── String / Central / Hybrid path ─────────────────────────────────────
   s.push(wlabel(pv.envRightX+12, y-4, `Voc=${stringVoc}V  Isc=${arrayIsc}A`, false, 'start'));
-  const PV_DROP=W+24; // extra breathing room between PV symbols and first box
+  const PV_DROP=W+24;
   s.push(wireDC(cx,y,cx,y+PV_DROP)); y+=PV_DROP;
   if(cfg.hasCombiner){
     const title=cfg.colLabel?`String Combiner ${cfg.colLabel}`:'String Combiner(s)';
@@ -1404,12 +1420,12 @@ function renderArrayColumn(cfg, cx, startY) {
   y+=W;
   const iF=cfg.invType==='hybrid'?'#ebf8f3':'#edf2ff';
   const iS=cfg.invType==='hybrid'?'#1e8a60':'#3a6bc0';
-  const iL=cfg.invType==='hybrid'?'Hybrid Inverter':cfg.invType==='micro'?'Microinverters':cfg.invType==='central'?'Central Inverter':cfg.invCount>1?'String Inverters':'String Inverter';
+  const iL=cfg.invType==='hybrid'?'Hybrid Inverter':cfg.invType==='central'?'Central Inverter':cfg.invCount>1?'String Inverters':'String Inverter';
   const iTotKw=(cfg.invKw*cfg.invCount).toFixed(1).replace(/\.0$/,'');
   const iSub=cfg.invCount>1?`${cfg.invCount}× ${cfg.invKw} kW = ${iTotKw} kW · ${cfg.invV}`:`${cfg.invKw} kW · ${cfg.invV}`;
   const invH=cfg.hasRSD?78:64;
   if(cfg.invCount>1){const sh=Math.min(cfg.invCount-1,2);for(let i=sh;i>0;i--) s.push(`<rect x="${cx-100+i*5}" y="${y+i*5}" width="200" height="${invH}" rx="6" fill="${iF}" stroke="${iS}" stroke-width="0.8" opacity="0.45"/>`);}
-  const rsdInvSub=cfg.hasRSD?(cfg.rsdMethod==='pvhcs'?'Dedicated RSD Receivers · NEC 690.12(C)':'MLPE · Integrated module shutdown · NEC 690.12(C)'):null;
+  const rsdInvSub=cfg.hasRSD?(cfg.rsdMethod==='pvhcs'?'Dedicated RSD Receivers · NEC 690.12(C)':'MLPE — DC Optimizers · NEC 690.12(C)'):null;
   s.push(compBox(cx-100,y,200,invH,iF,iS,iL,iSub,cfg.invModel,rsdInvSub));
   const itx=cx+100-4,ity=y+21;
   s.push(`<polygon points="${itx},${ity} ${itx},${ity+22} ${itx+20},${ity+11}" fill="${iF}" stroke="${iS}" stroke-width="1.2"/>`);
@@ -1420,7 +1436,8 @@ function renderArrayColumn(cfg, cx, startY) {
 function render(){
   if(gc('hasArr2') && gc('arr2-linked')) arr2Sync();
   const v=vals();
-  $('rsd-method-row').style.display = v.hasRSD ? 'flex' : 'none';
+  $('rsd-method-row').style.display = (v.hasRSD && v.invType !== 'micro') ? 'flex' : 'none';
+  $('rsdMethod').options[0].text = 'MLPE — DC Optimizers (integrated PVHCS)';
   // Compute modsLast for partial last string (when systemKw auto-calculated)
   function getModsLast(sysKw, strings, mods, modW){
     if(!sysKw||sysKw<=0) return mods;
@@ -1613,7 +1630,7 @@ function render(){
     renderBessContainer(contTop);
     battBotY=contTop+contH;
   }
-  if(v.battCouple==='dc'){
+  if(v.battCouple==='dc' && col1.dcBusY != null){
     const dcConnY=col1.dcBusY;
     const contTop=dcConnY-22;
     const BX2loc=BATTCX-BW2/2;
@@ -1630,9 +1647,10 @@ function render(){
   el.push(wlabel(MCX+10,y+W/2,'AC',true));
   y+=W;
   const acDiscY=y;
-  const acDiscLabel=(v.hasRSD&&v.rsdMethod==='mlpe')?'AC Disconnect / RSD Init.':'AC Disconnect';
-  const acDiscNec=(v.hasRSD&&v.rsdMethod==='mlpe')?'NEC 690.15 / 705.20 / 690.12':'NEC 690.15 / 705.20';
-  const acDiscW=(v.hasRSD&&v.rsdMethod==='mlpe')?190:BW-30;
+  const isMlpeRsd=v.hasRSD&&(v.invType==='micro'||v.rsdMethod==='mlpe');
+  const acDiscLabel=isMlpeRsd?'AC Disconnect / RSD Init.':'AC Disconnect';
+  const acDiscNec=isMlpeRsd?'NEC 690.15 / 705.20 / 690.12':'NEC 690.15 / 705.20';
+  const acDiscW=isMlpeRsd?190:BW-30;
   el.push(discBox(MCX-acDiscW/2,y,acDiscW,54,'#edf2ff','#3a6bc0',acDiscLabel,`${v.invV} · ${bkrLabel}`,acDiscNec));
   y+=54;
 
@@ -1737,7 +1755,11 @@ function render(){
   const NY=LY+134;
   const accentStyle = `fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600;letter-spacing:.06em`;
   const baseNecH = v.hasArr2 ? 192 : 120;
-  const rsdLine1 = v.hasRSD ? (v.rsdMethod==='pvhcs' ? 'RSD: Dedicated shutdown receivers (PVHCS)' : 'RSD: MLPE — integrated module-level shutdown') : '';
+  const rsdLine1 = v.hasRSD ? (
+    v.invType==='micro' ? 'RSD: Microinverters — inherent MLPE PVHCS' :
+    v.rsdMethod==='pvhcs' ? 'RSD: Dedicated shutdown receivers (PVHCS)' :
+    'RSD: DC Optimizers — integrated module-level shutdown'
+  ) : '';
   const rsdLine2 = v.hasRSD ? 'NEC 690.12(C)' : '';
   // Conduit notes always present (4 lines incl. 2-line AC note); RSD section when enabled
   const necH = baseNecH + 52 + (v.hasRSD ? 40 : 0);
