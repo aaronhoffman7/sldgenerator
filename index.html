@@ -489,8 +489,6 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             <option value="2">1-Axis tracking</option>
             <option value="4">2-Axis tracking</option>
           </select>
-          <label>NREL API key <a href="https://developer.nrel.gov/signup/" target="_blank" style="color:var(--accent2);font-size:9px;margin-left:4px">get free key ↗</a></label>
-          <input type="text" id="an-api-key" placeholder="Paste your API key" style="font-size:10px" oninput="localStorage.setItem('nrel_pvw_key',this.value)">
           <button class="run-btn" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);margin-top:8px" onclick="fetchPVWatts()">&#8595; Fetch PVWatts Data</button>
           <div id="an-pvw-status" style="font-size:10px;color:var(--muted);margin-top:6px;min-height:14px;line-height:1.5"></div>
         </div>
@@ -2313,10 +2311,6 @@ function syncAnalysisFromSLD(){
     noteEl.textContent='';
   }
 
-  // Restore saved API key
-  const savedKey=localStorage.getItem('nrel_pvw_key');
-  if(savedKey&&!gv('an-api-key')) $('an-api-key').value=savedKey;
-
   anExportHint();
 }
 
@@ -2354,13 +2348,10 @@ function anCsvFile(file){
 
 // ── PVWatts API Fetch ────────────────────────────────────────────────────────
 async function fetchPVWatts(){
-  const apiKey=(gv('an-api-key')||'').trim();
   const statusEl=$('an-pvw-status');
-  if(!apiKey){statusEl.style.color='#f5a742';statusEl.textContent='⚠ Enter an API key first';return;}
   statusEl.style.color='var(--muted)';statusEl.textContent='Fetching from NREL…';
   try{
     const params=new URLSearchParams({
-      api_key:apiKey,
       system_capacity:gv('an-pvKw'),
       azimuth:180,
       tilt:gv('an-tilt'),
@@ -2372,14 +2363,13 @@ async function fetchPVWatts(){
       timeframe:'hourly',
       dc_ac_ratio:gv('an-dcAc'),
     });
-    const resp=await fetch(`https://developer.nrel.gov/api/pvwatts/v8.json?${params}`);
+    const resp=await fetch(`/api/pvwatts?${params}`);
     if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data=await resp.json();
     if(data.errors&&data.errors.length) throw new Error(data.errors[0]);
     const ac=data.outputs&&data.outputs.ac;
     if(!ac||ac.length<8760) throw new Error('Incomplete hourly data in response');
     _anPvWattsData=new Float32Array(ac.slice(0,8760).map(v=>v/1000)); // W → kW
-    localStorage.setItem('nrel_pvw_key',apiKey);
     const si=data.station_info||{};
     const annualMwh=(ac.reduce((a,b)=>a+b,0)/1e6).toFixed(2);
     const src=(si.solar_resource_file||'NSRDB').replace(/.*\//,'');
