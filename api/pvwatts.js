@@ -18,7 +18,7 @@ module.exports = async function handler(req, res) {
       [...params.entries()].map(([k,v]) => [k, k === 'api_key' ? '***' : v])
     ));
 
-    const upstream = await fetch(`https://developer.nrel.gov/api/pvwatts/v8.json?${params}`);
+    const upstream = await fetch(`https://developer.nlr.gov/api/pvwatts/v8.json?${params}`);
     const data = await upstream.json();
 
     console.log('PVWatts response status:', upstream.status, 'errors:', data.errors ?? 'none');
