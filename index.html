@@ -543,7 +543,24 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             <div style="height:200px;position:relative"><canvas id="an-monthly-chart"></canvas></div>
           </div>
           <div class="chart-card">
-            <h3>Curtailment Heatmap</h3>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <h3 style="margin:0">Curtailment Heatmap</h3>
+              <select id="an-heatmap-sel" onchange="anHeatmapViewChanged()" style="font-size:10px;padding:4px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px">
+                <option value="year">Full Year</option>
+                <option value="jan">January</option>
+                <option value="feb">February</option>
+                <option value="mar">March</option>
+                <option value="apr">April</option>
+                <option value="may">May</option>
+                <option value="jun">June</option>
+                <option value="jul">July</option>
+                <option value="aug">August</option>
+                <option value="sep">September</option>
+                <option value="oct">October</option>
+                <option value="nov">November</option>
+                <option value="dec">December</option>
+              </select>
+            </div>
             <canvas id="an-heatmap" style="width:100%;display:block;border-radius:3px"></canvas>
           </div>
           <div class="chart-card">
@@ -565,10 +582,22 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
                 <span>No battery</span><span id="an-batt-slider-maxlbl"></span>
               </div>
             </div>
-            <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-              <button class="hbtn" style="font-size:10px;padding:4px 10px" onclick="showDispatchDay('peak')">Peak day</button>
-              <button class="hbtn" style="font-size:10px;padding:4px 10px" onclick="showDispatchDay('avg')">Summer solstice</button>
-              <button class="hbtn" style="font-size:10px;padding:4px 10px" onclick="showDispatchDay('winter')">Winter solstice</button>
+            <div style="margin-top:10px">
+              <select id="an-dispatch-day-sel" onchange="showDispatchDay(this.value)" style="font-size:10px;padding:4px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px">
+                <option value="peak">Peak Curtailment Day</option>
+                <option value="jan">Jan 15</option>
+                <option value="feb">Feb 15</option>
+                <option value="spring">Mar 20 · Spring Equinox</option>
+                <option value="apr">Apr 15</option>
+                <option value="may">May 15</option>
+                <option value="avg">Jun 21 · Summer Solstice</option>
+                <option value="jul">Jul 15</option>
+                <option value="aug">Aug 15</option>
+                <option value="fall">Sep 22 · Fall Equinox</option>
+                <option value="oct">Oct 15</option>
+                <option value="nov">Nov 15</option>
+                <option value="winter">Dec 21 · Winter Solstice</option>
+              </select>
             </div>
           </div>
         </div>
@@ -641,6 +670,9 @@ function collectInputState(){
   state.__daeCounts      = _daeCounts || {};
   state.__daeDismissed   = [...(_daeDismissed || [])];
   state.__daeArrayAssign = {...(_daeArrayAssign || {})};
+  // Persist curtailment analysis state
+  state.__pvWattsFetched = !!_anPvWattsData;
+  state.__anCsvData      = _anCsvData ? Array.from(_anCsvData) : null;
   return state;
 }
 
@@ -683,6 +715,14 @@ function restoreInputState(state){
   }
 
   if(typeof arr2Toggle === 'function') arr2Toggle();
+
+  // Restore CSV load profile
+  if(state.__anCsvData && state.__anCsvData.length >= 8760){
+    _anCsvData = new Float32Array(state.__anCsvData);
+    const csvStatus = $('an-csv-status');
+    if(csvStatus) csvStatus.textContent = `✓ ${state.__anCsvData.length} hours restored`;
+  }
+
   render();
 }
 
@@ -769,6 +809,7 @@ async function loadProject(key){
       renderDaePreview(xml);
     }
   }
+  if(data.inputs && data.inputs.__pvWattsFetched) fetchPVWatts();
   closeProjectsModal();
 }
 
@@ -2269,6 +2310,7 @@ function exportPDF(){
 
 // ── Curtailment Analysis Tab ─────────────────────────────────────────────────
 let _anPvHourly=null,_anLoadHourly=null,_anCurtHourly=null,_anGridHourly=null;
+let _anHeatmapView='year';
 let _anSweepResults=[],_anPeakCurtDay=0,_anCsvData=null,_anSimBase=null,_anSimParams=null;
 let _chartMonthly=null,_chartSizing=null,_chartDispatch=null;
 let _anPvWattsData=null; // hourly kW array fetched from NREL PVWatts API
@@ -2625,11 +2667,23 @@ function anHeatColor(t){
   const f=(t-0.5)*2;return[245,Math.round(80+f*120),Math.round(16+f*50)];
 }
 
+function anHeatmapViewChanged(){
+  _anHeatmapView=$('an-heatmap-sel').value;
+  if(_anCurtHourly) anDrawHeatmap(_anCurtHourly);
+}
+
+const _HM_MONTH_STARTS=[0,31,59,90,120,151,181,212,243,273,304,334];
+const _HM_MONTH_DAYS  =[31,28,31,30,31,30,31,31,30,31,30,31];
+const _HM_MONTH_KEYS  =['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+const _HM_MONTH_NAMES =['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
 function anDrawHeatmap(curtHourly){
   const canvas=$('an-heatmap');
   const dpr=window.devicePixelRatio||1;
   const cssW=canvas.clientWidth||800;
-  const cssH=240;
+  const padL=44, padR=10, padT=8;
+  const gridH=200, xAxisH=20, gap=14, legendBarH=10, legendLabelH=16, padBot=6;
+  const cssH=padT+gridH+xAxisH+gap+legendBarH+legendLabelH+padBot;
   canvas.style.height=cssH+'px';
   canvas.width=Math.round(cssW*dpr);
   canvas.height=Math.round(cssH*dpr);
@@ -2637,66 +2691,86 @@ function anDrawHeatmap(curtHourly){
   const ctx=canvas.getContext('2d');
   ctx.scale(dpr,dpr);
 
-  const padL=42, padR=8, padT=8, padB=22;
-  const gridW=cssW-padL-padR;
-  const gridH=cssH-padT-padB;
-  const cellW=gridW/365, cellH=gridH/24;
   const maxC=Math.max(...curtHourly,0.001);
+  const gridW=cssW-padL-padR;
 
-  // background
   ctx.fillStyle='#181c28';
   ctx.fillRect(0,0,cssW,cssH);
 
-  // cells
-  for(let day=0;day<365;day++){
-    for(let hour=0;hour<24;hour++){
-      const[r,g,b]=anHeatColor(curtHourly[day*24+hour]/maxC);
+  const isYear=_anHeatmapView==='year';
+  const mi=_HM_MONTH_KEYS.indexOf(_anHeatmapView);
+  const days    = isYear ? 365 : (_HM_MONTH_DAYS[mi]||31);
+  const dayOff  = isYear ? 0   : (_HM_MONTH_STARTS[mi]||0);
+  const cellW=gridW/days, cellH=gridH/24;
+
+  // grid cells
+  for(let d=0;d<days;d++){
+    for(let h=0;h<24;h++){
+      const v=curtHourly[(dayOff+d)*24+h];
+      const[r,g,b]=anHeatColor(v/maxC);
       ctx.fillStyle=`rgb(${r},${g},${b})`;
-      ctx.fillRect(padL+day*cellW, padT+hour*cellH, Math.ceil(cellW), Math.ceil(cellH));
+      ctx.fillRect(padL+d*cellW, padT+h*cellH, Math.ceil(cellW)+0.5, Math.ceil(cellH)+0.5);
     }
   }
 
-  // hour labels & gridlines
-  const hourLabels=[[0,'12am'],[6,'6am'],[12,'12pm'],[18,'6pm'],[23,'11pm']];
-  ctx.font=`${10}px system-ui,sans-serif`;
-  ctx.textAlign='right';
-  ctx.textBaseline='middle';
-  ctx.fillStyle='#7a84a0';
-  ctx.strokeStyle='rgba(255,255,255,0.08)';
-  ctx.lineWidth=0.5;
-  for(const[h,label] of hourLabels){
-    const y=padT+h*cellH+(cellH/2);
-    ctx.fillText(label, padL-5, y);
+  // hour labels + gridlines
+  ctx.font='10px system-ui,sans-serif';
+  ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.fillStyle='#7a84a0';
+  for(const[h,label] of [[0,'12am'],[6,'6am'],[12,'12pm'],[18,'6pm'],[23,'11pm']]){
+    ctx.fillText(label, padL-5, padT+h*cellH+cellH/2);
     if(h>0){
-      ctx.beginPath();
-      ctx.moveTo(padL, padT+h*cellH);
-      ctx.lineTo(padL+gridW, padT+h*cellH);
-      ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=0.5;
+      ctx.beginPath(); ctx.moveTo(padL,padT+h*cellH); ctx.lineTo(padL+gridW,padT+h*cellH); ctx.stroke();
     }
   }
 
-  // month labels & gridlines
-  const months=[['Jan',0],['Feb',31],['Mar',59],['Apr',90],['May',120],['Jun',151],
-                ['Jul',181],['Aug',212],['Sep',243],['Oct',273],['Nov',304],['Dec',334]];
-  ctx.textAlign='left';
-  ctx.textBaseline='top';
-  for(const[name,startDay] of months){
-    const x=padL+startDay*cellW;
-    ctx.fillStyle='#7a84a0';
-    ctx.fillText(name, x+2, padT+gridH+4);
-    if(startDay>0){
-      ctx.strokeStyle='rgba(255,255,255,0.10)';
-      ctx.beginPath();
-      ctx.moveTo(x, padT);
-      ctx.lineTo(x, padT+gridH);
-      ctx.stroke();
+  // X axis labels
+  const xLabelY=padT+gridH+4;
+  ctx.textBaseline='top'; ctx.fillStyle='#7a84a0'; ctx.font='10px system-ui,sans-serif';
+  if(isYear){
+    ctx.textAlign='left';
+    _HM_MONTH_NAMES.forEach((name,i)=>{
+      const x=padL+_HM_MONTH_STARTS[i]*cellW;
+      ctx.fillText(name, x+2, xLabelY);
+      if(i>0){
+        ctx.strokeStyle='rgba(255,255,255,0.10)'; ctx.lineWidth=0.5;
+        ctx.beginPath(); ctx.moveTo(x,padT); ctx.lineTo(x,padT+gridH); ctx.stroke();
+      }
+    });
+  } else {
+    ctx.textAlign='center';
+    [1,5,10,15,20,25,days].filter((d,_,a)=>d<=days&&(d===days||!a.includes(d+1)||d<days)).forEach(d=>{
+      ctx.fillText(d, padL+(d-0.5)*cellW, xLabelY);
+    });
+    // day gridlines every 5
+    ctx.strokeStyle='rgba(255,255,255,0.10)'; ctx.lineWidth=0.5;
+    for(let d=5;d<days;d+=5){
+      const x=padL+d*cellW;
+      ctx.beginPath(); ctx.moveTo(x,padT); ctx.lineTo(x,padT+gridH); ctx.stroke();
     }
   }
 
-  // border around grid
-  ctx.strokeStyle='rgba(255,255,255,0.15)';
-  ctx.lineWidth=1;
+  // grid border
+  ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=1;
   ctx.strokeRect(padL, padT, gridW, gridH);
+
+  // legend
+  const legendBarW=Math.round(gridW*0.55);
+  const legendX=padL+Math.round((gridW-legendBarW)/2);
+  const legendY=padT+gridH+xAxisH+gap;
+  for(let px=0;px<legendBarW;px++){
+    const[r,g,b]=anHeatColor(px/legendBarW);
+    ctx.fillStyle=`rgb(${r},${g},${b})`;
+    ctx.fillRect(legendX+px, legendY, 1, legendBarH);
+  }
+  ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=0.5;
+  ctx.strokeRect(legendX, legendY, legendBarW, legendBarH);
+  ctx.font='10px system-ui,sans-serif'; ctx.fillStyle='#7a84a0';
+  ctx.textBaseline='top';
+  ctx.textAlign='left';  ctx.fillText('0 kW', legendX, legendY+legendBarH+3);
+  ctx.textAlign='right'; ctx.fillText(maxC.toFixed(1)+' kW', legendX+legendBarW, legendY+legendBarH+3);
+  ctx.textAlign='center'; ctx.fillStyle='#4a5068';
+  ctx.fillText('curtailment intensity', legendX+legendBarW/2, legendY+legendBarH+3);
 }
 
 // ── Sizing Curve Chart ───────────────────────────────────────────────────────
@@ -2748,14 +2822,31 @@ function showDispatchDay(type){
   renderDispatchChart();
 }
 
+const _DISPATCH_DAYS={
+  peak:null, // resolved at runtime to _anPeakCurtDay
+  jan:14, feb:45, spring:79, apr:104, may:134,
+  avg:172, jul:195, aug:226, fall:264, oct:287, nov:318, winter:354
+};
+const _DISPATCH_LABELS={
+  jan:'Jan 15', feb:'Feb 15', spring:'Mar 20 (Spring Equinox)', apr:'Apr 15', may:'May 15',
+  avg:'Jun 21 (Summer Solstice)', jul:'Jul 15', aug:'Aug 15', fall:'Sep 22 (Fall Equinox)',
+  oct:'Oct 15', nov:'Nov 15', winter:'Dec 21 (Winter Solstice)'
+};
+function _dayOfYear(dayIdx){
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const days=[31,28,31,30,31,30,31,31,30,31,30,31];
+  let d=dayIdx; let m=0;
+  while(m<12&&d>=days[m]){d-=days[m];m++;}
+  return `${months[m]} ${d+1}`;
+}
+
 function renderDispatchChart(){
   if(!_anPvHourly||!_anLoadHourly) return;
-  let dayIdx=_anPeakCurtDay;
-  if(_anDispatchDay==='avg') dayIdx=172;
-  else if(_anDispatchDay==='winter') dayIdx=354;
+  const dayIdx=_anDispatchDay==='peak'?_anPeakCurtDay:(_DISPATCH_DAYS[_anDispatchDay]||0);
   $('an-dispatch-label').textContent=
-    _anDispatchDay==='peak'?`Day ${dayIdx+1} (Peak Curtailment)`:
-    _anDispatchDay==='avg'?'Jun 21 (Summer Solstice)':'Dec 21 (Winter Solstice)';
+    _anDispatchDay==='peak'
+      ?`${_dayOfYear(dayIdx)} (Peak Curtailment)`
+      :(_DISPATCH_LABELS[_anDispatchDay]||`Day ${dayIdx+1}`);
 
   const p=_anSimParams||{};
   const sweep=_anSweepResults[_anBattIdx]||{kwh:0,kw:0};
