@@ -516,6 +516,33 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             <input type="file" id="an-csv-input" accept=".csv,.txt" style="display:none" onchange="anCsvFile(this.files[0])">
             <div id="an-csv-status" style="font-size:10px;color:var(--muted);margin-top:4px"></div>
           </div>
+          <div id="an-load-shape-params" style="margin-top:8px">
+            <div style="display:flex;gap:6px;margin-bottom:4px">
+              <div style="flex:1">
+                <label>Base load (%)</label>
+                <input type="number" id="an-load-base" value="15" step="1" min="0" max="95" oninput="anLoadParamChanged()">
+              </div>
+              <div style="flex:1">
+                <label>Weekend (%)</label>
+                <input type="number" id="an-load-wkend" value="25" step="1" min="0" max="100" oninput="anLoadParamChanged()">
+              </div>
+            </div>
+            <label>Monthly scale (%)</label>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-top:3px">
+              <div><div style="font-size:8px;color:var(--muted);text-align:center">Jan</div><input type="number" id="an-load-m-0"  value="100" step="5" min="10" max="200" style="padding:2px 2px;font-size:10px;text-align:center" oninput="anLoadParamChanged()"></div>
+              <div><div style="font-size:8px;color:var(--muted);text-align:center">Feb</div><input type="number" id="an-load-m-1"  value="100" step="5" min="10" max="200" style="padding:2px 2px;font-size:10px;text-align:center" oninput="anLoadParamChanged()"></div>
+              <div><div style="font-size:8px;color:var(--muted);text-align:center">Mar</div><input type="number" id="an-load-m-2"  value="100" step="5" min="10" max="200" style="padding:2px 2px;font-size:10px;text-align:center" oninput="anLoadParamChanged()"></div>
+              <div><div style="font-size:8px;color:var(--muted);text-align:center">Apr</div><input type="number" id="an-load-m-3"  value="100" step="5" min="10" max="200" style="padding:2px 2px;font-size:10px;text-align:center" oninput="anLoadParamChanged()"></div>
+              <div><div style="font-size:8px;color:var(--muted);text-align:center">May</div><input type="number" id="an-load-m-4"  value="100" step="5" min="10" max="200" style="padding:2px 2px;font-size:10px;text-align:center" oninput="anLoadParamChanged()"></div>
+              <div><div style="font-size:8px;color:var(--muted);text-align:center">Jun</div><input type="number" id="an-load-m-5"  value="100" step="5" min="10" max="200" style="padding:2px 2px;font-size:10px;text-align:center" oninput="anLoadParamChanged()"></div>
+              <div><div style="font-size:8px;color:var(--muted);text-align:center">Jul</div><input type="number" id="an-load-m-6"  value="100" step="5" min="10" max="200" style="padding:2px 2px;font-size:10px;text-align:center" oninput="anLoadParamChanged()"></div>
+              <div><div style="font-size:8px;color:var(--muted);text-align:center">Aug</div><input type="number" id="an-load-m-7"  value="100" step="5" min="10" max="200" style="padding:2px 2px;font-size:10px;text-align:center" oninput="anLoadParamChanged()"></div>
+              <div><div style="font-size:8px;color:var(--muted);text-align:center">Sep</div><input type="number" id="an-load-m-8"  value="100" step="5" min="10" max="200" style="padding:2px 2px;font-size:10px;text-align:center" oninput="anLoadParamChanged()"></div>
+              <div><div style="font-size:8px;color:var(--muted);text-align:center">Oct</div><input type="number" id="an-load-m-9"  value="100" step="5" min="10" max="200" style="padding:2px 2px;font-size:10px;text-align:center" oninput="anLoadParamChanged()"></div>
+              <div><div style="font-size:8px;color:var(--muted);text-align:center">Nov</div><input type="number" id="an-load-m-10" value="100" step="5" min="10" max="200" style="padding:2px 2px;font-size:10px;text-align:center" oninput="anLoadParamChanged()"></div>
+              <div><div style="font-size:8px;color:var(--muted);text-align:center">Dec</div><input type="number" id="an-load-m-11" value="100" step="5" min="10" max="200" style="padding:2px 2px;font-size:10px;text-align:center" oninput="anLoadParamChanged()"></div>
+            </div>
+          </div>
         </div>
         <div class="section">
           <div class="stitle">Battery Sweep</div>
@@ -538,6 +565,19 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
         </div>
       </div>
       <div class="analysis-main">
+        <div class="chart-card" id="an-load-preview-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h3 style="margin:0">Load Profile Preview</h3>
+            <select id="an-load-prev-month" onchange="renderLoadPreview()" style="font-size:10px;padding:4px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px">
+              <option value="0">January</option><option value="1">February</option><option value="2">March</option>
+              <option value="3">April</option><option value="4">May</option><option value="5">June</option>
+              <option value="6">July</option><option value="7">August</option><option value="8">September</option>
+              <option value="9">October</option><option value="10">November</option><option value="11">December</option>
+            </select>
+          </div>
+          <div style="height:180px;position:relative"><canvas id="an-load-prev-chart"></canvas></div>
+          <div style="font-size:9px;color:var(--muted);margin-top:6px">Solid = typical weekday · Dashed = typical weekend · Monthly scale applies. Changes here do not re-run the simulation automatically.</div>
+        </div>
         <div class="no-data" id="an-placeholder">Set parameters and click Run Simulation to start.</div>
         <div id="an-results" style="display:none;flex-direction:column;gap:16px">
           <div class="summary-cards" id="an-cards"></div>
@@ -2324,7 +2364,7 @@ function switchTab(name){
     if(p) p.classList.toggle('active',t===name);
     if(b) b.classList.toggle('active',t===name);
   });
-  if(name==='analysis') syncAnalysisFromSLD();
+  if(name==='analysis'){ syncAnalysisFromSLD(); renderLoadPreview(); }
 }
 
 function syncAnalysisFromSLD(){
@@ -2394,7 +2434,14 @@ function anLoadTypeChanged(){
   const t=gv('an-loadType');
   $('an-csv-row').style.display=t==='csv'?'block':'none';
   $('an-peakKw-row').style.display=t==='csv'?'none':'block';
+  $('an-load-shape-params').style.display=t==='csv'?'none':'block';
+  if(t==='commercial'){$('an-load-base').value=15;$('an-load-wkend').value=25;}
+  else if(t==='residential'){$('an-load-base').value=20;$('an-load-wkend').value=80;}
+  else if(t==='flat'){$('an-load-base').value=100;$('an-load-wkend').value=100;}
+  renderLoadPreview();
 }
+
+function anLoadParamChanged(){ renderLoadPreview(); }
 
 function anCsvDrop(e){
   e.preventDefault();
@@ -2480,24 +2527,82 @@ function makeSolarProfile(systemKwDC,dcAcRatio,lossesP,latDeg,tiltDeg){
 }
 
 // ── Synthetic Load Profiles ──────────────────────────────────────────────────
-function makeLoadProfile(type,peakKw){
+function getLoadOpts(){
+  return {
+    base:  parseFloat(gv('an-load-base')) ?? 15,
+    wkend: parseFloat(gv('an-load-wkend')) ?? 25,
+    mf: Array.from({length:12},(_,i)=>(parseFloat(gv(`an-load-m-${i}`))||100)/100)
+  };
+}
+
+function loadHourShape(type, hour, isWD, base, wkend){
+  // Returns load as fraction of peakKw (0–1). base and wkend are 0–100 percentages.
+  const b=base/100, w=wkend/100;
+  if(type==='commercial'){
+    const wd=b+(1-b)*Math.min(1,Math.exp(-0.5*((hour-11)/3.5)**2)+0.3*Math.exp(-0.5*((hour-8)/1.5)**2));
+    return isWD?wd:wd*w;
+  }
+  if(type==='residential'){
+    const wd=b+(1-b)*Math.min(1,0.7*Math.exp(-0.5*((hour-7.5)/1.5)**2)+Math.exp(-0.5*((hour-19)/2)**2));
+    return isWD?wd:wd*w;
+  }
+  return 1; // flat: peakKw is the constant load level
+}
+
+const _AN_MSTARTS=[0,31,59,90,120,151,181,212,243,273,304,334];
+
+function makeLoadProfile(type, peakKw, opts){
+  const o=opts||getLoadOpts();
   const load=new Float32Array(8760);
   for(let h=0;h<8760;h++){
-    const doy=Math.floor(h/24), hour=h%24, dow=doy%7, isWD=dow>=1&&dow<=5;
-    const sAng=2*Math.PI*(doy-172)/365;
-    if(type==='commercial'){
-      const seas=1+0.15*Math.sin(sAng-Math.PI/2);
-      const shape=isWD?0.15+0.85*Math.min(1,Math.exp(-0.5*((hour-11)/3.5)**2)+0.3*Math.exp(-0.5*((hour-8)/1.5)**2)):0.12;
-      load[h]=peakKw*shape*seas;
-    } else if(type==='residential'){
-      const seas=1+0.12*Math.sin(sAng+Math.PI);
-      const shape=0.2+(1-0.2)*Math.min(1,0.7*Math.exp(-0.5*((hour-7.5)/1.5)**2)+Math.exp(-0.5*((hour-19)/2)**2));
-      load[h]=peakKw*shape*seas;
-    } else {
-      load[h]=peakKw*0.6;
-    }
+    const doy=Math.floor(h/24), hour=h%24;
+    const dow=(doy+1)%7, isWD=dow>=1&&dow<=5;
+    let mi=11; for(let m=0;m<11;m++) if(doy<_AN_MSTARTS[m+1]){mi=m;break;}
+    load[h]=Math.max(0, peakKw*loadHourShape(type,hour,isWD,o.base,o.wkend)*o.mf[mi]);
   }
   return load;
+}
+
+// ── Load Profile Preview Chart ────────────────────────────────────────────────
+let _chartLoadPreview=null;
+
+function renderLoadPreview(){
+  const type=gv('an-loadType');
+  if(type==='csv'){$('an-load-preview-card').style.display='none';return;}
+  $('an-load-preview-card').style.display='block';
+
+  const peakKw=parseFloat(gv('an-peakKw'))||50;
+  const o=getLoadOpts();
+  const mi=parseInt(gv('an-load-prev-month'))||0;
+  const mf=o.mf[mi];
+
+  const labels=['12am','1am','2am','3am','4am','5am','6am','7am','8am','9am','10am','11am',
+                '12pm','1pm','2pm','3pm','4pm','5pm','6pm','7pm','8pm','9pm','10pm','11pm'];
+  const wd=labels.map((_,h)=>+(peakKw*loadHourShape(type,h,true, o.base,o.wkend)*mf).toFixed(1));
+  const we=labels.map((_,h)=>+(peakKw*loadHourShape(type,h,false,o.base,o.wkend)*mf).toFixed(1));
+
+  const ctx=$('an-load-prev-chart').getContext('2d');
+  if(_chartLoadPreview) _chartLoadPreview.destroy();
+  _chartLoadPreview=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Weekday',data:wd,borderColor:'#5b8af0',backgroundColor:'rgba(91,138,240,0.18)',fill:true,pointRadius:0,tension:0.35,borderWidth:2},
+      {label:'Weekend',data:we,borderColor:'#7a84a0',backgroundColor:'rgba(122,132,160,0.07)',fill:true,pointRadius:0,tension:0.35,borderWidth:1.5,borderDash:[5,3]},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{labels:{color:'#9aa3b8',font:{size:11},boxWidth:14}},
+        tooltip:{backgroundColor:'#1e2335',bodyColor:'#e8eaf0',titleColor:'#c0c8e0',
+          callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y} kW`}}
+      },
+      scales:{
+        x:{ticks:{color:'#7a84a0',font:{size:10},maxTicksLimit:8},grid:{color:'#2a3050'}},
+        y:{title:{display:true,text:'kW',color:'#7a84a0',font:{size:11}},
+           ticks:{color:'#7a84a0',font:{size:10}},grid:{color:'#2a3050'},min:0}
+      }
+    }
+  });
 }
 
 // ── Battery Dispatch Simulation ──────────────────────────────────────────────
@@ -2561,7 +2666,8 @@ async function runAnalysis(){
 
     const pvSrc=_anPvWattsData?'PVWatts TMY':'Clear-sky model';
     const pv=_anPvWattsData||makeSolarProfile(pvKw,dcAcRatio,losses,lat,tilt);
-    const load=(loadType==='csv'&&_anCsvData)?_anCsvData:makeLoadProfile(loadType,peakKw);
+    const loadOpts=getLoadOpts();
+    const load=(loadType==='csv'&&_anCsvData)?_anCsvData:makeLoadProfile(loadType,peakKw,loadOpts);
 
     $('an-status').textContent='Running baseline…';
     await new Promise(r=>setTimeout(r,5));
@@ -2893,8 +2999,8 @@ function renderDispatchChart(){
 }
 
 // Keep analysis tab in sync whenever any SLD control changes
-document.querySelector('aside').addEventListener('input', syncAnalysisFromSLD);
-document.querySelector('aside').addEventListener('change', syncAnalysisFromSLD);
+document.querySelector('aside').addEventListener('input', e=>{ syncAnalysisFromSLD(); if(e.target.id==='an-peakKw') renderLoadPreview(); });
+document.querySelector('aside').addEventListener('change', e=>{ syncAnalysisFromSLD(); if(e.target.id==='an-peakKw') renderLoadPreview(); });
 
 let LOGO_B64 = 'logo.png';
 render();
