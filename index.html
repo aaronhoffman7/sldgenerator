@@ -2372,9 +2372,8 @@ async function fetchPVWatts(){
     _anPvWattsData=new Float32Array(ac.slice(0,8760).map(v=>v/1000)); // W → kW
     const si=data.station_info||{};
     const annualMwh=(ac.reduce((a,b)=>a+b,0)/1e6).toFixed(2);
-    const src=(si.solar_resource_file||'NSRDB').replace(/.*\//,'');
     statusEl.style.color='var(--green)';
-    statusEl.textContent=`✓ ${[si.city,si.state].filter(Boolean).join(', ')||'Loaded'} · ${annualMwh} MWh/yr · ${src}`;
+    statusEl.textContent=`✓ ${[si.city,si.state].filter(Boolean).join(', ')||'Loaded'} · ${annualMwh} MWh/yr`;
   }catch(e){
     statusEl.style.color='#f5a742';
     statusEl.textContent='⚠ '+e.message;
