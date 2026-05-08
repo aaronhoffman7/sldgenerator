@@ -3014,26 +3014,46 @@ function renderDispatchChart(){
   const slice=arr=>Array.from(arr.slice(s,s+24));
   const pvD=slice(_anPvHourly), loadD=slice(_anLoadHourly);
   const curtD=slice(res.curtail), dischD=slice(res.battDischarge);
+  const chgD=slice(res.battCharge), socD=slice(res.socArr);
   const gn=slice(res.gridNet);
   const impD=gn.map(v=>Math.max(0,v));
+
+  const hasBatt=(sweep.kwh||0)>0;
 
   const ctx=$('an-dispatch-chart').getContext('2d');
   if(_chartDispatch) _chartDispatch.destroy();
   _chartDispatch=new Chart(ctx,{
     type:'line',
     data:{labels:hours,datasets:[
-      {label:'Load',data:loadD,borderColor:'#7a84a0',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
-      {label:'PV Generation',data:pvD,borderColor:'#f5c842',borderWidth:2,pointRadius:0,fill:true,backgroundColor:'rgba(245,200,66,0.12)',tension:0.3},
-      {label:'Battery Discharge',data:dischD,borderColor:'#4fd98e',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3},
-      {label:'Grid Import',data:impD,borderColor:'#3d8ef8',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,3],tension:0.3},
-      {label:'Curtailment',data:curtD,borderColor:'#ff5050',borderWidth:2,pointRadius:0,fill:true,backgroundColor:'rgba(255,80,80,0.18)',tension:0.3},
+      {label:'Load',data:loadD,borderColor:'#7a84a0',borderWidth:2,pointRadius:0,fill:false,tension:0.3,yAxisID:'y'},
+      {label:'PV Generation',data:pvD,borderColor:'#f5c842',borderWidth:2,pointRadius:0,fill:true,backgroundColor:'rgba(245,200,66,0.12)',tension:0.3,yAxisID:'y'},
+      {label:'Battery Charge',data:chgD,borderColor:'#60c8f5',borderWidth:1.5,pointRadius:0,fill:true,backgroundColor:'rgba(96,200,245,0.10)',tension:0.3,yAxisID:'y',hidden:!hasBatt},
+      {label:'Battery Discharge',data:dischD,borderColor:'#4fd98e',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,yAxisID:'y',hidden:!hasBatt},
+      {label:'Grid Import',data:impD,borderColor:'#3d8ef8',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,3],tension:0.3,yAxisID:'y'},
+      {label:'Curtailment',data:curtD,borderColor:'#ff5050',borderWidth:2,pointRadius:0,fill:true,backgroundColor:'rgba(255,80,80,0.18)',tension:0.3,yAxisID:'y'},
+      {label:'SOC',data:socD,borderColor:'#a78bfa',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[2,3],tension:0.3,yAxisID:'y2',hidden:!hasBatt},
     ]},
     options:{
       responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{labels:{color:'#7a84a0',font:{size:10}},boxWidth:12},tooltip:{backgroundColor:'#1e2335',bodyColor:'#e8eaf0',titleColor:'#e8eaf0',mode:'index',intersect:false}},
+      plugins:{
+        legend:{labels:{color:'#7a84a0',font:{size:10}},boxWidth:12},
+        tooltip:{
+          backgroundColor:'#1e2335',bodyColor:'#e8eaf0',titleColor:'#e8eaf0',
+          mode:'index',intersect:false,
+          callbacks:{
+            label(ctx){
+              const v=ctx.parsed.y;
+              if(v==null||v===0&&ctx.dataset.label==='Battery Charge'&&!hasBatt) return null;
+              const unit=ctx.dataset.yAxisID==='y2'?'kWh':'kW';
+              return `${ctx.dataset.label}: ${v.toFixed(1)} ${unit}`;
+            }
+          }
+        }
+      },
       scales:{
         x:{ticks:{color:'#7a84a0',font:{size:9}},grid:{color:'#2a3050'}},
-        y:{title:{display:true,text:'kW',color:'#7a84a0',font:{size:10}},ticks:{color:'#7a84a0',font:{size:10}},grid:{color:'#2a3050'},min:0}
+        y:{title:{display:true,text:'kW',color:'#7a84a0',font:{size:10}},ticks:{color:'#7a84a0',font:{size:10}},grid:{color:'#2a3050'},min:0},
+        y2:{title:{display:true,text:'SOC (kWh)',color:'#a78bfa',font:{size:10}},ticks:{color:'#a78bfa',font:{size:10}},grid:{display:false},position:'right',min:0,display:hasBatt}
       }
     }
   });
