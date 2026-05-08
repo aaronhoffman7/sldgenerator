@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/ColladaLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -84,6 +85,31 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .cnote{font-size:9px;color:var(--muted);margin-top:10px;line-height:1.5}
 .cwarn{font-size:10px;color:#f5a742;margin-top:4px}
 .cok{font-size:10px;color:#4fd98e;margin-top:4px}
+/* ─ Analysis Tab ─────────────────────────────────────────────────────────── */
+.tab-bar{display:flex;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;padding:0 10px}
+.tab-btn{font-size:12px;font-family:var(--mono);padding:10px 16px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--muted);cursor:pointer;transition:color .15s,border-color .15s;margin-bottom:-1px}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-panel{flex:1;overflow:hidden;flex-direction:column;display:none}
+.tab-panel.active{display:flex}
+.analysis-layout{display:flex;flex:1;overflow:hidden}
+.analysis-aside{width:260px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto}
+.analysis-aside::-webkit-scrollbar{width:4px}
+.analysis-aside::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.analysis-main{flex:1;overflow-y:auto;padding:16px;background:var(--bg);display:flex;flex-direction:column;gap:14px}
+.analysis-main::-webkit-scrollbar{width:5px}
+.analysis-main::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.summary-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.summary-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px}
+.summary-card .s-label{font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.summary-card .s-val{font-size:20px;font-weight:700;color:var(--text);font-family:var(--mono);line-height:1.2}
+.summary-card .s-sub{font-size:9px;color:var(--muted);margin-top:4px}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px}
+.chart-card h3{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.run-btn{width:100%;background:var(--accent2);color:#fff;border:none;padding:9px;border-radius:4px;font-size:12px;font-family:var(--mono);font-weight:600;cursor:pointer;margin-top:10px;transition:opacity .15s}
+.run-btn:hover{opacity:.85}
+.run-btn:disabled{opacity:.45;cursor:not-allowed}
+.no-data{display:flex;align-items:center;justify-content:center;flex:1;color:var(--muted);font-size:12px;font-family:var(--mono)}
 </style>
 </head>
 <body>
@@ -408,24 +434,142 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   </div>
 </aside>
 <main>
-  <div class="canvas-wrap">
-    <div id="dae-overlay">
-      <div id="dae-overlay-hdr">
-        <span>Array Layout</span>
-        <button onclick="toggleDaePreview(false)" title="Hide">&#10005;</button>
-      </div>
-      <div id="dae-legend" style="display:none;padding:4px 8px;background:#f7f8fc;border-bottom:1px solid #e0e3ef;gap:10px;flex-wrap:wrap"></div>
-      <canvas id="skp-preview-canvas" style="display:block;width:100%;cursor:grab"></canvas>
-      <div id="dae-resize"></div>
-    </div>
-    <svg id="sld-svg"></svg>
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-btn-sld" onclick="switchTab('sld')">Single Line Diagram</button>
+    <button class="tab-btn" id="tab-btn-analysis" onclick="switchTab('analysis')">Curtailment Analysis</button>
   </div>
-  <div class="sbar">
-    <span class="stat">Array: <b id="s-kw">--</b></span>
-    <span class="stat">String Voc: <b id="s-voc">--</b></span>
-    <span class="stat">Array Isc: <b id="s-isc">--</b></span>
-    <span class="stat w">Battery: <b id="s-batt">--</b></span>
-    <span class="stat">NEC 690 max Voc: <b id="s-nec">--</b></span>
+  <div id="tab-sld" class="tab-panel active">
+    <div class="canvas-wrap">
+      <div id="dae-overlay">
+        <div id="dae-overlay-hdr">
+          <span>Array Layout</span>
+          <button onclick="toggleDaePreview(false)" title="Hide">&#10005;</button>
+        </div>
+        <div id="dae-legend" style="display:none;padding:4px 8px;background:#f7f8fc;border-bottom:1px solid #e0e3ef;gap:10px;flex-wrap:wrap"></div>
+        <canvas id="skp-preview-canvas" style="display:block;width:100%;cursor:grab"></canvas>
+        <div id="dae-resize"></div>
+      </div>
+      <svg id="sld-svg"></svg>
+    </div>
+    <div class="sbar">
+      <span class="stat">Array: <b id="s-kw">--</b></span>
+      <span class="stat">String Voc: <b id="s-voc">--</b></span>
+      <span class="stat">Array Isc: <b id="s-isc">--</b></span>
+      <span class="stat w">Battery: <b id="s-batt">--</b></span>
+      <span class="stat">NEC 690 max Voc: <b id="s-nec">--</b></span>
+    </div>
+  </div>
+  <div id="tab-analysis" class="tab-panel">
+    <div class="analysis-layout">
+      <div class="analysis-aside">
+        <div class="section">
+          <div class="stitle">PV System</div>
+          <label>PV size (kW DC)</label>
+          <input type="number" id="an-pvKw" value="13.2" step="0.1" min="0.1">
+          <label>DC/AC ratio</label>
+          <input type="number" id="an-dcAc" value="1.20" step="0.01" min="0.5" max="2.5">
+          <label>System losses (%)</label>
+          <input type="number" id="an-losses" value="14" step="1" min="0" max="30">
+          <div class="row2">
+            <div><label>Latitude (°N)</label><input type="number" id="an-lat" value="39.9" step="0.1" min="-90" max="90"></div>
+            <div><label>Longitude (°E)</label><input type="number" id="an-lon" value="-75.2" step="0.1" min="-180" max="180"></div>
+          </div>
+          <label>Panel tilt (°)</label>
+          <input type="number" id="an-tilt" value="20" step="1" min="0" max="60">
+          <label>Export limit (kW)</label>
+          <input type="number" id="an-export" value="0" step="1" oninput="anExportHint()">
+          <div id="an-export-hint" class="cnote"></div>
+        </div>
+        <div class="section">
+          <div class="stitle">PVWatts (TMY Data)</div>
+          <label>Array type</label>
+          <select id="an-array-type">
+            <option value="1">Fixed — Roof mount</option>
+            <option value="0">Fixed — Open rack</option>
+            <option value="2">1-Axis tracking</option>
+            <option value="4">2-Axis tracking</option>
+          </select>
+          <label>NREL API key <a href="https://developer.nrel.gov/signup/" target="_blank" style="color:var(--accent2);font-size:9px;margin-left:4px">get free key ↗</a></label>
+          <input type="text" id="an-api-key" placeholder="Paste your API key" style="font-size:10px" oninput="localStorage.setItem('nrel_pvw_key',this.value)">
+          <button class="run-btn" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);margin-top:8px" onclick="fetchPVWatts()">&#8595; Fetch PVWatts Data</button>
+          <div id="an-pvw-status" style="font-size:10px;color:var(--muted);margin-top:6px;min-height:14px;line-height:1.5"></div>
+        </div>
+        <div class="section">
+          <div class="stitle">Load Profile</div>
+          <label>Profile type</label>
+          <select id="an-loadType" onchange="anLoadTypeChanged()">
+            <option value="commercial">Commercial office</option>
+            <option value="residential">Residential</option>
+            <option value="flat">Flat / constant</option>
+            <option value="csv">Upload CSV</option>
+          </select>
+          <div id="an-peakKw-row">
+            <label>Peak demand (kW)</label>
+            <input type="number" id="an-peakKw" value="50" step="1" min="1">
+          </div>
+          <div id="an-csv-row" style="display:none;margin-top:8px">
+            <div onclick="$('an-csv-input').click()"
+                 ondragover="event.preventDefault();this.style.borderColor='var(--accent2)'"
+                 ondragleave="this.style.borderColor='var(--border)'"
+                 ondrop="anCsvDrop(event);this.style.borderColor='var(--border)'"
+                 style="border:1px dashed var(--border);border-radius:4px;padding:12px;text-align:center;cursor:pointer;font-size:10px;color:var(--muted)">
+              Drop CSV here<br><span style="font-size:9px">8760 hourly kW values</span>
+            </div>
+            <input type="file" id="an-csv-input" accept=".csv,.txt" style="display:none" onchange="anCsvFile(this.files[0])">
+            <div id="an-csv-status" style="font-size:10px;color:var(--muted);margin-top:4px"></div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="stitle">Battery Sweep</div>
+          <div id="an-batt-note" class="cnote" style="margin-bottom:6px;display:none"></div>
+          <label>Max battery size (kWh)</label>
+          <input type="number" id="an-maxKwh" value="200" step="10" min="10">
+          <label>Fixed power rating (kW, 0 = auto)</label>
+          <input type="number" id="an-battKw" value="0" step="5" min="0">
+          <label>Round-trip efficiency (%)</label>
+          <input type="number" id="an-rte" value="90" step="1" min="70" max="100">
+          <label>Electricity rate (¢/kWh)</label>
+          <input type="number" id="an-rate" value="15" step="1" min="1">
+        </div>
+        <div class="section">
+          <button class="run-btn" id="an-run-btn" onclick="runAnalysis()">&#9654; Run Simulation</button>
+          <div id="an-status" style="font-size:10px;color:var(--muted);margin-top:8px;text-align:center;min-height:14px"></div>
+        </div>
+      </div>
+      <div class="analysis-main">
+        <div class="no-data" id="an-placeholder">Set parameters and click Run Simulation to start.</div>
+        <div id="an-results" style="display:none;flex-direction:column;gap:16px">
+          <div class="summary-cards" id="an-cards"></div>
+          <div class="chart-card">
+            <h3>Monthly Load &amp; PV Generation (MWh)</h3>
+            <div style="height:200px;position:relative"><canvas id="an-monthly-chart"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h3>Curtailment Heatmap — hour of day (rows) &times; day of year (columns)</h3>
+            <div style="display:flex;gap:12px;margin-bottom:6px;font-size:9px;color:var(--muted);align-items:center">
+              <span>&#9632; None</span><span style="color:#a05010">&#9632;</span><span style="color:#f5c842">&#9632; Peak</span>
+            </div>
+            <canvas id="an-heatmap" style="width:100%;display:block;border-radius:3px;height:120px"></canvas>
+            <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:9px;color:var(--muted)">
+              <span>Jan</span><span>Apr</span><span>Jul</span><span>Oct</span><span>Dec</span>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Battery Sizing Curve — curtailment recovered vs capacity</h3>
+            <div style="height:220px;position:relative"><canvas id="an-sizing-chart"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h3>Dispatch Profile — <span id="an-dispatch-label">Peak Curtailment Day</span></h3>
+            <div style="height:220px;position:relative"><canvas id="an-dispatch-chart"></canvas></div>
+            <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+              <button class="hbtn" style="font-size:10px;padding:4px 10px" onclick="showDispatchDay('peak')">Peak day</button>
+              <button class="hbtn" style="font-size:10px;padding:4px 10px" onclick="showDispatchDay('avg')">Summer solstice</button>
+              <button class="hbtn" style="font-size:10px;padding:4px 10px" onclick="showDispatchDay('winter')">Winter solstice</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </main>
 </div>
@@ -2117,6 +2261,434 @@ function exportPDF(){
     } else { finish(); }
   };
   img.src=url;
+}
+
+// ── Curtailment Analysis Tab ─────────────────────────────────────────────────
+let _anPvHourly=null,_anLoadHourly=null,_anCurtHourly=null,_anGridHourly=null;
+let _anSweepResults=[],_anPeakCurtDay=0,_anCsvData=null,_anSimBase=null,_anSimParams=null;
+let _chartMonthly=null,_chartSizing=null,_chartDispatch=null;
+let _anPvWattsData=null; // hourly kW array fetched from NREL PVWatts API
+
+function switchTab(name){
+  ['sld','analysis'].forEach(t=>{
+    const p=$('tab-'+t),b=$('tab-btn-'+t);
+    if(p) p.classList.toggle('active',t===name);
+    if(b) b.classList.toggle('active',t===name);
+  });
+  if(name==='analysis') syncAnalysisFromSLD();
+}
+
+function syncAnalysisFromSLD(){
+  // PV
+  const pvKw=(parseFloat(gv('systemKw'))||0)+(gc('hasArr2')?(parseFloat(gv('a2systemKw'))||0):0);
+  if(pvKw>0) $('an-pvKw').value=pvKw.toFixed(1);
+  $('an-dcAc').value=(parseFloat(gv('dcAcRatio'))||1.20).toFixed(2);
+
+  // Battery
+  const noteEl=$('an-batt-note');
+  if(gc('hasBatt')){
+    const qty=Math.max(1,parseInt(gv('battQty'))||1);
+    const kw=(parseFloat(gv('battKw'))||0)*qty;
+    const kwh=(parseFloat(gv('battKwh'))||0)*qty;
+    const socMin=parseFloat(gv('battSocMin'))||10;
+    const socMax=parseFloat(gv('battSocMax'))||90;
+    const usable=kwh*(socMax-socMin)/100;
+    const chem=gv('battChem')||'LFP';
+    const couple=gv('battCouple')||'ac';
+    const model=gv('battModel')||'Battery';
+
+    // RTE by chemistry + coupling (AC has extra inverter conversion loss)
+    const rteMap={'LFP':{'ac':90,'dc':95},'NMC':{'ac':87,'dc':92},'Lead-Acid':{'ac':74,'dc':80}};
+    const rte=(rteMap[chem]||rteMap['LFP'])[couple]||90;
+
+    if(kw>0) $('an-battKw').value=kw.toFixed(1);
+    // Sweep range: place actual battery at ~1/3 of x-axis so curve shape is visible
+    if(usable>0) $('an-maxKwh').value=Math.ceil(usable*3/10)*10;
+    $('an-rte').value=rte;
+
+    noteEl.style.display='block';
+    noteEl.textContent=`↑ SLD: ${qty>1?qty+'× ':''}${model} · ${kw.toFixed(0)} kW · ${kwh.toFixed(1)} kWh (usable ~${usable.toFixed(1)} kWh, ${couple.toUpperCase()})`;
+  } else {
+    noteEl.style.display='none';
+    noteEl.textContent='';
+  }
+
+  // Restore saved API key
+  const savedKey=localStorage.getItem('nrel_pvw_key');
+  if(savedKey&&!gv('an-api-key')) $('an-api-key').value=savedKey;
+
+  anExportHint();
+}
+
+function anExportHint(){
+  const v=parseFloat(gv('an-export'));
+  const el=$('an-export-hint');
+  if(isNaN(v)||v===0) el.textContent='0 = no export (zero-export / network)';
+  else if(v>0) el.textContent=`Max ${v} kW allowed to flow to grid`;
+  else el.textContent=`Spot network: must import ≥ ${-v} kW at all times`;
+}
+
+function anLoadTypeChanged(){
+  const t=gv('an-loadType');
+  $('an-csv-row').style.display=t==='csv'?'block':'none';
+  $('an-peakKw-row').style.display=t==='csv'?'none':'block';
+}
+
+function anCsvDrop(e){
+  e.preventDefault();
+  const f=e.dataTransfer.files[0];
+  if(f) anCsvFile(f);
+}
+
+function anCsvFile(file){
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    const lines=ev.target.result.split(/[\r\n]+/).filter(l=>l.trim());
+    const vals=lines.map(l=>{const p=l.split(',');return parseFloat(p[p.length-1]);}).filter(v=>!isNaN(v));
+    if(vals.length<8760){$('an-csv-status').textContent=`⚠ Only ${vals.length} values (need ≥8760)`;_anCsvData=null;return;}
+    _anCsvData=new Float32Array(vals.slice(0,8760));
+    $('an-csv-status').textContent=`✓ ${vals.length} hours loaded`;
+  };
+  reader.readAsText(file);
+}
+
+// ── PVWatts API Fetch ────────────────────────────────────────────────────────
+async function fetchPVWatts(){
+  const apiKey=(gv('an-api-key')||'').trim();
+  const statusEl=$('an-pvw-status');
+  if(!apiKey){statusEl.style.color='#f5a742';statusEl.textContent='⚠ Enter an API key first';return;}
+  statusEl.style.color='var(--muted)';statusEl.textContent='Fetching from NREL…';
+  try{
+    const params=new URLSearchParams({
+      api_key:apiKey,
+      system_capacity:gv('an-pvKw'),
+      azimuth:180,
+      tilt:gv('an-tilt'),
+      array_type:gv('an-array-type'),
+      module_type:0,
+      losses:gv('an-losses'),
+      lat:gv('an-lat'),
+      lon:gv('an-lon'),
+      timeframe:'hourly',
+      dc_ac_ratio:gv('an-dcAc'),
+    });
+    const resp=await fetch(`https://developer.nrel.gov/api/pvwatts/v8.json?${params}`);
+    if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data=await resp.json();
+    if(data.errors&&data.errors.length) throw new Error(data.errors[0]);
+    const ac=data.outputs&&data.outputs.ac;
+    if(!ac||ac.length<8760) throw new Error('Incomplete hourly data in response');
+    _anPvWattsData=new Float32Array(ac.slice(0,8760).map(v=>v/1000)); // W → kW
+    localStorage.setItem('nrel_pvw_key',apiKey);
+    const si=data.station_info||{};
+    const annualMwh=(ac.reduce((a,b)=>a+b,0)/1e6).toFixed(2);
+    const src=(si.solar_resource_file||'NSRDB').replace(/.*\//,'');
+    statusEl.style.color='var(--green)';
+    statusEl.textContent=`✓ ${[si.city,si.state].filter(Boolean).join(', ')||'Loaded'} · ${annualMwh} MWh/yr · ${src}`;
+  }catch(e){
+    statusEl.style.color='#f5a742';
+    statusEl.textContent='⚠ '+e.message;
+    _anPvWattsData=null;
+  }
+}
+
+// ── Solar Profile (astronomical clear-sky model) ─────────────────────────────
+function anToRad(d){return d*Math.PI/180;}
+function anSum(arr){let s=0;for(let i=0;i<arr.length;i++)s+=arr[i];return s;}
+
+function makeSolarProfile(systemKwDC,dcAcRatio,lossesP,latDeg,tiltDeg){
+  const systemKwAC=systemKwDC/dcAcRatio, eta=1-lossesP/100;
+  const pv=new Float32Array(8760);
+  const LAT=anToRad(latDeg), TILT=anToRad(tiltDeg);
+  for(let h=0;h<8760;h++){
+    const doy=Math.floor(h/24)+1, hr=(h%24)+0.5;
+    const B=anToRad(360*(doy-81)/364);
+    const EoT=9.87*Math.sin(2*B)-7.53*Math.cos(B)-1.5*Math.sin(B);
+    const decl=anToRad(23.45*Math.sin(anToRad(360*(284+doy)/365)));
+    const omega=anToRad(15*(hr-12+EoT/60));
+    const cosZ=Math.sin(LAT)*Math.sin(decl)+Math.cos(LAT)*Math.cos(decl)*Math.cos(omega);
+    if(cosZ<=0.02) continue;
+    const zenRad=Math.acos(Math.min(1,cosZ));
+    const am=1/(cosZ+0.50572*Math.pow(96.07995-zenRad*180/Math.PI,-1.6364));
+    const DNI=1353*Math.pow(0.7,Math.pow(am,0.678));
+    const GHI=DNI*cosZ, DHI=GHI*0.15;
+    const cosInc=Math.sin(decl)*Math.sin(LAT)*Math.cos(TILT)
+                -Math.sin(decl)*Math.cos(LAT)*Math.sin(TILT)
+                +Math.cos(decl)*Math.cos(omega)*Math.cos(LAT)*Math.cos(TILT)
+                +Math.cos(decl)*Math.cos(omega)*Math.sin(LAT)*Math.sin(TILT);
+    const G_poa=Math.max(0,cosInc)*DNI + DHI*(1+Math.cos(TILT))/2 + GHI*0.2*(1-Math.cos(TILT))/2;
+    pv[h]=Math.max(0,Math.min(systemKwAC,G_poa/1000*systemKwDC*eta));
+  }
+  return pv;
+}
+
+// ── Synthetic Load Profiles ──────────────────────────────────────────────────
+function makeLoadProfile(type,peakKw){
+  const load=new Float32Array(8760);
+  for(let h=0;h<8760;h++){
+    const doy=Math.floor(h/24), hour=h%24, dow=doy%7, isWD=dow>=1&&dow<=5;
+    const sAng=2*Math.PI*(doy-172)/365;
+    if(type==='commercial'){
+      const seas=1+0.15*Math.sin(sAng-Math.PI/2);
+      const shape=isWD?0.15+0.85*Math.min(1,Math.exp(-0.5*((hour-11)/3.5)**2)+0.3*Math.exp(-0.5*((hour-8)/1.5)**2)):0.12;
+      load[h]=peakKw*shape*seas;
+    } else if(type==='residential'){
+      const seas=1+0.12*Math.sin(sAng+Math.PI);
+      const shape=0.2+(1-0.2)*Math.min(1,0.7*Math.exp(-0.5*((hour-7.5)/1.5)**2)+Math.exp(-0.5*((hour-19)/2)**2));
+      load[h]=peakKw*shape*seas;
+    } else {
+      load[h]=peakKw*0.6;
+    }
+  }
+  return load;
+}
+
+// ── Battery Dispatch Simulation ──────────────────────────────────────────────
+function simulate(pv,load,exportLimKw,battKw,battKwh,rte){
+  const chEff=Math.sqrt(rte), disEff=Math.sqrt(rte);
+  // Negative exportLimKw = minimum import requirement (spot network)
+  // e.g. exportLimKw = -20 → must always import ≥ 20 kW from grid
+  const minImport=exportLimKw<0?-exportLimKw:0;
+  const maxExport=exportLimKw<0?0:exportLimKw;
+  let soc=0;
+  const n=pv.length;
+  const curtail=new Float32Array(n),gridNet=new Float32Array(n);
+  const battCharge=new Float32Array(n),battDischarge=new Float32Array(n),socArr=new Float32Array(n);
+  for(let i=0;i<n;i++){
+    const p=pv[i],l=load[i];
+    // PV can only offset load down to the minImport floor
+    const pvToLoad=Math.min(p,Math.max(0,l-minImport));
+    const pvSurplus=p-pvToLoad;
+    const pvToGrid=Math.min(pvSurplus,maxExport);
+    const pvAvailBatt=pvSurplus-pvToGrid;
+    let charge=0;
+    if(pvAvailBatt>0&&soc<battKwh&&battKwh>0){
+      charge=Math.min(battKw,pvAvailBatt,(battKwh-soc)/chEff);
+      soc=Math.min(battKwh,soc+charge*chEff);
+    }
+    curtail[i]=Math.max(0,pvAvailBatt-charge);
+    const loadDef=Math.max(0,l-pvToLoad);
+    let discharge=0;
+    // Don't discharge battery if it would push imports below minImport
+    const maxDischarge=Math.max(0,loadDef-minImport);
+    if(maxDischarge>0&&soc>0&&battKwh>0){
+      discharge=Math.min(battKw,maxDischarge,soc*disEff);
+      soc=Math.max(0,soc-discharge/disEff);
+    }
+    gridNet[i]=Math.max(0,loadDef-discharge)-pvToGrid;
+    battCharge[i]=charge; battDischarge[i]=discharge; socArr[i]=soc;
+  }
+  return{curtail,gridNet,battCharge,battDischarge,socArr};
+}
+
+// ── Main Analysis Runner ─────────────────────────────────────────────────────
+async function runAnalysis(){
+  const btn=$('an-run-btn');
+  btn.disabled=true; btn.textContent='Running…';
+  $('an-status').textContent='Generating profiles…';
+  await new Promise(r=>setTimeout(r,15));
+  try{
+    const pvKw=parseFloat(gv('an-pvKw'))||13;
+    const dcAcRatio=parseFloat(gv('an-dcAc'))||1.2;
+    const losses=parseFloat(gv('an-losses'))||14;
+    const lat=parseFloat(gv('an-lat'))||39.9;
+    const tilt=parseFloat(gv('an-tilt'))||20;
+    const exportLimKw=parseFloat(gv('an-export'))||0;
+    const peakKw=parseFloat(gv('an-peakKw'))||50;
+    const maxKwh=parseFloat(gv('an-maxKwh'))||200;
+    const battKwFixed=parseFloat(gv('an-battKw'))||0;
+    const rte=parseFloat(gv('an-rte'))/100||0.90;
+    const rate=parseFloat(gv('an-rate'))/100||0.15;
+    const loadType=gv('an-loadType');
+
+    const pvSrc=_anPvWattsData?'PVWatts TMY':'Clear-sky model';
+    const pv=_anPvWattsData||makeSolarProfile(pvKw,dcAcRatio,losses,lat,tilt);
+    const load=(loadType==='csv'&&_anCsvData)?_anCsvData:makeLoadProfile(loadType,peakKw);
+
+    $('an-status').textContent='Running baseline…';
+    await new Promise(r=>setTimeout(r,5));
+
+    const base=simulate(pv,load,exportLimKw,0,0,1.0);
+    _anSimBase=base;
+    const totalCurt=anSum(base.curtail);
+    const totalBaseImport=anSum(Array.from(base.gridNet).map(v=>Math.max(0,v)));
+
+    const dailyCurt=new Array(365).fill(0);
+    for(let d=0;d<365;d++) for(let hr=0;hr<24;hr++) dailyCurt[d]+=base.curtail[d*24+hr];
+    _anPeakCurtDay=dailyCurt.indexOf(Math.max(...dailyCurt));
+
+    $('an-status').textContent='Running battery sweep…';
+    await new Promise(r=>setTimeout(r,5));
+
+    const step=Math.max(5,Math.ceil(maxKwh/20));
+    const sweepKwh=[0];
+    for(let k=step;k<=maxKwh;k+=step) sweepKwh.push(k);
+    _anSweepResults=sweepKwh.map(kwh=>{
+      const kw=battKwFixed>0?battKwFixed:Math.max(kwh/2,(pvKw/dcAcRatio)*0.5);
+      const res=kwh===0?base:simulate(pv,load,exportLimKw,kw,kwh,rte);
+      const curtRec=totalCurt-anSum(res.curtail);
+      const gridImport=anSum(Array.from(res.gridNet).map(v=>Math.max(0,v)));
+      const cycles=kwh>0?anSum(res.battCharge)/kwh:0;
+      return{kwh,kw,curtRec,gridAvoided:totalBaseImport-gridImport,cycles};
+    });
+
+    _anPvHourly=pv; _anLoadHourly=load; _anCurtHourly=base.curtail;
+    _anSimParams={pvKw,dcAcRatio,losses,lat,tilt,exportLimKw,peakKw,maxKwh,battKwFixed,rte,rate,loadType};
+
+    const annualPv=anSum(pv), maxCurt=Math.max(...base.curtail);
+    const maxRec=_anSweepResults[_anSweepResults.length-1].curtRec;
+    $('an-cards').innerHTML=`
+      <div class="summary-card"><div class="s-label">Annual PV</div>
+        <div class="s-val">${(annualPv/1000).toFixed(1)}<span style="font-size:13px;font-weight:400"> MWh</span></div>
+        <div class="s-sub">${pvSrc}</div></div>
+      <div class="summary-card"><div class="s-label">Annual Curtailment</div>
+        <div class="s-val">${(totalCurt/1000).toFixed(1)}<span style="font-size:13px;font-weight:400"> MWh</span></div>
+        <div class="s-sub">${annualPv>0?(totalCurt/annualPv*100).toFixed(1):0}% of generation</div></div>
+      <div class="summary-card"><div class="s-label">Peak Curtailment</div>
+        <div class="s-val">${maxCurt.toFixed(1)}<span style="font-size:13px;font-weight:400"> kW</span></div>
+        <div class="s-sub">Hourly max (Day ${_anPeakCurtDay+1})</div></div>
+      <div class="summary-card"><div class="s-label">Max Recoverable</div>
+        <div class="s-val">${totalCurt>0?(maxRec/totalCurt*100).toFixed(0):0}<span style="font-size:13px;font-weight:400">%</span></div>
+        <div class="s-sub">${(maxRec/1000).toFixed(1)} MWh w/ ${_anSweepResults[_anSweepResults.length-1].kwh} kWh BESS</div></div>`;
+
+    anRenderMonthlyChart(pv,load,base.curtail);
+    anDrawHeatmap(base.curtail);
+    anRenderSizingChart(_anSweepResults,totalCurt,rate);
+    showDispatchDay('peak');
+
+    $('an-placeholder').style.display='none';
+    $('an-results').style.display='flex';
+    $('an-status').textContent='';
+  }catch(e){
+    $('an-status').textContent='Error: '+e.message;
+    console.error(e);
+  }finally{
+    btn.disabled=false; btn.textContent='▶ Run Simulation';
+  }
+}
+
+// ── Monthly Bar Chart ────────────────────────────────────────────────────────
+const AN_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const AN_MDAYS=[31,28,31,30,31,30,31,31,30,31,30,31];
+
+function anMonthlySum(hourly){
+  const m=new Array(12).fill(0); let h=0;
+  for(let i=0;i<12;i++){const hrs=AN_MDAYS[i]*24;for(let j=0;j<hrs;j++)m[i]+=hourly[h++];}
+  return m;
+}
+
+function anRenderMonthlyChart(pv,load,curt){
+  const pvM=anMonthlySum(pv),loadM=anMonthlySum(load),curtM=anMonthlySum(curt);
+  const ctx=$('an-monthly-chart').getContext('2d');
+  if(_chartMonthly) _chartMonthly.destroy();
+  _chartMonthly=new Chart(ctx,{
+    type:'bar',
+    data:{labels:AN_MONTHS,datasets:[
+      {label:'PV Generation',data:pvM.map(v=>+(v/1000).toFixed(1)),backgroundColor:'rgba(245,200,66,0.7)',borderColor:'#f5c842',borderWidth:1},
+      {label:'Load',data:loadM.map(v=>+(v/1000).toFixed(1)),backgroundColor:'rgba(61,142,248,0.4)',borderColor:'#3d8ef8',borderWidth:1},
+      {label:'Curtailment',data:curtM.map(v=>+(v/1000).toFixed(1)),backgroundColor:'rgba(255,80,80,0.65)',borderColor:'#ff5050',borderWidth:1},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#7a84a0',font:{size:10}},boxWidth:12},tooltip:{backgroundColor:'#1e2335',bodyColor:'#e8eaf0',titleColor:'#e8eaf0'}},
+      scales:{
+        x:{ticks:{color:'#7a84a0',font:{size:10}},grid:{color:'#2a3050'}},
+        y:{ticks:{color:'#7a84a0',font:{size:10}},grid:{color:'#2a3050'},title:{display:true,text:'MWh / month',color:'#7a84a0',font:{size:10}}}
+      }
+    }
+  });
+}
+
+// ── Curtailment Heatmap ──────────────────────────────────────────────────────
+function anHeatColor(t){
+  if(t<=0) return[24,28,39];
+  if(t<0.5){const f=t*2;return[Math.round(24+f*196),Math.round(28+f*52),Math.round(39-f*23)];}
+  const f=(t-0.5)*2;return[245,Math.round(80+f*120),Math.round(16+f*50)];
+}
+
+function anDrawHeatmap(curtHourly){
+  const canvas=$('an-heatmap');
+  canvas.width=365; canvas.height=24;
+  canvas.style.imageRendering='pixelated';
+  const ctx=canvas.getContext('2d');
+  const maxC=Math.max(...curtHourly,0.001);
+  for(let day=0;day<365;day++){
+    for(let hour=0;hour<24;hour++){
+      const[r,g,b]=anHeatColor(curtHourly[day*24+hour]/maxC);
+      ctx.fillStyle=`rgb(${r},${g},${b})`;
+      ctx.fillRect(day,hour,1,1);
+    }
+  }
+}
+
+// ── Sizing Curve Chart ───────────────────────────────────────────────────────
+function anRenderSizingChart(sweep,totalCurt,rate){
+  const ctx=$('an-sizing-chart').getContext('2d');
+  if(_chartSizing) _chartSizing.destroy();
+  _chartSizing=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:sweep.map(s=>s.kwh),
+      datasets:[
+        {label:'Curtailment Recovered (%)',data:sweep.map(s=>totalCurt>0?+(s.curtRec/totalCurt*100).toFixed(1):0),borderColor:'#f5c842',backgroundColor:'rgba(245,200,66,0.1)',pointRadius:3,fill:true,yAxisID:'y'},
+        {label:'Annual Value ($)',data:sweep.map(s=>+(s.gridAvoided*rate).toFixed(0)),borderColor:'#4fd98e',backgroundColor:'rgba(79,217,142,0.07)',pointRadius:3,fill:false,yAxisID:'y2'},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#7a84a0',font:{size:10}},boxWidth:12},tooltip:{backgroundColor:'#1e2335',bodyColor:'#e8eaf0',titleColor:'#e8eaf0'}},
+      scales:{
+        x:{title:{display:true,text:'Battery Capacity (kWh)',color:'#7a84a0',font:{size:10}},ticks:{color:'#7a84a0',font:{size:10}},grid:{color:'#2a3050'}},
+        y:{title:{display:true,text:'Curtailment Recovered (%)',color:'#7a84a0',font:{size:10}},ticks:{color:'#7a84a0',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a3050'},min:0,max:100},
+        y2:{position:'right',title:{display:true,text:'Annual Value ($)',color:'#4fd98e',font:{size:10}},ticks:{color:'#4fd98e',font:{size:10},callback:v=>'$'+v},grid:{display:false}}
+      }
+    }
+  });
+}
+
+// ── Dispatch Day Chart ───────────────────────────────────────────────────────
+function showDispatchDay(type){
+  if(!_anPvHourly||!_anLoadHourly) return;
+  let dayIdx=_anPeakCurtDay;
+  if(type==='avg') dayIdx=172;
+  else if(type==='winter') dayIdx=354;
+  $('an-dispatch-label').textContent=
+    type==='peak'?`Day ${dayIdx+1} (Peak Curtailment)`:
+    type==='avg'?'Jun 21 (Summer Solstice)':'Dec 21 (Winter Solstice)';
+
+  const p=_anSimParams||{};
+  const midSweep=_anSweepResults[Math.ceil(_anSweepResults.length/2)]||{kwh:0,kw:0};
+  const res=midSweep.kwh>0
+    ?simulate(_anPvHourly,_anLoadHourly,p.exportLimKw||0,midSweep.kw,midSweep.kwh,p.rte||0.9)
+    :_anSimBase;
+
+  const s=dayIdx*24, hours=Array.from({length:24},(_,i)=>i+':00');
+  const slice=arr=>Array.from(arr.slice(s,s+24));
+  const pvD=slice(_anPvHourly), loadD=slice(_anLoadHourly);
+  const curtD=slice(res.curtail), dischD=slice(res.battDischarge);
+  const gn=slice(res.gridNet);
+  const impD=gn.map(v=>Math.max(0,v)), expD=gn.map(v=>Math.max(0,-v));
+
+  const ctx=$('an-dispatch-chart').getContext('2d');
+  if(_chartDispatch) _chartDispatch.destroy();
+  _chartDispatch=new Chart(ctx,{
+    type:'line',
+    data:{labels:hours,datasets:[
+      {label:'Load',data:loadD,borderColor:'#7a84a0',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
+      {label:'PV Generation',data:pvD,borderColor:'#f5c842',borderWidth:2,pointRadius:0,fill:true,backgroundColor:'rgba(245,200,66,0.12)',tension:0.3},
+      {label:'Battery Discharge',data:dischD,borderColor:'#4fd98e',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3},
+      {label:'Grid Import',data:impD,borderColor:'#3d8ef8',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,3],tension:0.3},
+      {label:'Curtailment',data:curtD,borderColor:'#ff5050',borderWidth:2,pointRadius:0,fill:true,backgroundColor:'rgba(255,80,80,0.18)',tension:0.3},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#7a84a0',font:{size:10}},boxWidth:12},tooltip:{backgroundColor:'#1e2335',bodyColor:'#e8eaf0',titleColor:'#e8eaf0',mode:'index',intersect:false}},
+      scales:{
+        x:{ticks:{color:'#7a84a0',font:{size:9}},grid:{color:'#2a3050'}},
+        y:{title:{display:true,text:'kW',color:'#7a84a0',font:{size:10}},ticks:{color:'#7a84a0',font:{size:10}},grid:{color:'#2a3050'},min:0}
+      }
+    }
+  });
 }
 
 let LOGO_B64 = 'logo.png';
