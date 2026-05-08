@@ -805,14 +805,17 @@ function meterCircle(cx,cy){return`<circle cx="${cx}" cy="${cy}" r="15" fill="#f
 function wlabel(x,y,txt,ac,anchor='middle'){const col=ac?'#3d8ef8':'#c9a10a';return`<text x="${x}" y="${y}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="${anchor}">${esc(txt)}</text>`;}
 function spdSym(cx,y,isAc,side){
   const col=isAc?'#3d8ef8':'#c9a10a', sw=isAc?2.5:2;
-  const blen=60, bw=62, bh=30;
+  const blen=90, bw=68, bh=30;
   const armX=side==='left'?cx-blen:cx+blen;
   const bx=side==='left'?armX-bw:armX;
   let s=`<line x1="${cx}" y1="${y}" x2="${armX}" y2="${y}" stroke="${col}" stroke-width="${sw}"/>`;
   s+=`<rect x="${bx}" y="${y-bh/2}" width="${bw}" height="${bh}" rx="4" fill="${isAc?'#edf2ff':'#fffbe6'}" stroke="${col}" stroke-width="1"/>`;
-  s+=`<text x="${bx+14}" y="${y+2}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:11px;font-weight:700" text-anchor="middle">&#9889;</text>`;
-  s+=`<text x="${bx+41}" y="${y-1}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:700" text-anchor="middle">SPD</text>`;
-  s+=`<text x="${bx+41}" y="${y+10}" style="fill:#909090;font-family:'Avenir Next','Avenir',sans-serif;font-size:7.5px" text-anchor="middle">${isAc?'NEC 230.67':'NEC 242'}</text>`;
+  // Arrester symbol: zigzag path + ground bar
+  const zx=bx+14;
+  s+=`<polyline points="${zx},${y-9} ${zx+5},${y-3} ${zx-5},${y+3} ${zx},${y+9}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linejoin="round"/>`;
+  s+=`<line x1="${zx-6}" y1="${y+9}" x2="${zx+6}" y2="${y+9}" stroke="${col}" stroke-width="1.5"/>`;
+  s+=`<text x="${bx+45}" y="${y-1}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:700" text-anchor="middle">SPD</text>`;
+  s+=`<text x="${bx+45}" y="${y+10}" style="fill:#909090;font-family:'Avenir Next','Avenir',sans-serif;font-size:7.5px" text-anchor="middle">${isAc?'NEC 230.67':'NEC 242'}</text>`;
   return s;
 }
 function egcAwg(ocpdA){
@@ -1714,6 +1717,7 @@ function render(){
 
   // AC SPD between panel and utility meter
   if(v.hasSPD){
+    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
     el.push(wireAC(MCX,y,MCX,y+W));
     el.push(spdSym(MCX, y+Math.round(W/2), true, 'right'));
     y+=W;
@@ -1822,15 +1826,13 @@ function render(){
   // NEC calcs box
   const NY=LY+134;
   const accentStyle = `fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600;letter-spacing:.06em`;
-  const baseNecH = v.hasArr2 ? 218 : 146;
-  const rsdLine1 = v.hasRSD ? (
-    v.invType==='micro' ? 'RSD: Microinverters — inherent MLPE PVHCS' :
-    v.rsdMethod==='pvhcs' ? 'RSD: Dedicated shutdown receivers (PVHCS)' :
-    'RSD: DC Optimizers — integrated module-level shutdown'
+  const baseNecH = v.hasArr2 ? 256 : 184;
+  const rsdCompNote = v.hasRSD ? (
+    v.invType==='micro' ? 'RSD: Microinverters — inherent MLPE PVHCS · NEC 690.12(C)' :
+    v.rsdMethod==='pvhcs' ? 'RSD: Dedicated shutdown receivers (PVHCS) · NEC 690.12(C)' :
+    'RSD: DC Optimizers — module-level shutdown · NEC 690.12(C)'
   ) : '';
-  const rsdLine2 = v.hasRSD ? 'NEC 690.12(C)' : '';
-  // Conduit notes always present (4 lines incl. 2-line AC note); RSD section when enabled
-  const necH = baseNecH + 52 + 12 + (v.hasRSD ? 40 : 0);
+  const necH = baseNecH + 64 + (v.hasRSD ? 12 : 0);
   // AC roof conduit note — returns [line1, line2] to keep each line short enough to fit the box
   const acMult=+gv('acConduitMult')||1;
   const mPfx=acMult>1?`${acMult}× `:'';
@@ -1876,16 +1878,11 @@ function render(){
     el.push(`<text x="${LX+10}" y="${NY+233}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
     el.push(`<line x1="${LX+6}" y1="${NY+241}" x2="${LX+NW-6}" y2="${NY+241}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+253}" style="${accentStyle}">NEC COMPLIANCE NOTES</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+265}" class="sld-note">AFCI: Integral arc-fault protection per NEC 690.11 · GFPD: Ground-fault protection per NEC 690.5</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+277}" class="sld-note">${v.hasSPD?'SPD: Surge protection per NEC 230.67 (AC) · NEC 242 (DC)':'SPD not shown — verify AHJ requirements'}</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+289}" class="sld-note">Grounding: All equipment grounded per NEC 690.43 · EGC sized per NEC 250.122 — see wire schedule</text>`);
-    if(v.hasRSD){
-      const rY = NY + 293;
-      el.push(`<line x1="${LX+6}" y1="${rY}" x2="${LX+NW-6}" y2="${rY}" stroke="#d0d5e8" stroke-width="0.7"/>`);
-      el.push(`<text x="${LX+10}" y="${rY+12}" style="${accentStyle}">RSD COMPLIANCE</text>`);
-      el.push(`<text x="${LX+10}" y="${rY+24}" class="sld-note">${rsdLine1}</text>`);
-      el.push(`<text x="${LX+10}" y="${rY+36}" class="sld-note">${rsdLine2}</text>`);
-    }
+    el.push(`<text x="${LX+10}" y="${NY+265}" class="sld-note">1.  AFCI: Integral arc-fault protection per NEC 690.11</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+277}" class="sld-note">2.  GFPD: Ground-fault protection per NEC 690.5</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+289}" class="sld-note">3.  ${v.hasSPD?'SPD: Surge protection per NEC 230.67 (AC) · NEC 242 (DC)':'SPD not shown — verify AHJ requirements'}</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+301}" class="sld-note">4.  Grounding: Equipment grounded per NEC 690.43 · EGC per Table 250.122</text>`);
+    if(v.hasRSD) el.push(`<text x="${LX+10}" y="${NY+313}" class="sld-note">5.  ${rsdCompNote}</text>`);
   } else {
     el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="${necH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
     el.push(`<text x="${LX+NW/2}" y="${NY+13}" class="sld-head" text-anchor="middle">PV Electrical Notes (NEC 690)</text>`);
@@ -1904,16 +1901,11 @@ function render(){
     el.push(`<text x="${LX+10}" y="${NY+160}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
     el.push(`<line x1="${LX+6}" y1="${NY+168}" x2="${LX+NW-6}" y2="${NY+168}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+180}" style="${accentStyle}">NEC COMPLIANCE NOTES</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+192}" class="sld-note">AFCI: Integral arc-fault protection per NEC 690.11 · GFPD: Ground-fault protection per NEC 690.5</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+204}" class="sld-note">${v.hasSPD?'SPD: Surge protection per NEC 230.67 (AC) · NEC 242 (DC)':'SPD not shown — verify AHJ requirements'}</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+216}" class="sld-note">Grounding: All equipment grounded per NEC 690.43 · EGC sized per NEC 250.122 — see wire schedule</text>`);
-    if(v.hasRSD){
-      const rY = NY + 220;
-      el.push(`<line x1="${LX+6}" y1="${rY}" x2="${LX+NW-6}" y2="${rY}" stroke="#d0d5e8" stroke-width="0.7"/>`);
-      el.push(`<text x="${LX+10}" y="${rY+12}" style="${accentStyle}">RSD COMPLIANCE</text>`);
-      el.push(`<text x="${LX+10}" y="${rY+24}" class="sld-note">${rsdLine1}</text>`);
-      el.push(`<text x="${LX+10}" y="${rY+36}" class="sld-note">${rsdLine2}</text>`);
-    }
+    el.push(`<text x="${LX+10}" y="${NY+192}" class="sld-note">1.  AFCI: Integral arc-fault protection per NEC 690.11</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+204}" class="sld-note">2.  GFPD: Ground-fault protection per NEC 690.5</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+216}" class="sld-note">3.  ${v.hasSPD?'SPD: Surge protection per NEC 230.67 (AC) · NEC 242 (DC)':'SPD not shown — verify AHJ requirements'}</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+228}" class="sld-note">4.  Grounding: Equipment grounded per NEC 690.43 · EGC per Table 250.122</text>`);
+    if(v.hasRSD) el.push(`<text x="${LX+10}" y="${NY+240}" class="sld-note">5.  ${rsdCompNote}</text>`);
   }
 
   // ── RSD diagram elements (PVHCS) ────────────────────────────────────────
