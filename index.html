@@ -543,14 +543,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             <div style="height:200px;position:relative"><canvas id="an-monthly-chart"></canvas></div>
           </div>
           <div class="chart-card">
-            <h3>Curtailment Heatmap — hour of day (rows) &times; day of year (columns)</h3>
-            <div style="display:flex;gap:12px;margin-bottom:6px;font-size:9px;color:var(--muted);align-items:center">
-              <span>&#9632; None</span><span style="color:#a05010">&#9632;</span><span style="color:#f5c842">&#9632; Peak</span>
-            </div>
-            <canvas id="an-heatmap" style="width:100%;display:block;border-radius:3px;height:120px"></canvas>
-            <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:9px;color:var(--muted)">
-              <span>Jan</span><span>Apr</span><span>Jul</span><span>Oct</span><span>Dec</span>
-            </div>
+            <h3>Curtailment Heatmap</h3>
+            <canvas id="an-heatmap" style="width:100%;display:block;border-radius:3px"></canvas>
           </div>
           <div class="chart-card">
             <h3>Battery Sizing Curve — curtailment recovered vs capacity</h3>
@@ -2633,17 +2627,76 @@ function anHeatColor(t){
 
 function anDrawHeatmap(curtHourly){
   const canvas=$('an-heatmap');
-  canvas.width=365; canvas.height=24;
-  canvas.style.imageRendering='pixelated';
+  const dpr=window.devicePixelRatio||1;
+  const cssW=canvas.clientWidth||800;
+  const cssH=240;
+  canvas.style.height=cssH+'px';
+  canvas.width=Math.round(cssW*dpr);
+  canvas.height=Math.round(cssH*dpr);
+  canvas.style.imageRendering='auto';
   const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+
+  const padL=42, padR=8, padT=8, padB=22;
+  const gridW=cssW-padL-padR;
+  const gridH=cssH-padT-padB;
+  const cellW=gridW/365, cellH=gridH/24;
   const maxC=Math.max(...curtHourly,0.001);
+
+  // background
+  ctx.fillStyle='#181c28';
+  ctx.fillRect(0,0,cssW,cssH);
+
+  // cells
   for(let day=0;day<365;day++){
     for(let hour=0;hour<24;hour++){
       const[r,g,b]=anHeatColor(curtHourly[day*24+hour]/maxC);
       ctx.fillStyle=`rgb(${r},${g},${b})`;
-      ctx.fillRect(day,hour,1,1);
+      ctx.fillRect(padL+day*cellW, padT+hour*cellH, Math.ceil(cellW), Math.ceil(cellH));
     }
   }
+
+  // hour labels & gridlines
+  const hourLabels=[[0,'12am'],[6,'6am'],[12,'12pm'],[18,'6pm'],[23,'11pm']];
+  ctx.font=`${10}px system-ui,sans-serif`;
+  ctx.textAlign='right';
+  ctx.textBaseline='middle';
+  ctx.fillStyle='#7a84a0';
+  ctx.strokeStyle='rgba(255,255,255,0.08)';
+  ctx.lineWidth=0.5;
+  for(const[h,label] of hourLabels){
+    const y=padT+h*cellH+(cellH/2);
+    ctx.fillText(label, padL-5, y);
+    if(h>0){
+      ctx.beginPath();
+      ctx.moveTo(padL, padT+h*cellH);
+      ctx.lineTo(padL+gridW, padT+h*cellH);
+      ctx.stroke();
+    }
+  }
+
+  // month labels & gridlines
+  const months=[['Jan',0],['Feb',31],['Mar',59],['Apr',90],['May',120],['Jun',151],
+                ['Jul',181],['Aug',212],['Sep',243],['Oct',273],['Nov',304],['Dec',334]];
+  ctx.textAlign='left';
+  ctx.textBaseline='top';
+  for(const[name,startDay] of months){
+    const x=padL+startDay*cellW;
+    ctx.fillStyle='#7a84a0';
+    ctx.fillText(name, x+2, padT+gridH+4);
+    if(startDay>0){
+      ctx.strokeStyle='rgba(255,255,255,0.10)';
+      ctx.beginPath();
+      ctx.moveTo(x, padT);
+      ctx.lineTo(x, padT+gridH);
+      ctx.stroke();
+    }
+  }
+
+  // border around grid
+  ctx.strokeStyle='rgba(255,255,255,0.15)';
+  ctx.lineWidth=1;
+  ctx.strokeRect(padL, padT, gridW, gridH);
 }
 
 // ── Sizing Curve Chart ───────────────────────────────────────────────────────
