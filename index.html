@@ -504,6 +504,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           <div id="an-peakKw-row">
             <label>Peak demand (kW)</label>
             <input type="number" id="an-peakKw" value="50" step="1" min="1">
+            <label style="margin-top:6px">Annual consumption (kWh/yr)</label>
+            <input type="number" id="an-annualKwh" value="" placeholder="optional — leave blank to scale by peak" step="1000" min="0" oninput="anLoadParamChanged()">
           </div>
           <div id="an-csv-row" style="display:none;margin-top:8px">
             <div onclick="$('an-csv-input').click()"
@@ -576,7 +578,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             </select>
           </div>
           <div style="height:180px;position:relative"><canvas id="an-load-prev-chart"></canvas></div>
-          <div style="font-size:9px;color:var(--muted);margin-top:6px">Solid = typical weekday · Dashed = typical weekend · Monthly scale applies. Changes here do not re-run the simulation automatically.</div>
+          <div id="an-load-preview-note" style="font-size:9px;color:var(--muted);margin-top:6px">Solid = typical weekday · Dashed = typical weekend · Monthly scale applies. Changes here do not re-run the simulation automatically.</div>
         </div>
         <div class="no-data" id="an-placeholder">Set parameters and click Run Simulation to start.</div>
         <div id="an-results" style="display:none;flex-direction:column;gap:16px">
@@ -2529,9 +2531,10 @@ function makeSolarProfile(systemKwDC,dcAcRatio,lossesP,latDeg,tiltDeg){
 // ── Synthetic Load Profiles ──────────────────────────────────────────────────
 function getLoadOpts(){
   return {
-    base:  parseFloat(gv('an-load-base')) ?? 15,
-    wkend: parseFloat(gv('an-load-wkend')) ?? 25,
-    mf: Array.from({length:12},(_,i)=>(parseFloat(gv(`an-load-m-${i}`))||100)/100)
+    base:       parseFloat(gv('an-load-base'))    ?? 15,
+    wkend:      parseFloat(gv('an-load-wkend'))   ?? 25,
+    mf:         Array.from({length:12},(_,i)=>(parseFloat(gv(`an-load-m-${i}`))||100)/100),
+    annualKwh:  parseFloat(gv('an-annualKwh'))    || 0
   };
 }
 
@@ -2553,13 +2556,24 @@ const _AN_MSTARTS=[0,31,59,90,120,151,181,212,243,273,304,334];
 
 function makeLoadProfile(type, peakKw, opts){
   const o=opts||getLoadOpts();
-  const load=new Float32Array(8760);
+  // Build normalized profile (peak=1 per shape + monthly factors)
+  const norm=new Float32Array(8760);
   for(let h=0;h<8760;h++){
     const doy=Math.floor(h/24), hour=h%24;
     const dow=(doy+1)%7, isWD=dow>=1&&dow<=5;
     let mi=11; for(let m=0;m<11;m++) if(doy<_AN_MSTARTS[m+1]){mi=m;break;}
-    load[h]=Math.max(0, peakKw*loadHourShape(type,hour,isWD,o.base,o.wkend)*o.mf[mi]);
+    norm[h]=Math.max(0, loadHourShape(type,hour,isWD,o.base,o.wkend)*o.mf[mi]);
   }
+  // Derive amplitude: from annual kWh target if provided, else from peak demand
+  let amplitude;
+  if(o.annualKwh>0){
+    const normTotal=norm.reduce((s,v)=>s+v,0)||1;
+    amplitude=o.annualKwh/normTotal; // kW — may differ from peakKw
+  } else {
+    amplitude=peakKw;
+  }
+  const load=new Float32Array(8760);
+  for(let h=0;h<8760;h++) load[h]=norm[h]*amplitude;
   return load;
 }
 
@@ -2578,8 +2592,35 @@ function renderLoadPreview(){
 
   const labels=['12am','1am','2am','3am','4am','5am','6am','7am','8am','9am','10am','11am',
                 '12pm','1pm','2pm','3pm','4pm','5pm','6pm','7pm','8pm','9pm','10pm','11pm'];
-  const wd=labels.map((_,h)=>+(peakKw*loadHourShape(type,h,true, o.base,o.wkend)*mf).toFixed(1));
-  const we=labels.map((_,h)=>+(peakKw*loadHourShape(type,h,false,o.base,o.wkend)*mf).toFixed(1));
+
+  // Compute amplitude (same logic as makeLoadProfile)
+  let amplitude=peakKw;
+  if(o.annualKwh>0){
+    // Compute full-year normalized total to derive amplitude
+    const normTotal=makeLoadProfile(type,1,{...o,annualKwh:0}).reduce((s,v)=>s+v,0)||1;
+    amplitude=o.annualKwh/normTotal;
+  }
+  const impliedPeak=amplitude*mf; // peak for selected month
+
+  const wd=labels.map((_,h)=>+(amplitude*loadHourShape(type,h,true, o.base,o.wkend)*mf).toFixed(1));
+  const we=labels.map((_,h)=>+(amplitude*loadHourShape(type,h,false,o.base,o.wkend)*mf).toFixed(1));
+
+  // Annotation: implied peak info
+  const noteEl=$('an-load-preview-note');
+  if(o.annualKwh>0){
+    const fullYearNorm=makeLoadProfile(type,1,{...o,annualKwh:0}).reduce((s,v)=>s+v,0)||1;
+    const amp=o.annualKwh/fullYearNorm;
+    const maxMf=Math.max(...o.mf);
+    const peakOfYear=+(amp*maxMf).toFixed(1);
+    const exceeds=peakOfYear>peakKw;
+    noteEl.style.color=exceeds?'#f5a742':'var(--green)';
+    noteEl.textContent=exceeds
+      ?`⚠ Annual target implies ${peakOfYear} kW peak — exceeds stated max of ${peakKw} kW`
+      :`✓ Annual target derived — implied peak ${peakOfYear} kW (max demand cap: ${peakKw} kW)`;
+  } else {
+    noteEl.style.color='var(--muted)';
+    noteEl.textContent='Solid = typical weekday · Dashed = typical weekend · Monthly scale applies. Changes here do not re-run the simulation automatically.';
+  }
 
   const ctx=$('an-load-prev-chart').getContext('2d');
   if(_chartLoadPreview) _chartLoadPreview.destroy();
@@ -2999,8 +3040,9 @@ function renderDispatchChart(){
 }
 
 // Keep analysis tab in sync whenever any SLD control changes
-document.querySelector('aside').addEventListener('input', e=>{ syncAnalysisFromSLD(); if(e.target.id==='an-peakKw') renderLoadPreview(); });
-document.querySelector('aside').addEventListener('change', e=>{ syncAnalysisFromSLD(); if(e.target.id==='an-peakKw') renderLoadPreview(); });
+const _LOAD_PREVIEW_IDS=new Set(['an-peakKw','an-annualKwh','an-loadType']);
+document.querySelector('aside').addEventListener('input', e=>{ syncAnalysisFromSLD(); if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); });
+document.querySelector('aside').addEventListener('change', e=>{ syncAnalysisFromSLD(); if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); });
 
 let LOGO_B64 = 'logo.png';
 render();
