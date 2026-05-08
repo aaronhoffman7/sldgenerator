@@ -1596,11 +1596,12 @@ function render(){
   const col1=renderArrayColumn({...v, modsLast:arr1ModsLast, colLabel:v.hasArr2?'1':''}, CX1, PV_START_Y);
   el.push(col1.svg);
 
-  let invBot1=col1.invBotY, invBot2=col1.invBotY;
+  let invBot1=col1.invBotY, invBot2=col1.invBotY, col2InvMidY=col1.invMidY;
   if(v.hasArr2){
     const col2=renderArrayColumn({...v.a2, modsLast:a2ModsLast, hasRSD:v.hasRSD, rsdMethod:v.rsdMethod, colLabel:'2'}, CX2, PV_START_Y);
     el.push(col2.svg);
     invBot2=col2.invBotY;
+    col2InvMidY=col2.invMidY;
   }
 
   // ── AC merge bus ──────────────────────────────────────────────────────────
@@ -1702,14 +1703,19 @@ function render(){
   el.push(compBox(BX,y,BW,64,'#f0eaff','#6b45c0','Main Service Panel',panelSub,`Solar backfeed: ${bkrLabel}`));
   const panelBot=y+64; y=panelBot;
 
-  // Data logger / gateway — near MSP, comm line routes from inverter AC output down
+  // Data logger / gateway — near MSP; position clears RSD boxes and array-2 column
   if(v.hasMonitoring){
     const monW=175, monH=36;
-    const monX=BX+BW+14;
-    const monMidY=panelY+32;
-    const commX=monX+Math.round(monW/2);
+    const isPvhcs = v.hasRSD && v.rsdMethod==='pvhcs';
+    let monX = BX+BW+14;                                     // default: right of MSP
+    if(v.hasArr2) monX = Math.max(monX, CX2+120);            // clear array-2 column
+    if(isPvhcs)   monX = Math.max(monX, MCX+BW/2+214);      // clear RSD transmitter box (MCX+100+200+14)
+    const commX = monX + Math.round(monW/2);
     el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Data Logger / Gateway','PV Monitoring · NEC Art. 800'));
-    el.push(`<path d="M ${CX1+116} ${col1.invMidY} H ${commX} V ${panelY+14}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3" fill="none"/>`);
+    // Comm line: from rightmost inverter AC output → right to box centre → down to box top
+    const commStartX = v.hasArr2 ? CX2+116 : CX1+116;
+    const commStartY = v.hasArr2 ? col2InvMidY : col1.invMidY;
+    el.push(`<path d="M ${commStartX} ${commStartY} H ${commX} V ${panelY+14}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3" fill="none"/>`);
   }
 
   // AC SPD between panel and utility meter
