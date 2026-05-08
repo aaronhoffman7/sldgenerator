@@ -2279,8 +2279,22 @@ function switchTab(name){
 function syncAnalysisFromSLD(){
   // PV
   const pvKw=(parseFloat(gv('systemKw'))||0)+(gc('hasArr2')?(parseFloat(gv('a2systemKw'))||0):0);
+  const dcAcRatio=parseFloat(gv('dcAcRatio'))||1.20;
+
+  // Invalidate PVWatts cache if the system params it was fetched for have changed
+  if(_anPvWattsData){
+    const prevPv=parseFloat(gv('an-pvKw'))||0;
+    const prevDcAc=parseFloat(gv('an-dcAc'))||0;
+    if(Math.abs(pvKw-prevPv)>0.05||Math.abs(dcAcRatio-prevDcAc)>0.005){
+      _anPvWattsData=null;
+      const s=$('an-pvw-status');
+      s.style.color='#f5a742';
+      s.textContent='⚠ System changed — re-fetch PVWatts data';
+    }
+  }
+
   if(pvKw>0) $('an-pvKw').value=pvKw.toFixed(1);
-  $('an-dcAc').value=(parseFloat(gv('dcAcRatio'))||1.20).toFixed(2);
+  $('an-dcAc').value=dcAcRatio.toFixed(2);
 
   // Battery
   const noteEl=$('an-batt-note');
@@ -2679,6 +2693,10 @@ function showDispatchDay(type){
     }
   });
 }
+
+// Keep analysis tab in sync whenever any SLD control changes
+document.querySelector('aside').addEventListener('input', syncAnalysisFromSLD);
+document.querySelector('aside').addEventListener('change', syncAnalysisFromSLD);
 
 let LOGO_B64 = 'logo.png';
 render();
