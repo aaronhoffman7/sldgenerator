@@ -559,6 +559,18 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           <div class="chart-card">
             <h3>Dispatch Profile — <span id="an-dispatch-label">Peak Curtailment Day</span></h3>
             <div style="height:220px;position:relative"><canvas id="an-dispatch-chart"></canvas></div>
+            <div id="an-batt-slider-row" style="display:none;margin-top:14px">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
+                <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Battery assumption</span>
+                <span id="an-batt-slider-label" style="font-size:11px;font-family:var(--mono);color:var(--text)">--</span>
+              </div>
+              <input type="range" id="an-batt-slider" min="0" step="1" value="0"
+                     style="width:100%;accent-color:var(--accent2);cursor:pointer"
+                     oninput="anBattSliderChanged()">
+              <div style="display:flex;justify-content:space-between;margin-top:3px;font-size:9px;color:var(--muted)">
+                <span>No battery</span><span id="an-batt-slider-maxlbl"></span>
+              </div>
+            </div>
             <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
               <button class="hbtn" style="font-size:10px;padding:4px 10px" onclick="showDispatchDay('peak')">Peak day</button>
               <button class="hbtn" style="font-size:10px;padding:4px 10px" onclick="showDispatchDay('avg')">Summer solstice</button>
@@ -2557,7 +2569,17 @@ async function runAnalysis(){
     anRenderMonthlyChart(pv,load,base.curtail);
     anDrawHeatmap(base.curtail);
     anRenderSizingChart(_anSweepResults,totalCurt,rate);
-    showDispatchDay('peak');
+
+    // Init battery slider — default to midpoint so user sees a battery in action
+    _anDispatchDay='peak';
+    _anBattIdx=Math.ceil((_anSweepResults.length-1)/2);
+    const slider=$('an-batt-slider');
+    slider.max=_anSweepResults.length-1;
+    slider.value=_anBattIdx;
+    $('an-batt-slider-maxlbl').textContent=`${_anSweepResults[_anSweepResults.length-1].kwh} kWh`;
+    $('an-batt-slider-row').style.display='block';
+    anUpdateBattLabel();
+    renderDispatchChart();
 
     $('an-placeholder').style.display='none';
     $('an-results').style.display='flex';
@@ -2650,19 +2672,42 @@ function anRenderSizingChart(sweep,totalCurt,rate){
 }
 
 // ── Dispatch Day Chart ───────────────────────────────────────────────────────
+let _anDispatchDay='peak', _anBattIdx=0;
+
+function anBattSliderChanged(){
+  _anBattIdx=parseInt(gv('an-batt-slider'));
+  anUpdateBattLabel();
+  renderDispatchChart();
+}
+
+function anUpdateBattLabel(){
+  const s=_anSweepResults[_anBattIdx];
+  if(!s) return;
+  const totalCurt=_anCurtHourly?anSum(_anCurtHourly):0;
+  const pct=totalCurt>0?(s.curtRec/totalCurt*100).toFixed(0):0;
+  $('an-batt-slider-label').textContent=
+    s.kwh===0?'No battery':
+    `${s.kwh} kWh · ${s.kw.toFixed(0)} kW · ${pct}% curtailment recovered`;
+}
+
 function showDispatchDay(type){
+  _anDispatchDay=type;
+  renderDispatchChart();
+}
+
+function renderDispatchChart(){
   if(!_anPvHourly||!_anLoadHourly) return;
   let dayIdx=_anPeakCurtDay;
-  if(type==='avg') dayIdx=172;
-  else if(type==='winter') dayIdx=354;
+  if(_anDispatchDay==='avg') dayIdx=172;
+  else if(_anDispatchDay==='winter') dayIdx=354;
   $('an-dispatch-label').textContent=
-    type==='peak'?`Day ${dayIdx+1} (Peak Curtailment)`:
-    type==='avg'?'Jun 21 (Summer Solstice)':'Dec 21 (Winter Solstice)';
+    _anDispatchDay==='peak'?`Day ${dayIdx+1} (Peak Curtailment)`:
+    _anDispatchDay==='avg'?'Jun 21 (Summer Solstice)':'Dec 21 (Winter Solstice)';
 
   const p=_anSimParams||{};
-  const midSweep=_anSweepResults[Math.ceil(_anSweepResults.length/2)]||{kwh:0,kw:0};
-  const res=midSweep.kwh>0
-    ?simulate(_anPvHourly,_anLoadHourly,p.exportLimKw||0,midSweep.kw,midSweep.kwh,p.rte||0.9)
+  const sweep=_anSweepResults[_anBattIdx]||{kwh:0,kw:0};
+  const res=sweep.kwh>0
+    ?simulate(_anPvHourly,_anLoadHourly,p.exportLimKw||0,sweep.kw,sweep.kwh,p.rte||0.9)
     :_anSimBase;
 
   const s=dayIdx*24, hours=Array.from({length:24},(_,i)=>i+':00');
@@ -2670,7 +2715,7 @@ function showDispatchDay(type){
   const pvD=slice(_anPvHourly), loadD=slice(_anLoadHourly);
   const curtD=slice(res.curtail), dischD=slice(res.battDischarge);
   const gn=slice(res.gridNet);
-  const impD=gn.map(v=>Math.max(0,v)), expD=gn.map(v=>Math.max(0,-v));
+  const impD=gn.map(v=>Math.max(0,v));
 
   const ctx=$('an-dispatch-chart').getContext('2d');
   if(_chartDispatch) _chartDispatch.destroy();
