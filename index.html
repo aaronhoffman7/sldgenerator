@@ -1712,10 +1712,10 @@ function render(){
     if(isPvhcs)   monX = Math.max(monX, MCX+BW/2+214);      // clear RSD transmitter box (MCX+100+200+14)
     const commX = monX + Math.round(monW/2);
     el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Data Logger / Gateway','PV Monitoring · NEC Art. 800'));
-    // Comm line: from rightmost inverter AC output → right to box centre → down to box top
-    const commStartX = v.hasArr2 ? CX2+116 : CX1+116;
-    const commStartY = v.hasArr2 ? col2InvMidY : col1.invMidY;
-    el.push(`<path d="M ${commStartX} ${commStartY} H ${commX} V ${panelY+14}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3" fill="none"/>`);
+    // Comm line: always starts from arr1 AC output, spans across to logger (arr2 taps in along the way)
+    el.push(`<path d="M ${CX1+116} ${col1.invMidY} H ${commX} V ${panelY+14}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3" fill="none"/>`);
+    // For dual array: junction dot where arr2 output meets the shared comm bus
+    if(v.hasArr2) el.push(`<circle cx="${CX2+116}" cy="${col2InvMidY}" r="3" fill="#7a84a0"/>`);
   }
 
   // AC SPD between panel and utility meter
