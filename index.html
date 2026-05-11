@@ -2309,7 +2309,7 @@ function exportPDF(){
 
   const img=new Image();
   img.onload=function(){
-    const scale=2;
+    const scale=3;
     const canvas=document.createElement('canvas');
     canvas.width=W*scale; canvas.height=H*scale;
     const ctx=canvas.getContext('2d');
@@ -2363,8 +2363,16 @@ function exportPDF(){
 
     function finish(){
       const {jsPDF}=window.jspdf;
-      const pdf=new jsPDF({orientation:W>=H?'landscape':'portrait',unit:'px',format:[W,H],hotfixes:['px_scaling']});
-      pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',0,0,W,H);
+      const isLand=W>=H;
+      const pdf=new jsPDF({orientation:isLand?'landscape':'portrait',unit:'in',format:'letter'});
+      const pageW=isLand?11:8.5, pageH=isLand?8.5:11;
+      const margin=0.35;
+      const availW=pageW-margin*2, availH=pageH-margin*2;
+      const aspect=W/H;
+      let imgW=availW, imgH=imgW/aspect;
+      if(imgH>availH){imgH=availH;imgW=imgH*aspect;}
+      const x=margin+(availW-imgW)/2, y=margin+(availH-imgH)/2;
+      pdf.addImage(canvas.toDataURL('image/png'),'PNG',x,y,imgW,imgH);
       pdf.save((v.projName||'sld').replace(/[^a-z0-9]/gi,'_')+'_SLD.pdf');
     }
 
@@ -2544,6 +2552,9 @@ function anSum(arr){let s=0;for(let i=0;i<arr.length;i++)s+=arr[i];return s;}
 
 function makeSolarProfile(systemKwDC,dcAcRatio,lossesP,latDeg,tiltDeg){
   const systemKwAC=systemKwDC/dcAcRatio, eta=1-lossesP/100;
+  // Cloud/weather derate: real TMY irradiance is ~65% of clear-sky for mid-Atlantic.
+  // Fetch PVWatts for TMY accuracy; this factor only applies to the fallback model.
+  const WEATHER=0.65;
   const pv=new Float32Array(8760);
   const LAT=anToRad(latDeg), TILT=anToRad(tiltDeg);
   for(let h=0;h<8760;h++){
@@ -2563,7 +2574,7 @@ function makeSolarProfile(systemKwDC,dcAcRatio,lossesP,latDeg,tiltDeg){
                 +Math.cos(decl)*Math.cos(omega)*Math.cos(LAT)*Math.cos(TILT)
                 +Math.cos(decl)*Math.cos(omega)*Math.sin(LAT)*Math.sin(TILT);
     const G_poa=Math.max(0,cosInc)*DNI + DHI*(1+Math.cos(TILT))/2 + GHI*0.2*(1-Math.cos(TILT))/2;
-    pv[h]=Math.max(0,Math.min(systemKwAC,G_poa/1000*systemKwDC*eta));
+    pv[h]=Math.max(0,Math.min(systemKwAC,G_poa/1000*systemKwDC*eta*WEATHER));
   }
   return pv;
 }
@@ -3327,10 +3338,11 @@ function anToggleSizingCurve(){
 
 // Keep analysis tab in sync whenever any SLD control changes
 const _LOAD_PREVIEW_IDS=new Set(['an-peakKw','an-annualKwh','an-loadType']);
-document.querySelector('aside').addEventListener('input', e=>{ syncAnalysisFromSLD(); if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); });
-document.querySelector('aside').addEventListener('change', e=>{ syncAnalysisFromSLD(); if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); });
-document.querySelector('.analysis-aside').addEventListener('input', e=>{ if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); });
-document.querySelector('.analysis-aside').addEventListener('change', e=>{ if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); });
+function maybeRefreshDebug(){ if($('tab-debug').classList.contains('active')) refreshDebugReport(); }
+document.querySelector('aside').addEventListener('input', e=>{ syncAnalysisFromSLD(); if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); maybeRefreshDebug(); });
+document.querySelector('aside').addEventListener('change', e=>{ syncAnalysisFromSLD(); if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); maybeRefreshDebug(); });
+document.querySelector('.analysis-aside').addEventListener('input', e=>{ if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); maybeRefreshDebug(); });
+document.querySelector('.analysis-aside').addEventListener('change', e=>{ if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); maybeRefreshDebug(); });
 
 // ── Debug / Export Report ─────────────────────────────────────────────────────
 function buildDebugReport(){
@@ -3485,8 +3497,12 @@ function downloadDebugReport(){
 }
 
 let LOGO_B64 = 'logo.png';
-toggleBattFields();
-render();
+// Defer so browser form-state restoration finishes before we read checkbox values
+setTimeout(function(){
+  toggleBattFields();
+  toggleMvFields();
+  render();
+}, 0);
 (function loadLogo(){
   fetch('logo.png')
     .then(r => r.blob())
