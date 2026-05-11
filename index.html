@@ -509,6 +509,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           <label>Profile type</label>
           <select id="an-loadType" onchange="anLoadTypeChanged()">
             <option value="commercial">Commercial office</option>
+            <option value="school">School (K-12)</option>
             <option value="residential">Residential</option>
             <option value="flat">Flat / constant</option>
             <option value="csv">Upload CSV</option>
@@ -2470,6 +2471,12 @@ function anLoadTypeChanged(){
   if(t==='commercial'){$('an-load-base').value=15;$('an-load-wkend').value=25;}
   else if(t==='residential'){$('an-load-base').value=20;$('an-load-wkend').value=80;}
   else if(t==='flat'){$('an-load-base').value=100;$('an-load-wkend').value=100;}
+  else if(t==='school'){
+    $('an-load-base').value=12;$('an-load-wkend').value=10;
+    // Monthly scale reflects school calendar + heating/cooling:
+    // Jan-Feb full school + heating; Jun-Aug summer break; Sep-Dec back to school
+    [100,100,90,80,80,40,20,22,75,85,95,75].forEach((v,i)=>{$('an-load-m-'+i).value=v;});
+  }
   renderLoadPreview();
 }
 
@@ -2489,6 +2496,7 @@ function anCsvFile(file){
     if(vals.length<8760){$('an-csv-status').textContent=`⚠ Only ${vals.length} values (need ≥8760)`;_anCsvData=null;return;}
     _anCsvData=new Float32Array(vals.slice(0,8760));
     $('an-csv-status').textContent=`✓ ${vals.length} hours loaded`;
+    renderLoadPreview();
   };
   reader.readAsText(file);
 }
@@ -2581,6 +2589,17 @@ function loadHourShape(type, hour, isWD, base, wkend){
     const wd=b+(1-b)*Math.min(1,0.7*Math.exp(-0.5*((hour-7.5)/1.5)**2)+Math.exp(-0.5*((hour-19)/2)**2));
     return isWD?wd:wd*w;
   }
+  if(type==='school'){
+    if(isWD){
+      // Weekday: staff ramp at 7am, student peak 8am–1pm, taper after 2pm dismissal
+      const peak=Math.exp(-0.5*((hour-10.5)/2.5)**2);
+      const staff=0.35*Math.exp(-0.5*((hour-7)/0.8)**2);
+      return b+(1-b)*Math.min(1,peak+staff);
+    } else {
+      // Weekend: base + small midday bump (sports, maintenance)
+      return b+(1-b)*Math.exp(-0.5*((hour-11)/2.0)**2)*w;
+    }
+  }
   return 1; // flat: peakKw is the constant load level
 }
 
@@ -2614,7 +2633,48 @@ let _chartLoadPreview=null;
 
 function renderLoadPreview(){
   const type=gv('an-loadType');
-  if(type==='csv'){$('an-load-preview-card').style.display='none';return;}
+  if(type==='csv'){
+    if(!_anCsvData){$('an-load-preview-card').style.display='none';return;}
+    $('an-load-preview-card').style.display='block';
+    const csvTotal=Math.round(_anCsvData.reduce((s,v)=>s+v,0));
+    const csvPeak=Math.max(..._anCsvData).toFixed(1);
+    $('an-load-preview-kwh').textContent=`${csvTotal.toLocaleString()} kWh/yr · ${csvPeak} kW peak (CSV)`;
+    $('an-implied-kwh').textContent='';
+    $('an-load-preview-note').style.color='var(--muted)';
+    $('an-load-preview-note').textContent='Uploaded CSV — daily average (solid) and daily peak (dashed) across all 365 days.';
+    const mNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const dayLabels=Array.from({length:365},(_,d)=>{
+      let mi=11; for(let m=0;m<11;m++) if(d<_AN_MSTARTS[m+1]){mi=m;break;}
+      return d===_AN_MSTARTS[mi]?mNames[mi]:'';
+    });
+    const dayAvg=new Array(365),dayPeak=new Array(365);
+    for(let d=0;d<365;d++){
+      let sum=0,pk=0;
+      for(let h=0;h<24;h++){const v=_anCsvData[d*24+h];sum+=v;if(v>pk)pk=v;}
+      dayAvg[d]=+(sum/24).toFixed(1); dayPeak[d]=+pk.toFixed(1);
+    }
+    const ctx=$('an-load-prev-chart').getContext('2d');
+    if(_chartLoadPreview) _chartLoadPreview.destroy();
+    _chartLoadPreview=new Chart(ctx,{
+      type:'line',
+      data:{labels:dayLabels,datasets:[
+        {label:'Daily Avg',data:dayAvg,borderColor:'#5b8af0',backgroundColor:'rgba(91,138,240,0.15)',fill:true,pointRadius:0,tension:0.3,borderWidth:2},
+        {label:'Daily Peak',data:dayPeak,borderColor:'#f5c842',backgroundColor:'rgba(245,200,66,0.06)',fill:false,pointRadius:0,tension:0.3,borderWidth:1.5,borderDash:[4,3]},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{
+          legend:{labels:{color:'#9aa3b8',font:{size:11},boxWidth:14}},
+          tooltip:{backgroundColor:'#1e2335',bodyColor:'#e8eaf0',titleColor:'#c0c8e0',mode:'index',intersect:false,
+            callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y} kW`}}
+        },
+        scales:{
+          x:{ticks:{color:'#7a84a0',font:{size:10},maxRotation:0,autoSkip:false,callback(v,i){return this.getLabelForValue(i);}},grid:{color:'#2a3050'}},
+          y:{title:{display:true,text:'kW',color:'#7a84a0',font:{size:11}},ticks:{color:'#7a84a0',font:{size:10}},grid:{color:'#2a3050'},min:0}
+        }
+      }
+    });
+    return;
+  }
   $('an-load-preview-card').style.display='block';
 
   const peakKw=parseFloat(gv('an-peakKw'))||50;
@@ -2812,13 +2872,26 @@ async function runAnalysis(){
     for(let d=0;d<365;d++) for(let hr=0;hr<24;hr++) dailyCurt[d]+=base.curtail[d*24+hr];
     _anPeakCurtDay=dailyCurt.indexOf(Math.max(...dailyCurt));
 
+    // Compute full-recovery size FIRST so the sweep range is always correct.
+    $('an-status').textContent='Finding full-recovery size…';
+    await new Promise(r=>setTimeout(r,5));
+    let fullRecKwh=null;
+    if(totalCurt>0){
+      const hugeBattKwh=Math.ceil(totalCurt);
+      const hugeRes=simulate(pv,load,exportLimKw,hugeBattKwh,hugeBattKwh,rte);
+      fullRecKwh=Math.ceil(Math.max(...hugeRes.socArr));
+      // Always update sweep max to match — prevents stale large values from prior runs
+      if(fullRecKwh) $('an-maxKwh').value=fullRecKwh;
+    }
+
     $('an-status').textContent='Running battery sweep…';
     await new Promise(r=>setTimeout(r,5));
 
-    const step=Math.max(5,Math.ceil(Math.max(maxKwh-minKwh,10)/20));
+    const sweepMax=fullRecKwh||maxKwh;
+    const step=Math.max(5,Math.ceil(Math.max(sweepMax-minKwh,10)/20));
     const sweepSet=new Set([0]);
-    for(let k=minKwh||step;k<=maxKwh;k+=step) sweepSet.add(Math.round(k));
-    sweepSet.add(maxKwh);
+    for(let k=minKwh||step;k<=sweepMax;k+=step) sweepSet.add(Math.round(k));
+    sweepSet.add(sweepMax);
     const sweepKwh=[...sweepSet].sort((a,b)=>a-b);
     _anSweepResults=sweepKwh.map(kwh=>{
       const kw=Math.max(kwh/battDurHr,(pvKw/dcAcRatio)*0.5);
@@ -2830,26 +2903,11 @@ async function runAnalysis(){
     });
 
     _anPvHourly=pv; _anLoadHourly=load; _anCurtHourly=base.curtail;
-    _anSimParams={pvKw,dcAcRatio,losses,lat,tilt,exportLimKw,peakKw,maxKwh,battDurHr,rte,rate,loadType};
-
-    // Run one simulation with a battery large enough to never fill (capacity = total annual curtailment).
-    // max(socArr) from that run = exact minimum usable capacity needed for zero curtailment.
-    $('an-status').textContent='Finding full-recovery size…';
-    await new Promise(r=>setTimeout(r,5));
-    let fullRecKwh=null;
-    if(totalCurt>0){
-      // hugeBattKwh is always > max possible SOC, so the battery never reaches full → curtailment = 0.
-      // hugeBattKw >> any possible PV surplus, so power never limits charging.
-      const hugeBattKwh=Math.ceil(totalCurt);
-      const hugeRes=simulate(pv,load,exportLimKw,hugeBattKwh,hugeBattKwh,rte);
-      fullRecKwh=Math.ceil(Math.max(...hugeRes.socArr));
-    }
+    _anSimParams={pvKw,dcAcRatio,losses,lat,tilt,exportLimKw,peakKw,maxKwh:sweepMax,battDurHr,rte,rate,loadType};
 
     const annualPv=anSum(pv), maxCurt=Math.max(...base.curtail);
     const maxRec=_anSweepResults[_anSweepResults.length-1].curtRec;
     const fullRecKw=fullRecKwh?Math.ceil(Math.max(fullRecKwh/battDurHr,(pvKw/dcAcRatio)*0.5)):0;
-    // Auto-set sweep max to the estimated full-recovery size so the curve shows the full picture
-    if(fullRecKwh&&fullRecKwh>maxKwh) $('an-maxKwh').value=fullRecKwh;
     const fullRecCard=totalCurt===0
       ?'<div class="s-val">—</div><div class="s-sub">No curtailment</div>'
       :fullRecKwh!=null
