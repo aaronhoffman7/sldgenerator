@@ -554,8 +554,17 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             <div style="flex:1"><label style="font-size:9px;color:var(--muted);margin-bottom:2px;display:block">Min</label><input type="number" id="an-minKwh" value="0" step="10" min="0"></div>
             <div style="flex:1"><label style="font-size:9px;color:var(--muted);margin-bottom:2px;display:block">Max</label><input type="number" id="an-maxKwh" value="200" step="10" min="10"></div>
           </div>
-          <label>Fixed power rating (kW, 0 = auto)</label>
-          <input type="number" id="an-battKw" value="0" step="5" min="0">
+          <div style="display:flex;gap:6px;align-items:flex-end">
+            <div style="flex:2">
+              <label>Fixed power rating (kW, 0 = auto)</label>
+              <input type="number" id="an-battKw" value="0" step="5" min="0">
+            </div>
+            <div style="flex:1">
+              <label>Duration (hr)</label>
+              <input type="number" id="an-battDur" value="2" step="0.5" min="0.5" max="12">
+            </div>
+          </div>
+          <div style="font-size:9px;color:var(--muted);margin-top:3px">Duration used only when power = 0 (auto): auto kW = usable kWh ÷ duration</div>
           <label>Round-trip efficiency (%)</label>
           <input type="number" id="an-rte" value="90" step="1" min="70" max="100">
           <div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.4">kWh = usable stored capacity (nameplate less any DoD reserve). √RTE loss applies to each leg: charging draws kWh ÷ √RTE from PV; discharging delivers kWh × √RTE to load.</div>
@@ -2757,6 +2766,7 @@ async function runAnalysis(){
     const minKwh=Math.max(0,parseFloat(gv('an-minKwh'))||0);
     const maxKwh=parseFloat(gv('an-maxKwh'))||200;
     const battKwFixed=parseFloat(gv('an-battKw'))||0;
+    const battDurHr=Math.max(0.5,parseFloat(gv('an-battDur'))||2);
     const rte=parseFloat(gv('an-rte'))/100||0.90;
     const rate=parseFloat(gv('an-rate'))/100||0.15;
     const loadType=gv('an-loadType');
@@ -2787,7 +2797,7 @@ async function runAnalysis(){
     sweepSet.add(maxKwh);
     const sweepKwh=[...sweepSet].sort((a,b)=>a-b);
     _anSweepResults=sweepKwh.map(kwh=>{
-      const kw=battKwFixed>0?battKwFixed:Math.max(kwh/2,(pvKw/dcAcRatio)*0.5);
+      const kw=battKwFixed>0?battKwFixed:Math.max(kwh/battDurHr,(pvKw/dcAcRatio)*0.5);
       const res=kwh===0?base:simulate(pv,load,exportLimKw,kw,kwh,rte);
       const curtRec=totalCurt-anSum(res.curtail);
       const gridImport=anSum(Array.from(res.gridNet).map(v=>Math.max(0,v)));
@@ -2796,38 +2806,41 @@ async function runAnalysis(){
     });
 
     _anPvHourly=pv; _anLoadHourly=load; _anCurtHourly=base.curtail;
-    _anSimParams={pvKw,dcAcRatio,losses,lat,tilt,exportLimKw,peakKw,maxKwh,battKwFixed,rte,rate,loadType};
+    _anSimParams={pvKw,dcAcRatio,losses,lat,tilt,exportLimKw,peakKw,maxKwh,battKwFixed,battDurHr,rte,rate,loadType};
 
-    // Binary search for smallest battery achieving ~99% curtailment recovery
+    // Binary search for smallest battery achieving near-maximum curtailment recovery
     $('an-status').textContent='Finding full-recovery size…';
     await new Promise(r=>setTimeout(r,5));
-    let fullRecKwh=null;
+    let fullRecKwh=null, fullRecPct=null;
     if(totalCurt>0){
       const pvAC=pvKw/dcAcRatio;
-      const kwForSize=kwh=>battKwFixed>0?battKwFixed:Math.max(kwh/2,pvAC*0.5);
+      const kwForSize=kwh=>battKwFixed>0?battKwFixed:Math.max(kwh/battDurHr,pvAC*0.5);
       const maxDailyCurt=Math.max(...dailyCurt);
       const hiKwh=Math.max(maxKwh*4, maxDailyCurt*3);
       const hiRes=simulate(pv,load,exportLimKw,kwForSize(hiKwh),hiKwh,rte);
       const hiRec=totalCurt-anSum(hiRes.curtail);
-      if(hiRec>=totalCurt*0.99){
-        let lo=maxKwh, hi=hiKwh;
-        for(let i=0;i<14;i++){
-          const mid=Math.round((lo+hi)/2);
-          const res=simulate(pv,load,exportLimKw,kwForSize(mid),mid,rte);
-          const rec=totalCurt-anSum(res.curtail);
-          if(rec>=totalCurt*0.99) hi=mid; else lo=mid;
-        }
-        fullRecKwh=hi;
+      const hiPct=hiRec/totalCurt;
+      // Target: 99% of whatever is physically achievable at hi capacity
+      const target=hiPct*0.99*totalCurt;
+      let lo=maxKwh, hi=hiKwh;
+      for(let i=0;i<14;i++){
+        const mid=Math.round((lo+hi)/2);
+        const res=simulate(pv,load,exportLimKw,kwForSize(mid),mid,rte);
+        const rec=totalCurt-anSum(res.curtail);
+        if(rec>=target) hi=mid; else lo=mid;
       }
+      fullRecKwh=hi;
+      fullRecPct=Math.round(hiPct*100);
     }
 
     const annualPv=anSum(pv), maxCurt=Math.max(...base.curtail);
     const maxRec=_anSweepResults[_anSweepResults.length-1].curtRec;
+    const isPowerLimited=battKwFixed>0&&fullRecPct!=null&&fullRecPct<99;
     const fullRecCard=totalCurt===0
       ?'<div class="s-val">—</div><div class="s-sub">No curtailment</div>'
       :fullRecKwh!=null
-        ?`<div class="s-val">${fullRecKwh.toLocaleString()}<span style="font-size:13px;font-weight:400"> kWh</span></div><div class="s-sub">${battKwFixed>0?battKwFixed+'kW fixed power':'~'+(Math.max(fullRecKwh/2,(pvKw/dcAcRatio)*0.5)).toFixed(0)+' kW auto'}</div>`
-        :`<div class="s-val">—</div><div class="s-sub">Power-limited (fixed ${battKwFixed} kW)</div>`;
+        ?`<div class="s-val">${fullRecKwh.toLocaleString()}<span style="font-size:13px;font-weight:400"> kWh</span></div><div class="s-sub">~${fullRecPct}% max${isPowerLimited?' · power-limited @ '+battKwFixed+' kW':''}</div>`
+        :'<div class="s-val">—</div><div class="s-sub">Could not estimate</div>';
     $('an-cards').innerHTML=`
       <div class="summary-card"><div class="s-label">Annual PV</div>
         <div class="s-val">${(annualPv/1000).toFixed(1)}<span style="font-size:13px;font-weight:400"> MWh</span></div>
