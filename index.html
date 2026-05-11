@@ -2923,7 +2923,7 @@ async function runAnalysis(){
       <div class="summary-card"><div class="s-label">Peak Curtailment</div>
         <div class="s-val">${maxCurt.toFixed(1)}<span style="font-size:13px;font-weight:400"> kW</span></div>
         <div class="s-sub">Hourly max (Day ${_anPeakCurtDay+1})</div></div>
-      <div class="summary-card"><div class="s-label">At Sweep Max (${_anSweepResults[_anSweepResults.length-1].kwh} kWh)</div>
+      <div class="summary-card"><div class="s-label">Max Simulated Battery (${_anSweepResults[_anSweepResults.length-1].kwh} kWh)</div>
         <div class="s-val">${totalCurt>0?(maxRec/totalCurt*100).toFixed(0):0}<span style="font-size:13px;font-weight:400">%</span></div>
         <div class="s-sub">${(maxRec/1000).toFixed(1)} MWh recovered</div></div>
       <div class="summary-card"><div class="s-label">Est. for ~100% Recovery</div>
@@ -3479,6 +3479,7 @@ function downloadDebugReport(){
 }
 
 let LOGO_B64 = 'logo.png';
+toggleBattFields();
 render();
 (function loadLogo(){
   fetch('logo.png')
