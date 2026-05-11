@@ -696,6 +696,14 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 </div>
 
 <!-- Projects Modal -->
+<div id="monthly-modal" class="modal-backdrop" onclick="if(event.target===this)closeMonthlyModal()">
+  <div class="modal" style="width:520px;max-width:96vw">
+    <h2 id="monthly-modal-title">Monthly Breakdown</h2>
+    <div id="monthly-modal-body"></div>
+    <div class="modal-row"><button class="hbtn" onclick="closeMonthlyModal()">Close</button></div>
+  </div>
+</div>
+
 <div id="projects-modal" class="modal-backdrop" onclick="if(event.target===this)closeProjectsModal()">
   <div class="modal" style="width:420px">
     <h2>Saved Projects</h2>
@@ -901,6 +909,72 @@ function openProjectsModal(){
   $('projects-modal').classList.add('open');
 }
 function closeProjectsModal(){ $('projects-modal').classList.remove('open'); }
+
+function closeMonthlyModal(){ $('monthly-modal').classList.remove('open'); }
+function showMonthlyModal(type){
+  if(!_anPvHourly) return;
+  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DAYS=[31,28,31,30,31,30,31,31,30,31,30,31];
+  // hourly arrays
+  const pvH=_anPvHourly||[];
+  const loadH=_anLoadHourly||[];
+  const curtH=_anCurtHourly||[];
+  // sum by month
+  const pvM=[],loadM=[],curtM=[];
+  let h=0;
+  DAYS.forEach((d,m)=>{
+    let pv=0,ld=0,cu=0;
+    for(let i=0;i<d*24;i++,h++){pv+=pvH[h]||0;ld+=loadH[h]||0;cu+=curtH[h]||0;}
+    pvM.push(pv/1000); loadM.push(ld/1000); curtM.push(cu/1000);
+  });
+  const pvSrc=_anPvWattsData?'PVWatts TMY':'Clear-sky model';
+  // pick which series to highlight based on clicked card
+  const series=type==='pv'?pvM:type==='load'?loadM:curtM;
+  const label=type==='pv'?'PV Generation':type==='load'?'Load':'Curtailment';
+  const color=type==='pv'?'#f5c842':type==='load'?'#60c8f5':'#f07050';
+  const peak=Math.max(...series)||1;
+  // bar chart SVG
+  const W=460,H=110,pad=4,barW=Math.floor((W-pad*2)/12)-3;
+  let bars='';
+  MONTHS.forEach((mn,i)=>{
+    const bh=Math.round((series[i]/peak)*(H-20));
+    const x=pad+i*(barW+3);
+    const y=H-20-bh;
+    bars+=`<rect x="${x}" y="${y}" width="${barW}" height="${bh}" fill="${color}" rx="2" opacity="0.85"/>`;
+    bars+=`<text x="${x+barW/2}" y="${H-6}" text-anchor="middle" font-size="8" fill="#8890a8">${mn}</text>`;
+    bars+=`<text x="${x+barW/2}" y="${y-3}" text-anchor="middle" font-size="7.5" fill="${color}">${series[i].toFixed(1)}</text>`;
+  });
+  const svg=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;margin-bottom:12px">${bars}</svg>`;
+  // table
+  let rows='';
+  MONTHS.forEach((mn,i)=>{
+    rows+=`<tr>
+      <td style="padding:3px 8px;font-weight:600">${mn}</td>
+      <td style="padding:3px 8px;text-align:right">${pvM[i].toFixed(2)}</td>
+      <td style="padding:3px 8px;text-align:right">${loadM[i].toFixed(2)}</td>
+      <td style="padding:3px 8px;text-align:right;color:#f07050">${curtM[i].toFixed(2)}</td>
+    </tr>`;
+  });
+  const totPv=pvM.reduce((a,b)=>a+b,0),totLd=loadM.reduce((a,b)=>a+b,0),totCu=curtM.reduce((a,b)=>a+b,0);
+  rows+=`<tr style="border-top:1px solid var(--border);font-weight:700">
+    <td style="padding:4px 8px">Total</td>
+    <td style="padding:4px 8px;text-align:right">${totPv.toFixed(2)}</td>
+    <td style="padding:4px 8px;text-align:right">${totLd.toFixed(2)}</td>
+    <td style="padding:4px 8px;text-align:right;color:#f07050">${totCu.toFixed(2)}</td>
+  </tr>`;
+  const thS='padding:4px 8px;text-align:right;font-size:9px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase';
+  const table=`<table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px">
+    <thead><tr>
+      <th style="padding:4px 8px;text-align:left;font-size:9px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase"></th>
+      <th style="${thS}">PV (MWh)</th>
+      <th style="${thS}">Load (MWh)</th>
+      <th style="${thS}">Curt. (MWh)</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+  $('monthly-modal-title').textContent=`Monthly Breakdown — ${pvSrc}`;
+  $('monthly-modal-body').innerHTML=svg+table;
+  $('monthly-modal').classList.add('open');
+}
+
 // Array-indexed element helpers: n=1 → original IDs; n≥2 → a{n}FieldName
 function aid(n,field){ return n===1?field:`a${n}${field}`; }
 function agv(n,field){ return gv(aid(n,field)); }
@@ -2928,14 +3002,18 @@ async function runAnalysis(){
       :fullRecKwh!=null
         ?`<div class="s-val">${fullRecKwh.toLocaleString()}<span style="font-size:13px;font-weight:400"> kWh</span></div><div class="s-sub">${fullRecKw} kW · ${battDurHr}h duration</div>`
         :'<div class="s-val">—</div><div class="s-sub">Could not estimate</div>';
+    const cardClick='cursor:pointer;transition:border-color .15s' ;
     $('an-cards').innerHTML=`
-      <div class="summary-card"><div class="s-label">Annual PV</div>
+      <div class="summary-card" onclick="showMonthlyModal('pv')" style="${cardClick}" title="Click for monthly breakdown">
+        <div class="s-label">Annual PV ↗</div>
         <div class="s-val">${(annualPv/1000).toFixed(1)}<span style="font-size:13px;font-weight:400"> MWh</span></div>
         <div class="s-sub">${pvSrc}</div></div>
-      <div class="summary-card"><div class="s-label">Annual Load</div>
+      <div class="summary-card" onclick="showMonthlyModal('load')" style="${cardClick}" title="Click for monthly breakdown">
+        <div class="s-label">Annual Load ↗</div>
         <div class="s-val">${(annualLoad/1000).toFixed(1)}<span style="font-size:13px;font-weight:400"> MWh</span></div>
         <div class="s-sub">${(totalBaseImport/1000).toFixed(1)} MWh from grid · ${(selfConsumed/1000).toFixed(1)} MWh self-consumed (${selfSuffPct.toFixed(0)}%)</div></div>
-      <div class="summary-card"><div class="s-label">Annual Curtailment</div>
+      <div class="summary-card" onclick="showMonthlyModal('curt')" style="${cardClick}" title="Click for monthly breakdown">
+        <div class="s-label">Annual Curtailment ↗</div>
         <div class="s-val">${(totalCurt/1000).toFixed(1)}<span style="font-size:13px;font-weight:400"> MWh</span></div>
         <div class="s-sub">${annualPv>0?(totalCurt/annualPv*100).toFixed(1):0}% of generation</div></div>
       <div class="summary-card"><div class="s-label">Peak Curtailment</div>
