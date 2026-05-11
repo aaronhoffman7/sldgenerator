@@ -3462,16 +3462,18 @@ function buildDebugReport(){
 
     lines.push('');
     lines.push('Battery Sweep Results:');
-    lines.push('  kWh'.padEnd(8)+'kW'.padEnd(8)+'Rec%'.padEnd(8)+'GridAvoided_MWh'.padEnd(18)+'Cycles_perYr');
+    const rp=(s,n)=>s.padStart(n);
+    lines.push('  '+['kWh','kW','Rec%','GridAvoid_MWh','Cycles/yr'].map((h,i)=>h.padStart([6,7,7,13,9][i])).join(' | '));
+    lines.push('  '+[6,7,7,13,9].map(n=>'-'.repeat(n)).join('-+-'));
     _anSweepResults.forEach(s=>{
-      const pct=totalCurt>0?(s.curtRec/totalCurt*100).toFixed(1):'—';
-      lines.push(
-        String(s.kwh).padEnd(8)+
-        s.kw.toFixed(1).padEnd(8)+
-        (pct+'%').padEnd(8)+
-        (s.gridAvoided/1000).toFixed(2).padEnd(18)+
-        s.cycles.toFixed(1)
-      );
+      const pct=totalCurt>0?(s.curtRec/totalCurt*100).toFixed(1)+'%':'—';
+      lines.push('  '+[
+        rp(String(s.kwh),6),
+        rp(s.kw.toFixed(1),7),
+        rp(pct,7),
+        rp((s.gridAvoided/1000).toFixed(2),13),
+        rp(s.cycles.toFixed(1),9)
+      ].join(' | '));
     });
   } else {
     lines.push('  No simulation results yet — run the analysis first.');
