@@ -547,7 +547,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           </div>
         </div>
         <div class="section">
-          <div class="stitle">Battery Sweep</div>
+          <div class="stitle">Battery Size Range</div>
           <div id="an-batt-note" class="cnote" style="margin-bottom:6px;display:none"></div>
           <label>Usable energy sweep (kWh)</label>
           <div style="display:flex;gap:6px">
@@ -572,6 +572,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
             <h3 style="margin:0">Load Profile Preview</h3>
             <select id="an-load-prev-month" onchange="renderLoadPreview()" style="font-size:10px;padding:4px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px">
+              <option value="year">Full Year</option>
               <option value="0">January</option><option value="1">February</option><option value="2">March</option>
               <option value="3">April</option><option value="4">May</option><option value="5">June</option>
               <option value="6">July</option><option value="7">August</option><option value="8">September</option>
@@ -579,7 +580,10 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             </select>
           </div>
           <div style="height:180px;position:relative"><canvas id="an-load-prev-chart"></canvas></div>
-          <div id="an-load-preview-note" style="font-size:9px;color:var(--muted);margin-top:6px">Solid = typical weekday · Dashed = typical weekend · Monthly scale applies. Changes here do not re-run the simulation automatically.</div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:6px">
+            <div id="an-load-preview-note" style="font-size:9px;color:var(--muted)">Solid = typical weekday · Dashed = typical weekend · Monthly scale applies. Changes here do not re-run the simulation automatically.</div>
+            <div id="an-load-preview-kwh" style="font-size:10px;font-family:var(--mono);color:var(--text);white-space:nowrap;margin-left:12px"></div>
+          </div>
         </div>
         <div class="no-data" id="an-placeholder">Set parameters and click Run Simulation to start.</div>
         <div id="an-results" style="display:none;flex-direction:column;gap:16px">
@@ -587,32 +591,6 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           <div class="chart-card">
             <h3>Monthly Load &amp; PV Generation (MWh)</h3>
             <div style="height:200px;position:relative"><canvas id="an-monthly-chart"></canvas></div>
-          </div>
-          <div class="chart-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-              <h3 style="margin:0">Curtailment Heatmap</h3>
-              <select id="an-heatmap-sel" onchange="anHeatmapViewChanged()" style="font-size:10px;padding:4px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px">
-                <option value="year">Full Year</option>
-                <option value="jan">January</option>
-                <option value="feb">February</option>
-                <option value="mar">March</option>
-                <option value="apr">April</option>
-                <option value="may">May</option>
-                <option value="jun">June</option>
-                <option value="jul">July</option>
-                <option value="aug">August</option>
-                <option value="sep">September</option>
-                <option value="oct">October</option>
-                <option value="nov">November</option>
-                <option value="dec">December</option>
-              </select>
-            </div>
-            <canvas id="an-heatmap" style="width:100%;display:block;border-radius:3px"></canvas>
-          </div>
-          <div class="chart-card">
-            <h3 style="margin-bottom:2px">Battery Sizing Curve — curtailment recovered vs usable capacity</h3>
-            <div style="font-size:9px;color:var(--muted);margin-bottom:8px">% curtailment recovered = PV energy captured by battery that would otherwise be wasted ÷ baseline annual curtailment (no battery)</div>
-            <div style="height:220px;position:relative"><canvas id="an-sizing-chart"></canvas></div>
           </div>
           <div class="chart-card">
             <h3>Dispatch Profile — <span id="an-dispatch-label">Peak Curtailment Day</span></h3>
@@ -645,6 +623,39 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
                 <option value="nov">Nov 15</option>
                 <option value="winter">Dec 21 · Winter Solstice</option>
               </select>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <h3 style="margin:0">Curtailment Heatmap</h3>
+              <select id="an-heatmap-sel" onchange="anHeatmapViewChanged()" style="font-size:10px;padding:4px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px">
+                <option value="year">Full Year</option>
+                <option value="jan">January</option>
+                <option value="feb">February</option>
+                <option value="mar">March</option>
+                <option value="apr">April</option>
+                <option value="may">May</option>
+                <option value="jun">June</option>
+                <option value="jul">July</option>
+                <option value="aug">August</option>
+                <option value="sep">September</option>
+                <option value="oct">October</option>
+                <option value="nov">November</option>
+                <option value="dec">December</option>
+              </select>
+            </div>
+            <canvas id="an-heatmap" style="width:100%;display:block;border-radius:3px"></canvas>
+          </div>
+          <div class="chart-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none" onclick="anToggleSizingCurve()">
+              <div>
+                <h3 style="margin:0 0 2px">Battery Sizing Curve — curtailment recovered vs usable capacity</h3>
+                <div style="font-size:9px;color:var(--muted)">% curtailment recovered = PV energy captured by battery that would otherwise be wasted ÷ baseline annual curtailment (no battery)</div>
+              </div>
+              <span id="an-sizing-toggle" style="font-size:14px;color:var(--muted);margin-left:12px;flex-shrink:0">▶</span>
+            </div>
+            <div id="an-sizing-body" style="display:none;margin-top:12px">
+              <div style="height:220px;position:relative"><canvas id="an-sizing-chart"></canvas></div>
             </div>
           </div>
         </div>
@@ -2589,23 +2600,21 @@ function renderLoadPreview(){
 
   const peakKw=parseFloat(gv('an-peakKw'))||50;
   const o=getLoadOpts();
-  const mi=parseInt(gv('an-load-prev-month'))||0;
-  const mf=o.mf[mi];
-
-  const labels=['12am','1am','2am','3am','4am','5am','6am','7am','8am','9am','10am','11am',
-                '12pm','1pm','2pm','3pm','4pm','5pm','6pm','7pm','8pm','9pm','10pm','11pm'];
+  const selVal=gv('an-load-prev-month');
+  const isYear=selVal==='year';
+  const mi=isYear?0:parseInt(selVal)||0;
 
   // Compute amplitude (same logic as makeLoadProfile)
   let amplitude=peakKw;
   if(o.annualKwh>0){
-    // Compute full-year normalized total to derive amplitude
     const normTotal=makeLoadProfile(type,1,{...o,annualKwh:0}).reduce((s,v)=>s+v,0)||1;
     amplitude=o.annualKwh/normTotal;
   }
-  const impliedPeak=amplitude*mf; // peak for selected month
 
-  const wd=labels.map((_,h)=>+(amplitude*loadHourShape(type,h,true, o.base,o.wkend)*mf).toFixed(1));
-  const we=labels.map((_,h)=>+(amplitude*loadHourShape(type,h,false,o.base,o.wkend)*mf).toFixed(1));
+  // Annual kWh estimate
+  const estProfile=makeLoadProfile(type,peakKw,o);
+  const estKwh=Math.round(estProfile.reduce((s,v)=>s+v,0));
+  $('an-load-preview-kwh').textContent=`~${estKwh.toLocaleString()} kWh/yr`;
 
   // Annotation: implied peak info
   const noteEl=$('an-load-preview-note');
@@ -2621,11 +2630,56 @@ function renderLoadPreview(){
       :`✓ Annual target derived — implied peak ${peakOfYear} kW (max demand cap: ${peakKw} kW)`;
   } else {
     noteEl.style.color='var(--muted)';
-    noteEl.textContent='Solid = typical weekday · Dashed = typical weekend · Monthly scale applies. Changes here do not re-run the simulation automatically.';
+    noteEl.textContent=isYear
+      ?'Daily average (solid) and daily peak (dashed) across all 365 days. Changes here do not re-run the simulation automatically.'
+      :'Solid = typical weekday · Dashed = typical weekend · Monthly scale applies. Changes here do not re-run the simulation automatically.';
   }
 
   const ctx=$('an-load-prev-chart').getContext('2d');
   if(_chartLoadPreview) _chartLoadPreview.destroy();
+
+  if(isYear){
+    const profile=makeLoadProfile(type,peakKw,o);
+    const mNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const dayLabels=Array.from({length:365},(_,d)=>{
+      let mi=11; for(let m=0;m<11;m++) if(d<_AN_MSTARTS[m+1]){mi=m;break;}
+      return d===_AN_MSTARTS[mi]?mNames[mi]:'';
+    });
+    const dayAvg=new Array(365), dayPeak=new Array(365);
+    for(let d=0;d<365;d++){
+      let sum=0,pk=0;
+      for(let h=0;h<24;h++){const v=profile[d*24+h];sum+=v;if(v>pk)pk=v;}
+      dayAvg[d]=+(sum/24).toFixed(1);
+      dayPeak[d]=+pk.toFixed(1);
+    }
+    _chartLoadPreview=new Chart(ctx,{
+      type:'line',
+      data:{labels:dayLabels,datasets:[
+        {label:'Daily Avg',data:dayAvg,borderColor:'#5b8af0',backgroundColor:'rgba(91,138,240,0.15)',fill:true,pointRadius:0,tension:0.3,borderWidth:2},
+        {label:'Daily Peak',data:dayPeak,borderColor:'#f5c842',backgroundColor:'rgba(245,200,66,0.06)',fill:false,pointRadius:0,tension:0.3,borderWidth:1.5,borderDash:[4,3]},
+      ]},
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{
+          legend:{labels:{color:'#9aa3b8',font:{size:11},boxWidth:14}},
+          tooltip:{backgroundColor:'#1e2335',bodyColor:'#e8eaf0',titleColor:'#c0c8e0',mode:'index',intersect:false,
+            callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y} kW`}}
+        },
+        scales:{
+          x:{ticks:{color:'#7a84a0',font:{size:10},maxRotation:0,autoSkip:false,callback(v,i){return this.getLabelForValue(i);}},grid:{color:'#2a3050'}},
+          y:{title:{display:true,text:'kW',color:'#7a84a0',font:{size:11}},ticks:{color:'#7a84a0',font:{size:10}},grid:{color:'#2a3050'},min:0}
+        }
+      }
+    });
+    return;
+  }
+
+  const mf=o.mf[mi];
+  const labels=['12am','1am','2am','3am','4am','5am','6am','7am','8am','9am','10am','11am',
+                '12pm','1pm','2pm','3pm','4pm','5pm','6pm','7pm','8pm','9pm','10pm','11pm'];
+  const wd=labels.map((_,h)=>+(amplitude*loadHourShape(type,h,true, o.base,o.wkend)*mf).toFixed(1));
+  const we=labels.map((_,h)=>+(amplitude*loadHourShape(type,h,false,o.base,o.wkend)*mf).toFixed(1));
+
   _chartLoadPreview=new Chart(ctx,{
     type:'line',
     data:{labels,datasets:[
@@ -2762,7 +2816,8 @@ async function runAnalysis(){
 
     anRenderMonthlyChart(pv,load,base.curtail);
     anDrawHeatmap(base.curtail);
-    anRenderSizingChart(_anSweepResults,totalCurt,rate);
+    // Sizing curve is hidden by default; render only if panel is open
+    if($('an-sizing-body').style.display!=='none') anRenderSizingChart(_anSweepResults,totalCurt,rate);
 
     // Init battery slider — default to midpoint so user sees a battery in action
     _anDispatchDay='peak';
@@ -3062,6 +3117,18 @@ function renderDispatchChart(){
       }
     }
   });
+}
+
+function anToggleSizingCurve(){
+  const body=$('an-sizing-body'), arrow=$('an-sizing-toggle');
+  const open=body.style.display==='none';
+  body.style.display=open?'block':'none';
+  arrow.textContent=open?'▼':'▶';
+  if(open&&_anSweepResults){
+    const totalCurt=_anCurtHourly?anSum(_anCurtHourly):0;
+    const rate=_anSimParams?_anSimParams.rate||0.15:0.15;
+    anRenderSizingChart(_anSweepResults,totalCurt,rate);
+  }
 }
 
 // Keep analysis tab in sync whenever any SLD control changes
