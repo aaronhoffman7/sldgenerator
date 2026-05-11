@@ -2282,6 +2282,7 @@ function render(){
     fuseEl.style.color='#1e8a60';
     fuseEl.textContent=`NEC 690.8: ${v.isc}A × 1.25 × 1.25 = ${minFuseRaw}A → ${recFuse1}A std. ✓`;
   } else { fuseEl.textContent=''; }
+  saveState();
 }
 
 function exportSVG(){
@@ -3345,26 +3346,21 @@ document.querySelector('.analysis-aside').addEventListener('input', e=>{ if(_LOA
 document.querySelector('.analysis-aside').addEventListener('change', e=>{ if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); maybeRefreshDebug(); saveState(); });
 
 function saveState(){
-  const skip=new Set(['debug-report','an-pvKw','an-dcAc']);
-  const state={};
-  document.querySelectorAll('input[id],select[id]').forEach(el=>{
-    if(skip.has(el.id)||el.readOnly) return;
-    state[el.id]=el.type==='checkbox'?el.checked:el.value;
-  });
-  try{ localStorage.setItem('sld_state',JSON.stringify(state)); }catch(e){}
+  try{
+    const state=collectInputState();
+    state.__activeTab=document.querySelector('.tab-btn.active')?.id?.replace('tab-btn-','') || 'sld';
+    localStorage.setItem('sld_autosave',JSON.stringify(state));
+  }catch(e){}
 }
 
 function restoreState(){
   try{
-    const raw=localStorage.getItem('sld_state');
+    const raw=localStorage.getItem('sld_autosave');
     if(!raw) return;
     const state=JSON.parse(raw);
-    Object.entries(state).forEach(([id,val])=>{
-      const el=document.getElementById(id);
-      if(!el||el.readOnly) return;
-      if(el.type==='checkbox') el.checked=!!val;
-      else el.value=val;
-    });
+    const tab=state.__activeTab||'sld';
+    restoreInputState(state);
+    if(tab!=='sld') switchTab(tab);
   }catch(e){}
 }
 
@@ -3486,18 +3482,19 @@ function buildDebugReport(){
 
     lines.push('');
     lines.push('Battery Sweep Results:');
-    const W2=[7,8,8,15,11];
-    const rp2=(s,n)=>String(s).padStart(n);
-    lines.push('  '+['kWh','kW','Rec%','GridAvoid_MWh','Cycles/yr'].map((h,i)=>h.padStart(W2[i])).join('  '));
-    lines.push('  '+W2.map(n=>'-'.repeat(n)).join('  '));
+    const TH=['kWh','kW','Rec%','GridAvoid_MWh','Cycles/yr'];
+    const TW=[6,7,8,14,10];
+    const lp=(s,n)=>String(s).padEnd(n);
+    lines.push('  '+TH.map((h,i)=>lp(h,TW[i])).join('  '));
+    lines.push('  '+TW.map(n=>'-'.repeat(n)).join('  '));
     _anSweepResults.forEach(s=>{
       const pct=totalCurt>0?(s.curtRec/totalCurt*100).toFixed(1)+'%':'—';
       lines.push('  '+[
-        rp2(s.kwh,W2[0]),
-        rp2(s.kw.toFixed(1),W2[1]),
-        rp2(pct,W2[2]),
-        rp2((s.gridAvoided/1000).toFixed(2),W2[3]),
-        rp2(s.cycles.toFixed(1),W2[4])
+        lp(s.kwh,TW[0]),
+        lp(s.kw.toFixed(1),TW[1]),
+        lp(pct,TW[2]),
+        lp((s.gridAvoided/1000).toFixed(2),TW[3]),
+        lp(s.cycles.toFixed(1),TW[4])
       ].join('  '));
     });
   } else {
