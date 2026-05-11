@@ -437,6 +437,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   <div class="tab-bar">
     <button class="tab-btn active" id="tab-btn-sld" onclick="switchTab('sld')">Single Line Diagram</button>
     <button class="tab-btn" id="tab-btn-analysis" onclick="switchTab('analysis')">Curtailment Analysis</button>
+    <button class="tab-btn" id="tab-btn-debug" onclick="switchTab('debug')">Debug / Export</button>
   </div>
   <div id="tab-sld" class="tab-panel active">
     <div class="canvas-wrap">
@@ -457,6 +458,17 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <span class="stat">Array Isc: <b id="s-isc">--</b></span>
       <span class="stat w">Battery: <b id="s-batt">--</b></span>
       <span class="stat">NEC 690 max Voc: <b id="s-nec">--</b></span>
+    </div>
+  </div>
+  <div id="tab-debug" class="tab-panel">
+    <div style="display:flex;flex-direction:column;height:100%;padding:20px;gap:12px;box-sizing:border-box">
+      <div style="display:flex;align-items:center;gap:12px;flex-shrink:0">
+        <h2 style="margin:0;font-size:14px;font-family:var(--mono)">Debug / Export</h2>
+        <button class="hbtn" onclick="refreshDebugReport()">&#8635; Refresh</button>
+        <button class="hbtn primary" onclick="downloadDebugReport()">&#8615; Download .txt</button>
+      </div>
+      <textarea id="debug-report" readonly spellcheck="false"
+        style="flex:1;width:100%;box-sizing:border-box;resize:none;font-family:var(--mono);font-size:11px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:12px;line-height:1.55;white-space:pre"></textarea>
     </div>
   </div>
   <div id="tab-analysis" class="tab-panel">
@@ -506,6 +518,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             <input type="number" id="an-peakKw" value="50" step="1" min="1">
             <label style="margin-top:6px">Annual consumption (kWh/yr)</label>
             <input type="number" id="an-annualKwh" value="" placeholder="optional — leave blank to scale by peak" step="1000" min="0" oninput="anLoadParamChanged()">
+            <div id="an-implied-kwh" style="font-size:9px;color:var(--muted);margin-top:3px"></div>
           </div>
           <div id="an-csv-row" style="display:none;margin-top:8px">
             <div onclick="$('an-csv-input').click()"
@@ -554,20 +567,9 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             <div style="flex:1"><label style="font-size:9px;color:var(--muted);margin-bottom:2px;display:block">Min</label><input type="number" id="an-minKwh" value="0" step="10" min="0"></div>
             <div style="flex:1"><label style="font-size:9px;color:var(--muted);margin-bottom:2px;display:block">Max</label><input type="number" id="an-maxKwh" value="200" step="10" min="10"></div>
           </div>
-          <div style="display:flex;gap:6px;align-items:flex-end">
-            <div style="flex:2">
-              <label>Fixed power rating (kW, 0 = auto)</label>
-              <input type="number" id="an-battKw" value="0" step="5" min="0">
-            </div>
-            <div style="flex:1">
-              <label>Duration (hr)</label>
-              <input type="number" id="an-battDur" value="2" step="0.5" min="0.5" max="12">
-            </div>
-          </div>
-          <div style="font-size:9px;color:var(--muted);margin-top:3px">Duration used only when power = 0 (auto): auto kW = usable kWh ÷ duration</div>
+          <div style="font-size:9px;color:var(--muted);margin-top:3px">Power at each sweep point = kWh ÷ target duration (set in Battery Storage above). kWh = usable stored capacity; √RTE loss applies to each leg.</div>
           <label>Round-trip efficiency (%)</label>
           <input type="number" id="an-rte" value="90" step="1" min="70" max="100">
-          <div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.4">kWh = usable stored capacity (nameplate less any DoD reserve). √RTE loss applies to each leg: charging draws kWh ÷ √RTE from PV; discharging delivers kWh × √RTE to load.</div>
           <label>Electricity rate (¢/kWh)</label>
           <input type="number" id="an-rate" value="15" step="1" min="1">
         </div>
@@ -661,9 +663,9 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
                 <h3 style="margin:0 0 2px">Battery Sizing Curve — curtailment recovered vs usable capacity</h3>
                 <div style="font-size:9px;color:var(--muted)">% curtailment recovered = PV energy captured by battery that would otherwise be wasted ÷ baseline annual curtailment (no battery)</div>
               </div>
-              <span id="an-sizing-toggle" style="font-size:14px;color:var(--muted);margin-left:12px;flex-shrink:0">▶</span>
+              <span id="an-sizing-toggle" style="font-size:14px;color:var(--muted);margin-left:12px;flex-shrink:0">▼</span>
             </div>
-            <div id="an-sizing-body" style="display:none;margin-top:12px">
+            <div id="an-sizing-body" style="display:block;margin-top:12px">
               <div style="height:220px;position:relative"><canvas id="an-sizing-chart"></canvas></div>
             </div>
           </div>
@@ -876,7 +878,12 @@ async function loadProject(key){
       renderDaePreview(xml);
     }
   }
-  if(data.inputs && data.inputs.__pvWattsFetched) fetchPVWatts();
+  if(data.inputs && data.inputs.__pvWattsFetched){
+    fetchPVWatts(); // will call scheduleAnalysis() on completion
+  } else {
+    _anCanAutoRun=true;
+    scheduleAnalysis(400);
+  }
   closeProjectsModal();
 }
 
@@ -2383,12 +2390,13 @@ let _chartMonthly=null,_chartSizing=null,_chartDispatch=null;
 let _anPvWattsData=null; // hourly kW array fetched from NREL PVWatts API
 
 function switchTab(name){
-  ['sld','analysis'].forEach(t=>{
+  ['sld','analysis','debug'].forEach(t=>{
     const p=$('tab-'+t),b=$('tab-btn-'+t);
     if(p) p.classList.toggle('active',t===name);
     if(b) b.classList.toggle('active',t===name);
   });
   if(name==='analysis'){ syncAnalysisFromSLD(); renderLoadPreview(); }
+  if(name==='debug'){ refreshDebugReport(); }
 }
 
 function syncAnalysisFromSLD(){
@@ -2428,7 +2436,6 @@ function syncAnalysisFromSLD(){
     const rteMap={'LFP':{'ac':90,'dc':95},'NMC':{'ac':87,'dc':92},'Lead-Acid':{'ac':74,'dc':80}};
     const rte=(rteMap[chem]||rteMap['LFP'])[couple]||90;
 
-    if(kw>0) $('an-battKw').value=kw.toFixed(1);
     // Sweep range: place actual battery at ~1/3 of x-axis so curve shape is visible
     if(usable>0){
       $('an-minKwh').value=0;
@@ -2436,8 +2443,9 @@ function syncAnalysisFromSLD(){
     }
     $('an-rte').value=rte;
 
+    const dur=Math.max(0.5,parseFloat(gv('battDuration'))||2);
     noteEl.style.display='block';
-    noteEl.textContent=`↑ SLD: ${qty>1?qty+'× ':''}${model} · ${kw.toFixed(0)} kW · ${kwh.toFixed(1)} kWh (usable ~${usable.toFixed(1)} kWh, ${couple.toUpperCase()})`;
+    noteEl.textContent=`↑ SLD: ${qty>1?qty+'× ':''}${model} · ${kw.toFixed(0)} kW · ${kwh.toFixed(1)} kWh (usable ~${usable.toFixed(1)} kWh, ${couple.toUpperCase()}) · ${dur}h target duration`;
   } else {
     noteEl.style.display='none';
     noteEl.textContent='';
@@ -2513,6 +2521,8 @@ async function fetchPVWatts(){
     const annualMwh=(ac.reduce((a,b)=>a+b,0)/1e6).toFixed(2);
     statusEl.style.color='var(--green)';
     statusEl.textContent=`✓ ${[si.city,si.state].filter(Boolean).join(', ')||'Loaded'} · ${annualMwh} MWh/yr`;
+    _anCanAutoRun=true;
+    scheduleAnalysis(300);
   }catch(e){
     statusEl.style.color='#f5a742';
     statusEl.textContent='⚠ '+e.message;
@@ -2623,7 +2633,13 @@ function renderLoadPreview(){
   // Annual kWh estimate
   const estProfile=makeLoadProfile(type,peakKw,o);
   const estKwh=Math.round(estProfile.reduce((s,v)=>s+v,0));
-  $('an-load-preview-kwh').textContent=`~${estKwh.toLocaleString()} kWh/yr`;
+  if(o.annualKwh>0){
+    $('an-load-preview-kwh').textContent=`${o.annualKwh.toLocaleString()} kWh/yr`;
+    $('an-implied-kwh').textContent='';
+  } else {
+    $('an-load-preview-kwh').textContent=`~${estKwh.toLocaleString()} kWh/yr (implied)`;
+    $('an-implied-kwh').textContent=`≈ ${estKwh.toLocaleString()} kWh/yr implied from peak demand`;
+  }
 
   // Annotation: implied peak info
   const noteEl=$('an-load-preview-note');
@@ -2749,9 +2765,18 @@ function simulate(pv,load,exportLimKw,battKw,battKwh,rte){
   return{curtail,gridNet,battCharge,battDischarge,socArr};
 }
 
+// ── Auto-run plumbing ────────────────────────────────────────────────────────
+let _anRunTimer=null, _anRunning=false, _anCanAutoRun=false;
+function scheduleAnalysis(ms=900){
+  if(!_anCanAutoRun) return;
+  clearTimeout(_anRunTimer);
+  _anRunTimer=setTimeout(()=>{ if(!_anRunning) runAnalysis(); }, ms);
+}
+
 // ── Main Analysis Runner ─────────────────────────────────────────────────────
 async function runAnalysis(){
   const btn=$('an-run-btn');
+  _anRunning=true;
   btn.disabled=true; btn.textContent='Running…';
   $('an-status').textContent='Generating profiles…';
   await new Promise(r=>setTimeout(r,15));
@@ -2765,8 +2790,7 @@ async function runAnalysis(){
     const peakKw=parseFloat(gv('an-peakKw'))||50;
     const minKwh=Math.max(0,parseFloat(gv('an-minKwh'))||0);
     const maxKwh=parseFloat(gv('an-maxKwh'))||200;
-    const battKwFixed=parseFloat(gv('an-battKw'))||0;
-    const battDurHr=Math.max(0.5,parseFloat(gv('an-battDur'))||2);
+    const battDurHr=Math.max(0.5,parseFloat(gv('battDuration'))||2);
     const rte=parseFloat(gv('an-rte'))/100||0.90;
     const rate=parseFloat(gv('an-rate'))/100||0.15;
     const loadType=gv('an-loadType');
@@ -2797,7 +2821,7 @@ async function runAnalysis(){
     sweepSet.add(maxKwh);
     const sweepKwh=[...sweepSet].sort((a,b)=>a-b);
     _anSweepResults=sweepKwh.map(kwh=>{
-      const kw=battKwFixed>0?battKwFixed:Math.max(kwh/battDurHr,(pvKw/dcAcRatio)*0.5);
+      const kw=Math.max(kwh/battDurHr,(pvKw/dcAcRatio)*0.5);
       const res=kwh===0?base:simulate(pv,load,exportLimKw,kw,kwh,rte);
       const curtRec=totalCurt-anSum(res.curtail);
       const gridImport=anSum(Array.from(res.gridNet).map(v=>Math.max(0,v)));
@@ -2806,40 +2830,30 @@ async function runAnalysis(){
     });
 
     _anPvHourly=pv; _anLoadHourly=load; _anCurtHourly=base.curtail;
-    _anSimParams={pvKw,dcAcRatio,losses,lat,tilt,exportLimKw,peakKw,maxKwh,battKwFixed,battDurHr,rte,rate,loadType};
+    _anSimParams={pvKw,dcAcRatio,losses,lat,tilt,exportLimKw,peakKw,maxKwh,battDurHr,rte,rate,loadType};
 
-    // Binary search for smallest battery achieving near-maximum curtailment recovery
+    // Run one simulation with a battery large enough to never fill (capacity = total annual curtailment).
+    // max(socArr) from that run = exact minimum usable capacity needed for zero curtailment.
     $('an-status').textContent='Finding full-recovery size…';
     await new Promise(r=>setTimeout(r,5));
-    let fullRecKwh=null, fullRecPct=null;
+    let fullRecKwh=null;
     if(totalCurt>0){
-      const pvAC=pvKw/dcAcRatio;
-      const kwForSize=kwh=>battKwFixed>0?battKwFixed:Math.max(kwh/battDurHr,pvAC*0.5);
-      const maxDailyCurt=Math.max(...dailyCurt);
-      const hiKwh=Math.max(maxKwh*4, maxDailyCurt*3);
-      const hiRes=simulate(pv,load,exportLimKw,kwForSize(hiKwh),hiKwh,rte);
-      const hiRec=totalCurt-anSum(hiRes.curtail);
-      const hiPct=hiRec/totalCurt;
-      // Target: 99% of whatever is physically achievable at hi capacity
-      const target=hiPct*0.99*totalCurt;
-      let lo=maxKwh, hi=hiKwh;
-      for(let i=0;i<14;i++){
-        const mid=Math.round((lo+hi)/2);
-        const res=simulate(pv,load,exportLimKw,kwForSize(mid),mid,rte);
-        const rec=totalCurt-anSum(res.curtail);
-        if(rec>=target) hi=mid; else lo=mid;
-      }
-      fullRecKwh=hi;
-      fullRecPct=Math.round(hiPct*100);
+      // hugeBattKwh is always > max possible SOC, so the battery never reaches full → curtailment = 0.
+      // hugeBattKw >> any possible PV surplus, so power never limits charging.
+      const hugeBattKwh=Math.ceil(totalCurt);
+      const hugeRes=simulate(pv,load,exportLimKw,hugeBattKwh,hugeBattKwh,rte);
+      fullRecKwh=Math.ceil(Math.max(...hugeRes.socArr));
     }
 
     const annualPv=anSum(pv), maxCurt=Math.max(...base.curtail);
     const maxRec=_anSweepResults[_anSweepResults.length-1].curtRec;
-    const isPowerLimited=battKwFixed>0&&fullRecPct!=null&&fullRecPct<99;
+    const fullRecKw=fullRecKwh?Math.ceil(Math.max(fullRecKwh/battDurHr,(pvKw/dcAcRatio)*0.5)):0;
+    // Auto-set sweep max to the estimated full-recovery size so the curve shows the full picture
+    if(fullRecKwh&&fullRecKwh>maxKwh) $('an-maxKwh').value=fullRecKwh;
     const fullRecCard=totalCurt===0
       ?'<div class="s-val">—</div><div class="s-sub">No curtailment</div>'
       :fullRecKwh!=null
-        ?`<div class="s-val">${fullRecKwh.toLocaleString()}<span style="font-size:13px;font-weight:400"> kWh</span></div><div class="s-sub">~${fullRecPct}% max${isPowerLimited?' · power-limited @ '+battKwFixed+' kW':''}</div>`
+        ?`<div class="s-val">${fullRecKwh.toLocaleString()}<span style="font-size:13px;font-weight:400"> kWh</span></div><div class="s-sub">${fullRecKw} kW · ${battDurHr}h duration</div>`
         :'<div class="s-val">—</div><div class="s-sub">Could not estimate</div>';
     $('an-cards').innerHTML=`
       <div class="summary-card"><div class="s-label">Annual PV</div>
@@ -2859,8 +2873,7 @@ async function runAnalysis(){
 
     anRenderMonthlyChart(pv,load,base.curtail);
     anDrawHeatmap(base.curtail);
-    // Sizing curve is hidden by default; render only if panel is open
-    if($('an-sizing-body').style.display!=='none') anRenderSizingChart(_anSweepResults,totalCurt,rate);
+    anRenderSizingChart(_anSweepResults,totalCurt,rate);
 
     // Init battery slider — default to midpoint so user sees a battery in action
     _anDispatchDay='peak';
@@ -2876,10 +2889,12 @@ async function runAnalysis(){
     $('an-placeholder').style.display='none';
     $('an-results').style.display='flex';
     $('an-status').textContent='';
+    _anCanAutoRun=true;
   }catch(e){
     $('an-status').textContent='Error: '+e.message;
     console.error(e);
   }finally{
+    _anRunning=false;
     btn.disabled=false; btn.textContent='▶ Run Simulation';
   }
 }
@@ -3031,24 +3046,91 @@ function anDrawHeatmap(curtHourly){
 
 // ── Sizing Curve Chart ───────────────────────────────────────────────────────
 function anRenderSizingChart(sweep,totalCurt,rate){
+  const pcts=sweep.map(s=>totalCurt>0?+(s.curtRec/totalCurt*100).toFixed(1):0);
+
+  // Marginal gain: % recovered per 100 kWh added at each step
+  const marginal=sweep.map((s,i)=>{
+    if(i===0) return null;
+    const dPct=pcts[i]-pcts[i-1];
+    const dKwh=s.kwh-sweep[i-1].kwh;
+    return dKwh>0?+(dPct/dKwh*100).toFixed(2):null;
+  });
+
+  // Knee detection — max perpendicular distance from line connecting first to last point
+  const x0=0, y0=pcts[0]/100, x1=1, y1=pcts[pcts.length-1]/100;
+  const maxKwhVal=sweep[sweep.length-1].kwh||1;
+  let kneeIdx=1, maxDist=0;
+  for(let i=1;i<sweep.length-1;i++){
+    const xi=sweep[i].kwh/maxKwhVal, yi=pcts[i]/100;
+    const dx=x1-x0, dy=y1-y0;
+    const dist=Math.abs(dy*(xi-x0)-dx*(yi-y0))/Math.sqrt(dx*dx+dy*dy);
+    if(dist>maxDist){maxDist=dist;kneeIdx=i;}
+  }
+  const kneeKwh=sweep[kneeIdx].kwh;
+  const kneePct=pcts[kneeIdx];
+
+  // Per-point styling: highlight knee
+  const pointRadii=sweep.map((_,i)=>i===kneeIdx?7:2);
+  const pointColors=sweep.map((_,i)=>i===kneeIdx?'#f5a742':'#f5c842');
+
   const ctx=$('an-sizing-chart').getContext('2d');
   if(_chartSizing) _chartSizing.destroy();
+
+  const kneePlugin={
+    id:'kneeLine',
+    afterDraw(chart){
+      const {ctx:c,chartArea,scales}=chart;
+      const xPx=scales.x.getPixelForValue(kneeIdx);
+      c.save();
+      c.beginPath(); c.setLineDash([5,4]);
+      c.strokeStyle='rgba(245,167,66,0.55)'; c.lineWidth=1.5;
+      c.moveTo(xPx,chartArea.top); c.lineTo(xPx,chartArea.bottom); c.stroke();
+      c.setLineDash([]);
+      c.font='bold 10px system-ui,sans-serif'; c.fillStyle='#f5a742';
+      c.textAlign='center'; c.textBaseline='top';
+      c.fillText(`${kneeKwh} kWh`,xPx,chartArea.top+4);
+      c.restore();
+    }
+  };
+
   _chartSizing=new Chart(ctx,{
     type:'line',
+    plugins:[kneePlugin],
     data:{
       labels:sweep.map(s=>s.kwh),
       datasets:[
-        {label:'Curtailment Recovered (%)',data:sweep.map(s=>totalCurt>0?+(s.curtRec/totalCurt*100).toFixed(1):0),borderColor:'#f5c842',backgroundColor:'rgba(245,200,66,0.1)',pointRadius:3,fill:true,yAxisID:'y'},
-        {label:'Annual Value ($)',data:sweep.map(s=>+(s.gridAvoided*rate).toFixed(0)),borderColor:'#4fd98e',backgroundColor:'rgba(79,217,142,0.07)',pointRadius:3,fill:false,yAxisID:'y2'},
+        {label:'Curtailment Recovered (%)',data:pcts,borderColor:'#f5c842',backgroundColor:'rgba(245,200,66,0.08)',
+         pointRadius:pointRadii,pointBackgroundColor:pointColors,pointBorderColor:pointColors,fill:true,tension:0.3,yAxisID:'y'},
+        {label:'Marginal Gain (%/100 kWh)',data:marginal,borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,0.07)',
+         pointRadius:1,fill:false,tension:0.3,borderDash:[3,3],yAxisID:'y2',spanGaps:false},
       ]
     },
     options:{
       responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{labels:{color:'#7a84a0',font:{size:10}},boxWidth:12},tooltip:{backgroundColor:'#1e2335',bodyColor:'#e8eaf0',titleColor:'#e8eaf0'}},
+      plugins:{
+        legend:{labels:{color:'#7a84a0',font:{size:10}},boxWidth:12},
+        tooltip:{backgroundColor:'#1e2335',bodyColor:'#e8eaf0',titleColor:'#e8eaf0',mode:'index',intersect:false,
+          callbacks:{
+            title:items=>`${items[0].label} kWh`,
+            label(ctx){
+              if(ctx.datasetIndex===0) return `Recovered: ${ctx.parsed.y}%`;
+              if(ctx.parsed.y==null) return null;
+              const isKnee=ctx.dataIndex===kneeIdx;
+              return `Marginal: ${ctx.parsed.y}%/100 kWh${isKnee?' ← optimal':''}`;
+            },
+            afterBody:items=>{
+              if(items.some(i=>i.dataIndex===kneeIdx)) return[`Knee point — diminishing returns beyond here`];
+            }
+          }
+        }
+      },
       scales:{
-        x:{title:{display:true,text:'Usable Battery Capacity (kWh)',color:'#7a84a0',font:{size:10}},ticks:{color:'#7a84a0',font:{size:10}},grid:{color:'#2a3050'}},
-        y:{title:{display:true,text:'Curtailment Recovered (%)',color:'#7a84a0',font:{size:10}},ticks:{color:'#7a84a0',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a3050'},min:0,max:100},
-        y2:{position:'right',title:{display:true,text:'Annual Value ($)',color:'#4fd98e',font:{size:10}},ticks:{color:'#4fd98e',font:{size:10},callback:v=>'$'+v},grid:{display:false}}
+        x:{title:{display:true,text:'Usable Battery Capacity (kWh)',color:'#7a84a0',font:{size:10}},
+           ticks:{color:'#7a84a0',font:{size:10},maxTicksLimit:10},grid:{color:'#2a3050'}},
+        y:{title:{display:true,text:'Curtailment Recovered (%)',color:'#f5c842',font:{size:10}},
+           ticks:{color:'#7a84a0',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a3050'},min:0,max:100},
+        y2:{position:'right',title:{display:true,text:'Marginal Gain (%/100 kWh)',color:'#a78bfa',font:{size:10}},
+            ticks:{color:'#a78bfa',font:{size:10}},grid:{display:false},min:0}
       }
     }
   });
@@ -3172,12 +3254,167 @@ function anToggleSizingCurve(){
     const rate=_anSimParams?_anSimParams.rate||0.15:0.15;
     anRenderSizingChart(_anSweepResults,totalCurt,rate);
   }
+  // no re-render needed on close
 }
 
 // Keep analysis tab in sync whenever any SLD control changes
 const _LOAD_PREVIEW_IDS=new Set(['an-peakKw','an-annualKwh','an-loadType']);
-document.querySelector('aside').addEventListener('input', e=>{ syncAnalysisFromSLD(); if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); });
-document.querySelector('aside').addEventListener('change', e=>{ syncAnalysisFromSLD(); if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); });
+document.querySelector('aside').addEventListener('input', e=>{ syncAnalysisFromSLD(); if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); });
+document.querySelector('aside').addEventListener('change', e=>{ syncAnalysisFromSLD(); if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); });
+document.querySelector('.analysis-aside').addEventListener('input', e=>{ if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); });
+document.querySelector('.analysis-aside').addEventListener('change', e=>{ if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); });
+
+// ── Debug / Export Report ─────────────────────────────────────────────────────
+function buildDebugReport(){
+  const now=new Date().toISOString();
+  const NA='(not set)';
+  const gn=id=>{const v=parseFloat(gv(id));return isNaN(v)?NA:v;};
+  const gs=id=>gv(id)||NA;
+  const gb=id=>gc(id)?'yes':'no';
+
+  const lines=[];
+  const sec=t=>{lines.push('');lines.push('━━ '+t+' '+'─'.repeat(Math.max(0,50-t.length)));};
+  const row=(k,v)=>lines.push(k.padEnd(34)+v);
+
+  lines.push('SOLAR SLD GENERATOR — DEBUG REPORT');
+  lines.push('Generated: '+now);
+
+  sec('PROJECT');
+  row('Name',gs('projName'));
+  row('Designer',gs('designer'));
+
+  sec('ARRAY 1');
+  row('System size (kW DC)',gn('systemKw'));
+  row('Total modules',gn('numMods'));
+  row('Strings',gn('strings'));
+  row('Mods/string',gn('mods'));
+  row('Module Wp',gn('modW'));
+  row('Module model',gs('modModel'));
+  row('Voc (V)',gn('voc'));
+  row('Isc (A)',gn('isc'));
+  row('DC/AC ratio',gn('dcAcRatio'));
+  row('Inverter type',gs('invType'));
+  row('Inverter kW',gn('invKw'));
+  row('Inverter qty',gn('invCount'));
+  row('Inverter model',gs('invModel'));
+  row('Combiner box',gb('hasCombiner'));
+  row('Combiner voltage (V)',gn('combV'));
+  row('Combiner fuse (A)',gn('combFuse'));
+
+  if(gc('hasArr2')){
+    sec('ARRAY 2');
+    row('System size (kW DC)',gn('a2systemKw'));
+    row('Total modules',gn('a2numMods'));
+    row('Strings',gn('a2strings'));
+    row('Mods/string',gn('a2mods'));
+    row('Module Wp',gn('a2modW'));
+    row('Module model',gs('a2modModel'));
+    row('Voc (V)',gn('a2voc'));
+    row('Isc (A)',gn('a2isc'));
+    row('DC/AC ratio',gn('a2dcAcRatio'));
+    row('Inverter kW',gn('a2invKw'));
+    row('Inverter qty',gn('a2invCount'));
+    row('Inverter model',gs('a2invModel'));
+  }
+
+  sec('BATTERY (SLD)');
+  row('Include battery',gb('hasBatt'));
+  if(gc('hasBatt')){
+    row('Coupling',gs('battCouple'));
+    row('Power (kW)',gn('battKw'));
+    row('Capacity (kWh)',gn('battKwh'));
+    row('Target duration (h)',gn('battDuration'));
+    row('Make/model',gs('battModel'));
+    row('Qty',gn('battQty'));
+    row('Chemistry',gs('battChem'));
+    row('SOC min (%)',gn('battSocMin'));
+    row('SOC max (%)',gn('battSocMax'));
+    row('Voltage (V)',gs('battV'));
+    row('DC fuse/CB (A)',gn('battDcFuse'));
+    row('PCS rating (kVA)',gn('pcsKva'));
+  }
+
+  sec('INTERCONNECTION');
+  row('Standard',gs('interconnStd'));
+  row('Utility',gs('utilityName'));
+  row('POI voltage (kV)',gn('poiKv'));
+  row('MV transformer',gb('hasMvXfmr'));
+  if(gc('hasMvXfmr')) row('Transformer kVA',gn('mvKva'));
+
+  sec('CURTAILMENT ANALYSIS — INPUTS');
+  row('PV size (kW DC)',gn('an-pvKw'));
+  row('DC/AC ratio',gn('an-dcAc'));
+  row('System losses (%)',gn('an-losses'));
+  row('Latitude',gn('an-lat'));
+  row('Longitude',gn('an-lon'));
+  row('Tilt (°)',gn('an-tilt'));
+  row('Export limit (kW)',gn('an-export'));
+  row('Array type',gs('an-array-type'));
+  row('Load type',gs('an-loadType'));
+  row('Peak demand (kW)',gn('an-peakKw'));
+  const annKwh=gv('an-annualKwh');
+  row('Annual consumption (kWh)',annKwh?annKwh:'(auto from peak)');
+  row('Base load (%)',gn('an-load-base'));
+  row('Weekend factor (%)',gn('an-load-wkend'));
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  row('Monthly scale (%)',months.map((_,i)=>gv('an-load-m-'+i)||'100').join(' / '));
+  row('Battery sweep min (kWh)',gn('an-minKwh'));
+  row('Battery sweep max (kWh)',gn('an-maxKwh'));
+  row('Round-trip efficiency (%)',gn('an-rte'));
+  row('Electricity rate (¢/kWh)',gn('an-rate'));
+  const sp=_anSimParams;
+  if(sp) row('Battery duration used (h)',sp.battDurHr);
+
+  sec('CURTAILMENT ANALYSIS — OUTPUTS');
+  if(_anSimBase && _anSweepResults && _anSweepResults.length){
+    const totalCurt=anSum(_anSimBase.curtail);
+    const annualPv=anSum(_anPvHourly||[]);
+    const annualLoad=anSum(_anLoadHourly||[]);
+    row('Annual PV (MWh)',+(annualPv/1000).toFixed(2));
+    row('Annual load (MWh)',+(annualLoad/1000).toFixed(2));
+    row('Annual curtailment (MWh)',+(totalCurt/1000).toFixed(2));
+    row('Curtailment % of generation',annualPv>0?(totalCurt/annualPv*100).toFixed(1)+'%':'—');
+    row('Peak curtailment (kW)',Math.max(..._anSimBase.curtail).toFixed(1));
+    row('Peak curtailment day',_anPeakCurtDay+1);
+    const last=_anSweepResults[_anSweepResults.length-1];
+    row('At sweep max ('+last.kwh+' kWh) — rec%',totalCurt>0?(last.curtRec/totalCurt*100).toFixed(1)+'%':'—');
+    row('At sweep max — MWh recovered',+(last.curtRec/1000).toFixed(2));
+
+    lines.push('');
+    lines.push('Battery Sweep Results:');
+    lines.push('  kWh'.padEnd(10)+'kW'.padEnd(10)+'Rec%'.padEnd(10)+'Grid avoided (MWh)'.padEnd(22)+'Cycles');
+    _anSweepResults.forEach(s=>{
+      const pct=totalCurt>0?(s.curtRec/totalCurt*100).toFixed(1):'—';
+      lines.push(
+        String(s.kwh).padEnd(10)+
+        s.kw.toFixed(1).padEnd(10)+
+        (pct+'%').padEnd(10)+
+        (s.gridAvoided/1000).toFixed(2).padEnd(22)+
+        s.cycles.toFixed(1)
+      );
+    });
+  } else {
+    lines.push('  No simulation results yet — run the analysis first.');
+  }
+
+  lines.push('');
+  lines.push('━━ END OF REPORT '+'─'.repeat(33));
+  return lines.join('\n');
+}
+
+function refreshDebugReport(){
+  $('debug-report').value=buildDebugReport();
+}
+
+function downloadDebugReport(){
+  const txt=buildDebugReport();
+  const blob=new Blob([txt],{type:'text/plain'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=(gv('projName')||'solar-sld')+'-debug.txt';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
 
 let LOGO_B64 = 'logo.png';
 render();
