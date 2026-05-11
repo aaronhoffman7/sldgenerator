@@ -549,7 +549,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
         <div class="section">
           <div class="stitle">Battery Sweep</div>
           <div id="an-batt-note" class="cnote" style="margin-bottom:6px;display:none"></div>
-          <label>Battery size sweep (kWh)</label>
+          <label>Usable energy sweep (kWh)</label>
           <div style="display:flex;gap:6px">
             <div style="flex:1"><label style="font-size:9px;color:var(--muted);margin-bottom:2px;display:block">Min</label><input type="number" id="an-minKwh" value="0" step="10" min="0"></div>
             <div style="flex:1"><label style="font-size:9px;color:var(--muted);margin-bottom:2px;display:block">Max</label><input type="number" id="an-maxKwh" value="200" step="10" min="10"></div>
@@ -558,6 +558,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           <input type="number" id="an-battKw" value="0" step="5" min="0">
           <label>Round-trip efficiency (%)</label>
           <input type="number" id="an-rte" value="90" step="1" min="70" max="100">
+          <div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.4">kWh = usable stored capacity (nameplate less any DoD reserve). √RTE loss applies to each leg: charging draws kWh ÷ √RTE from PV; discharging delivers kWh × √RTE to load.</div>
           <label>Electricity rate (¢/kWh)</label>
           <input type="number" id="an-rate" value="15" step="1" min="1">
         </div>
@@ -609,7 +610,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             <canvas id="an-heatmap" style="width:100%;display:block;border-radius:3px"></canvas>
           </div>
           <div class="chart-card">
-            <h3>Battery Sizing Curve — curtailment recovered vs capacity</h3>
+            <h3 style="margin-bottom:2px">Battery Sizing Curve — curtailment recovered vs usable capacity</h3>
+            <div style="font-size:9px;color:var(--muted);margin-bottom:8px">% curtailment recovered = PV energy captured by battery that would otherwise be wasted ÷ baseline annual curtailment (no battery)</div>
             <div style="height:220px;position:relative"><canvas id="an-sizing-chart"></canvas></div>
           </div>
           <div class="chart-card">
@@ -2946,7 +2948,7 @@ function anRenderSizingChart(sweep,totalCurt,rate){
       responsive:true,maintainAspectRatio:false,
       plugins:{legend:{labels:{color:'#7a84a0',font:{size:10}},boxWidth:12},tooltip:{backgroundColor:'#1e2335',bodyColor:'#e8eaf0',titleColor:'#e8eaf0'}},
       scales:{
-        x:{title:{display:true,text:'Battery Capacity (kWh)',color:'#7a84a0',font:{size:10}},ticks:{color:'#7a84a0',font:{size:10}},grid:{color:'#2a3050'}},
+        x:{title:{display:true,text:'Usable Battery Capacity (kWh)',color:'#7a84a0',font:{size:10}},ticks:{color:'#7a84a0',font:{size:10}},grid:{color:'#2a3050'}},
         y:{title:{display:true,text:'Curtailment Recovered (%)',color:'#7a84a0',font:{size:10}},ticks:{color:'#7a84a0',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a3050'},min:0,max:100},
         y2:{position:'right',title:{display:true,text:'Annual Value ($)',color:'#4fd98e',font:{size:10}},ticks:{color:'#4fd98e',font:{size:10},callback:v=>'$'+v},grid:{display:false}}
       }
@@ -2970,7 +2972,7 @@ function anUpdateBattLabel(){
   const pct=totalCurt>0?(s.curtRec/totalCurt*100).toFixed(0):0;
   $('an-batt-slider-label').textContent=
     s.kwh===0?'No battery':
-    `${s.kwh} kWh · ${s.kw.toFixed(0)} kW · ${pct}% curtailment recovered`;
+    `${s.kwh} kWh usable · ${s.kw.toFixed(0)} kW · ${pct}% curtailment recovered`;
 }
 
 function showDispatchDay(type){
@@ -3044,8 +3046,11 @@ function renderDispatchChart(){
             label(ctx){
               const v=ctx.parsed.y;
               if(v==null||v===0&&ctx.dataset.label==='Battery Charge'&&!hasBatt) return null;
-              const unit=ctx.dataset.yAxisID==='y2'?'kWh':'kW';
-              return `${ctx.dataset.label}: ${v.toFixed(1)} ${unit}`;
+              if(ctx.dataset.yAxisID==='y2'){
+                const pct=sweep.kwh>0?(v/sweep.kwh*100).toFixed(0):'--';
+                return `SOC: ${v.toFixed(1)} kWh (${pct}%)`;
+              }
+              return `${ctx.dataset.label}: ${v.toFixed(1)} kW`;
             }
           }
         }
