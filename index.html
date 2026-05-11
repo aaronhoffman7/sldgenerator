@@ -2798,8 +2798,36 @@ async function runAnalysis(){
     _anPvHourly=pv; _anLoadHourly=load; _anCurtHourly=base.curtail;
     _anSimParams={pvKw,dcAcRatio,losses,lat,tilt,exportLimKw,peakKw,maxKwh,battKwFixed,rte,rate,loadType};
 
+    // Binary search for smallest battery achieving ~99% curtailment recovery
+    $('an-status').textContent='Finding full-recovery size…';
+    await new Promise(r=>setTimeout(r,5));
+    let fullRecKwh=null;
+    if(totalCurt>0){
+      const pvAC=pvKw/dcAcRatio;
+      const kwForSize=kwh=>battKwFixed>0?battKwFixed:Math.max(kwh/2,pvAC*0.5);
+      const maxDailyCurt=Math.max(...dailyCurt);
+      const hiKwh=Math.max(maxKwh*4, maxDailyCurt*3);
+      const hiRes=simulate(pv,load,exportLimKw,kwForSize(hiKwh),hiKwh,rte);
+      const hiRec=totalCurt-anSum(hiRes.curtail);
+      if(hiRec>=totalCurt*0.99){
+        let lo=maxKwh, hi=hiKwh;
+        for(let i=0;i<14;i++){
+          const mid=Math.round((lo+hi)/2);
+          const res=simulate(pv,load,exportLimKw,kwForSize(mid),mid,rte);
+          const rec=totalCurt-anSum(res.curtail);
+          if(rec>=totalCurt*0.99) hi=mid; else lo=mid;
+        }
+        fullRecKwh=hi;
+      }
+    }
+
     const annualPv=anSum(pv), maxCurt=Math.max(...base.curtail);
     const maxRec=_anSweepResults[_anSweepResults.length-1].curtRec;
+    const fullRecCard=totalCurt===0
+      ?'<div class="s-val">—</div><div class="s-sub">No curtailment</div>'
+      :fullRecKwh!=null
+        ?`<div class="s-val">${fullRecKwh.toLocaleString()}<span style="font-size:13px;font-weight:400"> kWh</span></div><div class="s-sub">${battKwFixed>0?battKwFixed+'kW fixed power':'~'+(Math.max(fullRecKwh/2,(pvKw/dcAcRatio)*0.5)).toFixed(0)+' kW auto'}</div>`
+        :`<div class="s-val">—</div><div class="s-sub">Power-limited (fixed ${battKwFixed} kW)</div>`;
     $('an-cards').innerHTML=`
       <div class="summary-card"><div class="s-label">Annual PV</div>
         <div class="s-val">${(annualPv/1000).toFixed(1)}<span style="font-size:13px;font-weight:400"> MWh</span></div>
@@ -2810,9 +2838,11 @@ async function runAnalysis(){
       <div class="summary-card"><div class="s-label">Peak Curtailment</div>
         <div class="s-val">${maxCurt.toFixed(1)}<span style="font-size:13px;font-weight:400"> kW</span></div>
         <div class="s-sub">Hourly max (Day ${_anPeakCurtDay+1})</div></div>
-      <div class="summary-card"><div class="s-label">Max Recoverable</div>
+      <div class="summary-card"><div class="s-label">At Sweep Max (${_anSweepResults[_anSweepResults.length-1].kwh} kWh)</div>
         <div class="s-val">${totalCurt>0?(maxRec/totalCurt*100).toFixed(0):0}<span style="font-size:13px;font-weight:400">%</span></div>
-        <div class="s-sub">${(maxRec/1000).toFixed(1)} MWh w/ ${_anSweepResults[_anSweepResults.length-1].kwh} kWh BESS</div></div>`;
+        <div class="s-sub">${(maxRec/1000).toFixed(1)} MWh recovered</div></div>
+      <div class="summary-card"><div class="s-label">Est. for ~100% Recovery</div>
+        ${fullRecCard}</div>`;
 
     anRenderMonthlyChart(pv,load,base.curtail);
     anDrawHeatmap(base.curtail);
