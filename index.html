@@ -476,10 +476,10 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <div class="analysis-aside">
         <div class="section">
           <div class="stitle">PV System</div>
-          <label>PV size (kW DC)</label>
-          <input type="number" id="an-pvKw" value="13.2" step="0.1" min="0.1">
-          <label>DC/AC ratio</label>
-          <input type="number" id="an-dcAc" value="1.20" step="0.01" min="0.5" max="2.5">
+          <label>PV size (kW DC) <span style="font-size:9px;color:var(--muted);font-weight:400">← from SLD</span></label>
+          <input type="number" id="an-pvKw" value="13.2" step="0.1" min="0.1" readonly style="opacity:0.6;cursor:not-allowed">
+          <label>DC/AC ratio <span style="font-size:9px;color:var(--muted);font-weight:400">← from SLD</span></label>
+          <input type="number" id="an-dcAc" value="1.20" step="0.01" min="0.5" max="2.5" readonly style="opacity:0.6;cursor:not-allowed">
           <label>System losses (%)</label>
           <input type="number" id="an-losses" value="14" step="1" min="0" max="30">
           <div class="row2">
@@ -3208,9 +3208,13 @@ function anUpdateBattLabel(){
   if(!s) return;
   const totalCurt=_anCurtHourly?anSum(_anCurtHourly):0;
   const pct=totalCurt>0?(s.curtRec/totalCurt*100).toFixed(0):0;
+  if(s.kwh===0){$('an-batt-slider-label').textContent='No battery';return;}
+  const dur=(s.kw>0?s.kwh/s.kw:0).toFixed(1);
+  const rate=_anSimParams?.rate||0.15;
+  const annVal=Math.round(s.gridAvoided*rate);
+  const mwhAvoided=(s.gridAvoided/1000).toFixed(1);
   $('an-batt-slider-label').textContent=
-    s.kwh===0?'No battery':
-    `${s.kwh} kWh usable · ${s.kw.toFixed(0)} kW · ${pct}% curtailment recovered`;
+    `${s.kwh} kWh usable · ${s.kw.toFixed(0)} kW · ${dur}h duration · ${pct}% curtailment recovered · ${mwhAvoided} MWh avoided/yr · $${annVal.toLocaleString()}/yr · ${s.cycles.toFixed(0)} cycles/yr`;
 }
 
 function showDispatchDay(type){
