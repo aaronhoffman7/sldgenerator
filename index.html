@@ -2906,6 +2906,9 @@ async function runAnalysis(){
     _anSimParams={pvKw,dcAcRatio,losses,lat,tilt,exportLimKw,peakKw,maxKwh:sweepMax,battDurHr,rte,rate,loadType};
 
     const annualPv=anSum(pv), maxCurt=Math.max(...base.curtail);
+    const annualLoad=anSum(load);
+    const selfConsumed=annualPv-totalCurt; // PV delivered directly to load (no curtailment, no export)
+    const selfSuffPct=annualLoad>0?(selfConsumed/annualLoad*100):0;
     const maxRec=_anSweepResults[_anSweepResults.length-1].curtRec;
     const fullRecKw=fullRecKwh?Math.ceil(Math.max(fullRecKwh/battDurHr,(pvKw/dcAcRatio)*0.5)):0;
     const fullRecCard=totalCurt===0
@@ -2917,6 +2920,9 @@ async function runAnalysis(){
       <div class="summary-card"><div class="s-label">Annual PV</div>
         <div class="s-val">${(annualPv/1000).toFixed(1)}<span style="font-size:13px;font-weight:400"> MWh</span></div>
         <div class="s-sub">${pvSrc}</div></div>
+      <div class="summary-card"><div class="s-label">Annual Load</div>
+        <div class="s-val">${(annualLoad/1000).toFixed(1)}<span style="font-size:13px;font-weight:400"> MWh</span></div>
+        <div class="s-sub">${(totalBaseImport/1000).toFixed(1)} MWh from grid · ${(selfConsumed/1000).toFixed(1)} MWh self-consumed (${selfSuffPct.toFixed(0)}%)</div></div>
       <div class="summary-card"><div class="s-label">Annual Curtailment</div>
         <div class="s-val">${(totalCurt/1000).toFixed(1)}<span style="font-size:13px;font-weight:400"> MWh</span></div>
         <div class="s-sub">${annualPv>0?(totalCurt/annualPv*100).toFixed(1):0}% of generation</div></div>
