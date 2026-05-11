@@ -3462,14 +3462,14 @@ function buildDebugReport(){
 
     lines.push('');
     lines.push('Battery Sweep Results:');
-    lines.push('  kWh'.padEnd(10)+'kW'.padEnd(10)+'Rec%'.padEnd(10)+'Grid avoided (MWh)'.padEnd(22)+'Cycles');
+    lines.push('  kWh'.padEnd(8)+'kW'.padEnd(8)+'Rec%'.padEnd(8)+'GridAvoided_MWh'.padEnd(18)+'Cycles_perYr');
     _anSweepResults.forEach(s=>{
       const pct=totalCurt>0?(s.curtRec/totalCurt*100).toFixed(1):'—';
       lines.push(
-        String(s.kwh).padEnd(10)+
-        s.kw.toFixed(1).padEnd(10)+
-        (pct+'%').padEnd(10)+
-        (s.gridAvoided/1000).toFixed(2).padEnd(22)+
+        String(s.kwh).padEnd(8)+
+        s.kw.toFixed(1).padEnd(8)+
+        (pct+'%').padEnd(8)+
+        (s.gridAvoided/1000).toFixed(2).padEnd(18)+
         s.cycles.toFixed(1)
       );
     });
