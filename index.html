@@ -2372,7 +2372,7 @@ function exportPDF(){
       let imgW=availW, imgH=imgW/aspect;
       if(imgH>availH){imgH=availH;imgW=imgH*aspect;}
       const x=margin+(availW-imgW)/2, y=margin+(availH-imgH)/2;
-      pdf.addImage(canvas.toDataURL('image/png'),'PNG',x,y,imgW,imgH);
+      pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',x,y,imgW,imgH);
       pdf.save((v.projName||'sld').replace(/[^a-z0-9]/gi,'_')+'_SLD.pdf');
     }
 
@@ -3339,10 +3339,34 @@ function anToggleSizingCurve(){
 // Keep analysis tab in sync whenever any SLD control changes
 const _LOAD_PREVIEW_IDS=new Set(['an-peakKw','an-annualKwh','an-loadType']);
 function maybeRefreshDebug(){ if($('tab-debug').classList.contains('active')) refreshDebugReport(); }
-document.querySelector('aside').addEventListener('input', e=>{ syncAnalysisFromSLD(); if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); maybeRefreshDebug(); });
-document.querySelector('aside').addEventListener('change', e=>{ syncAnalysisFromSLD(); if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); maybeRefreshDebug(); });
-document.querySelector('.analysis-aside').addEventListener('input', e=>{ if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); maybeRefreshDebug(); });
-document.querySelector('.analysis-aside').addEventListener('change', e=>{ if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); maybeRefreshDebug(); });
+document.querySelector('aside').addEventListener('input', e=>{ syncAnalysisFromSLD(); if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); maybeRefreshDebug(); saveState(); });
+document.querySelector('aside').addEventListener('change', e=>{ syncAnalysisFromSLD(); if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); maybeRefreshDebug(); saveState(); });
+document.querySelector('.analysis-aside').addEventListener('input', e=>{ if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); maybeRefreshDebug(); saveState(); });
+document.querySelector('.analysis-aside').addEventListener('change', e=>{ if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); maybeRefreshDebug(); saveState(); });
+
+function saveState(){
+  const skip=new Set(['debug-report','an-pvKw','an-dcAc']);
+  const state={};
+  document.querySelectorAll('input[id],select[id]').forEach(el=>{
+    if(skip.has(el.id)||el.readOnly) return;
+    state[el.id]=el.type==='checkbox'?el.checked:el.value;
+  });
+  try{ localStorage.setItem('sld_state',JSON.stringify(state)); }catch(e){}
+}
+
+function restoreState(){
+  try{
+    const raw=localStorage.getItem('sld_state');
+    if(!raw) return;
+    const state=JSON.parse(raw);
+    Object.entries(state).forEach(([id,val])=>{
+      const el=document.getElementById(id);
+      if(!el||el.readOnly) return;
+      if(el.type==='checkbox') el.checked=!!val;
+      else el.value=val;
+    });
+  }catch(e){}
+}
 
 // ── Debug / Export Report ─────────────────────────────────────────────────────
 function buildDebugReport(){
@@ -3462,18 +3486,19 @@ function buildDebugReport(){
 
     lines.push('');
     lines.push('Battery Sweep Results:');
-    const rp=(s,n)=>s.padStart(n);
-    lines.push('  '+['kWh','kW','Rec%','GridAvoid_MWh','Cycles/yr'].map((h,i)=>h.padStart([6,7,7,13,9][i])).join(' | '));
-    lines.push('  '+[6,7,7,13,9].map(n=>'-'.repeat(n)).join('-+-'));
+    const W2=[7,8,8,15,11];
+    const rp2=(s,n)=>String(s).padStart(n);
+    lines.push('  '+['kWh','kW','Rec%','GridAvoid_MWh','Cycles/yr'].map((h,i)=>h.padStart(W2[i])).join('  '));
+    lines.push('  '+W2.map(n=>'-'.repeat(n)).join('  '));
     _anSweepResults.forEach(s=>{
       const pct=totalCurt>0?(s.curtRec/totalCurt*100).toFixed(1)+'%':'—';
       lines.push('  '+[
-        rp(String(s.kwh),6),
-        rp(s.kw.toFixed(1),7),
-        rp(pct,7),
-        rp((s.gridAvoided/1000).toFixed(2),13),
-        rp(s.cycles.toFixed(1),9)
-      ].join(' | '));
+        rp2(s.kwh,W2[0]),
+        rp2(s.kw.toFixed(1),W2[1]),
+        rp2(pct,W2[2]),
+        rp2((s.gridAvoided/1000).toFixed(2),W2[3]),
+        rp2(s.cycles.toFixed(1),W2[4])
+      ].join('  '));
     });
   } else {
     lines.push('  No simulation results yet — run the analysis first.');
@@ -3501,6 +3526,7 @@ function downloadDebugReport(){
 let LOGO_B64 = 'logo.png';
 // Defer so browser form-state restoration finishes before we read checkbox values
 setTimeout(function(){
+  restoreState();
   toggleBattFields();
   toggleMvFields();
   render();
