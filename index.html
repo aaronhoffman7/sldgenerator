@@ -114,7 +114,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 </head>
 <body>
 <header>
-  <img src="logo.png" style="height:40px;width:auto;display:block;">
+  <a href="https://lightboxenergy.com" target="_blank" style="display:block;line-height:0"><img src="logo.png" style="height:40px;width:auto;display:block;"></a>
   <h1>Single Line Diagram Generator</h1>
   <span>Solar + Battery Storage</span>
   <div class="hbtns">
@@ -1159,11 +1159,6 @@ function renderPVArray(v, cx, startY) {
   const sym = pvStringSymbol(cx, modCY, modW, modH, nStr === 1 ? 1 : null);
   s += sym.svg;
 
-  // Count label in top-left of front symbol when multiple strings
-  if (nStr > 1) {
-    s += `<text x="${cx - modW/2 + 5}" y="${startY + 11}" style="fill:#7a5a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600">${nStr}× strings</text>`;
-  }
-
   return { svg: s, botY: sym.botTermY, envRightX: envX + envW };
 }
 
@@ -1842,16 +1837,30 @@ function renderArrayColumn(cfg, cx, startY) {
   const invH=cfg.hasRSD?92:78;
   if(cfg.invCount>1){const sh=Math.min(cfg.invCount-1,2);for(let i=sh;i>0;i--) s.push(`<rect x="${cx-100+i*5}" y="${y+i*5}" width="200" height="${invH}" rx="6" fill="${iF}" stroke="${iS}" stroke-width="0.8" opacity="0.45"/>`);}
   const rsdInvSub=cfg.hasRSD?(cfg.rsdMethod==='pvhcs'?'Dedicated RSD Receivers · NEC 690.12(C)':'MLPE — DC Optimizers · NEC 690.12(C)'):null;
-  s.push(compBox(cx-100,y,200,invH,iF,iS,iL,iSub,cfg.invModel,rsdInvSub));
-  s.push(`<text x="${cx}" y="${y+invH-8}" style="fill:#8090a8;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px;font-style:italic" text-anchor="middle">Int. AFCI · NEC 690.11  ·  GFPD · NEC 690.5</text>`);
-  // IEC DC→AC glyph: square with diagonal, = on DC side, ~ on AC side
-  {const gx=cx+53,gy=y+Math.round((invH-34)/2),gw=34,gh=34;
-  s.push(`<rect x="${gx}" y="${gy}" width="${gw}" height="${gh}" fill="none" stroke="${iS}" stroke-width="1.2"/>`);
-  s.push(`<line x1="${gx}" y1="${gy+gh}" x2="${gx+gw}" y2="${gy}" stroke="${iS}" stroke-width="1.2"/>`);
-  s.push(`<line x1="${gx+3}" y1="${gy+11}" x2="${gx+gw/2-2}" y2="${gy+11}" stroke="${iS}" stroke-width="1.2"/>`);
-  s.push(`<line x1="${gx+3}" y1="${gy+17}" x2="${gx+gw/2-2}" y2="${gy+17}" stroke="${iS}" stroke-width="1.2"/>`);
-  const wx0=gx+gw/2+3,wx1=gx+gw-3,wcy=gy+gh-11,wa=4,wm=(wx0+wx1)/2;
-  s.push(`<path d="M ${wx0},${wcy} C ${wx0+4},${wcy-wa} ${wm-4},${wcy-wa} ${wm},${wcy} S ${wm+8},${wcy+wa} ${wx1},${wcy}" fill="none" stroke="${iS}" stroke-width="1.2"/>`);};
+  // Inverter box: left text area + right IEC glyph section
+  {
+    const bx=cx-100, bw=200, glyphW=44, textW=bw-glyphW;
+    s.push(`<rect x="${bx}" y="${y}" width="${bw}" height="${invH}" rx="6" fill="${iF}" stroke="${iS}" stroke-width="1"/>`);
+    // Subtle divider between text and glyph
+    s.push(`<line x1="${bx+textW}" y1="${y+8}" x2="${bx+textW}" y2="${y+invH-8}" stroke="${iS}" stroke-width="0.6" opacity="0.4"/>`);
+    // Left-aligned text
+    const textLines=[iL,iSub,cfg.invModel,rsdInvSub].filter(Boolean);
+    const lh=14, totalTH=textLines.length*lh;
+    let ty=y+invH/2-totalTH/2+lh*0.75;
+    textLines.forEach((line,i)=>{
+      const cls=i===0?'sld-lbl':'sld-sub';
+      s.push(`<text x="${bx+8}" y="${ty+i*lh}" class="${cls}" text-anchor="start">${esc(line)}</text>`);
+    });
+    s.push(`<text x="${bx+textW/2}" y="${y+invH-8}" style="fill:#8090a8;font-family:'Avenir Next','Avenir',sans-serif;font-size:7.5px;font-style:italic" text-anchor="middle">Int. AFCI · NEC 690.11  ·  GFPD · NEC 690.5</text>`);
+    // IEC DC→AC glyph centered in right section
+    const gw=30,gh=30,gx=bx+textW+(glyphW-gw)/2,gy=y+(invH-gh)/2;
+    s.push(`<rect x="${gx}" y="${gy}" width="${gw}" height="${gh}" fill="none" stroke="${iS}" stroke-width="1.2"/>`);
+    s.push(`<line x1="${gx}" y1="${gy+gh}" x2="${gx+gw}" y2="${gy}" stroke="${iS}" stroke-width="1.2"/>`);
+    s.push(`<line x1="${gx+3}" y1="${gy+9}" x2="${gx+gw/2-1}" y2="${gy+9}" stroke="${iS}" stroke-width="1.2"/>`);
+    s.push(`<line x1="${gx+3}" y1="${gy+14}" x2="${gx+gw/2-1}" y2="${gy+14}" stroke="${iS}" stroke-width="1.2"/>`);
+    const wx0=gx+gw/2+2,wx1=gx+gw-3,wcy=gy+gh-10,wa=3.5,wm=(wx0+wx1)/2;
+    s.push(`<path d="M ${wx0},${wcy} C ${wx0+3},${wcy-wa} ${wm-3},${wcy-wa} ${wm},${wcy} S ${wm+6},${wcy+wa} ${wx1},${wcy}" fill="none" stroke="${iS}" stroke-width="1.2"/>`);
+  }
   const invBotY=y+invH;
   const invMidY=y+Math.round(invH/2);
   return {svg:s.join('\n'), invBotY, invMidY, envRightX:pv.envRightX, dcBusY:invBotY-invH-Math.round(W/2)};
@@ -3123,6 +3132,7 @@ async function runAnalysis(){
     $('an-results').style.display='flex';
     $('an-status').textContent='';
     _anCanAutoRun=true;
+    saveState(); // persist __pvWattsFetched so auto-fetch works on next refresh
   }catch(e){
     $('an-status').textContent='Error: '+e.message;
     console.error(e);
