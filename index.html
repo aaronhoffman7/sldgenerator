@@ -516,9 +516,9 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           </select>
           <div id="an-peakKw-row">
             <label>Peak demand (kW)</label>
-            <input type="number" id="an-peakKw" value="50" step="1" min="1">
+            <input type="number" id="an-peakKw" value="50" step="1" min="1" oninput="anPeakKwChanged()">
             <label style="margin-top:6px">Annual consumption (kWh/yr)</label>
-            <input type="number" id="an-annualKwh" value="" placeholder="optional — leave blank to scale by peak" step="1000" min="0" oninput="anLoadParamChanged()">
+            <input type="number" id="an-annualKwh" value="" placeholder="auto-filled from peak" step="1000" min="0" oninput="anAnnualKwhChanged()">
             <div id="an-implied-kwh" style="font-size:9px;color:var(--muted);margin-top:3px"></div>
           </div>
           <div id="an-csv-row" style="display:none;margin-top:8px">
@@ -2565,6 +2565,35 @@ function anLoadTypeChanged(){
 
 function anLoadParamChanged(){ renderLoadPreview(); }
 
+function _normLoadStats(){
+  const type=gv('an-loadType');
+  if(type==='csv'||type==='flat') return null;
+  const opts={...getLoadOpts(),annualKwh:0};
+  const norm=makeLoadProfile(type,1,opts);
+  const total=norm.reduce((s,v)=>s+v,0)||1;
+  const peak=Math.max(...norm)||1;
+  return{total,peak};
+}
+
+function anPeakKwChanged(){
+  const ns=_normLoadStats(); if(!ns) return;
+  const peakKw=parseFloat(gv('an-peakKw'));
+  if(!peakKw||peakKw<=0) return;
+  const annual=Math.round(peakKw*ns.total/ns.peak);
+  $('an-annualKwh').value=annual;
+  renderLoadPreview();
+}
+
+function anAnnualKwhChanged(){
+  const ns=_normLoadStats(); if(!ns) return;
+  const annual=parseFloat(gv('an-annualKwh'));
+  if(!annual||annual<=0){renderLoadPreview();return;}
+  const amplitude=annual/ns.total;
+  const impliedPeak=Math.round(amplitude*ns.peak*10)/10;
+  $('an-peakKw').value=impliedPeak;
+  renderLoadPreview();
+}
+
 function anCsvDrop(e){
   e.preventDefault();
   const f=e.dataTransfer.files[0];
@@ -2790,15 +2819,8 @@ function renderLoadPreview(){
   // Annotation: implied peak info
   const noteEl=$('an-load-preview-note');
   if(o.annualKwh>0){
-    const fullYearNorm=makeLoadProfile(type,1,{...o,annualKwh:0}).reduce((s,v)=>s+v,0)||1;
-    const amp=o.annualKwh/fullYearNorm;
-    const maxMf=Math.max(...o.mf);
-    const peakOfYear=+(amp*maxMf).toFixed(1);
-    const exceeds=peakOfYear>peakKw;
-    noteEl.style.color=exceeds?'#f5a742':'var(--green)';
-    noteEl.textContent=exceeds
-      ?`⚠ Annual target implies ${peakOfYear} kW peak — exceeds stated max of ${peakKw} kW`
-      :`✓ Annual target derived — implied peak ${peakOfYear} kW (max demand cap: ${peakKw} kW)`;
+    noteEl.style.color='var(--muted)';
+    noteEl.textContent=`Peak demand and annual consumption are in sync via load shape.`;
   } else {
     noteEl.style.color='var(--muted)';
     noteEl.textContent=isYear
