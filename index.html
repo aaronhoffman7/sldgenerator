@@ -466,6 +466,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
         <h2 style="margin:0;font-size:14px;font-family:var(--mono)">Debug / Export</h2>
         <button class="hbtn" onclick="refreshDebugReport()">&#8635; Refresh</button>
         <button class="hbtn primary" onclick="downloadDebugReport()">&#8615; Download .txt</button>
+        <button class="hbtn" onclick="download8760Csv()" title="Download 8760-hour PV, Load, Battery CSV">&#8615; Download 8760 .csv</button>
       </div>
       <textarea id="debug-report" readonly spellcheck="false"
         style="flex:1;width:100%;box-sizing:border-box;resize:none;font-family:var(--mono);font-size:11px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:12px;line-height:1.55;white-space:pre"></textarea>
@@ -2480,7 +2481,7 @@ function exportPDF(){
 // ── Curtailment Analysis Tab ─────────────────────────────────────────────────
 let _anPvHourly=null,_anLoadHourly=null,_anCurtHourly=null,_anGridHourly=null;
 let _anHeatmapView='year';
-let _anSweepResults=[],_anPeakCurtDay=0,_anCsvData=null,_anSimBase=null,_anSimParams=null;
+let _anSweepResults=[],_anPeakCurtDay=0,_anCsvData=null,_anSimBase=null,_anSimParams=null,_anKneePct=null;
 let _chartMonthly=null,_chartSizing=null,_chartDispatch=null;
 let _anPvWattsData=null; // hourly kW array fetched from NREL PVWatts API
 
@@ -3072,6 +3073,7 @@ async function runAnalysis(){
     $('an-batt-slider-row').style.display='block';
     anUpdateBattLabel();
     renderDispatchChart();
+    if(_anKneePct!=null) $('an-pv-target-pct').value=Math.round(_anKneePct);
     anComputePvSizing();
 
     $('an-placeholder').style.display='none';
@@ -3256,6 +3258,7 @@ function anRenderSizingChart(sweep,totalCurt,rate){
   }
   const kneeKwh=sweep[kneeIdx].kwh;
   const kneePct=pcts[kneeIdx];
+  _anKneePct=kneePct;
 
   // Per-point styling: highlight knee
   const pointRadii=sweep.map((_,i)=>i===kneeIdx?7:2);
@@ -3674,6 +3677,61 @@ function downloadDebugReport(){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download=(gv('projName')||'solar-sld')+'-debug.txt';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+
+function download8760Csv(){
+  if(!_anPvHourly||!_anLoadHourly){
+    alert('Run the curtailment analysis first to generate 8760 profiles.');
+    return;
+  }
+  const params=_anSimParams||{};
+  const s=_anSweepResults&&_anBattIdx!=null?_anSweepResults[_anBattIdx]:null;
+  const hasBatt=s&&s.kwh>0;
+
+  let battCharge=new Float64Array(8760),battDischarge=new Float64Array(8760);
+  let socArr=new Float64Array(8760),gridNet=new Float64Array(8760);
+  let curtail=_anCurtHourly||new Float64Array(8760);
+
+  if(hasBatt){
+    const res=simulate(_anPvHourly,_anLoadHourly,params.exportLimKw||0,s.kw,s.kwh,params.rte||0.9);
+    battCharge=res.battCharge; battDischarge=res.battDischarge;
+    socArr=res.socArr; gridNet=res.gridNet; curtail=res.curtail;
+  } else if(_anSimBase){
+    gridNet=_anSimBase.gridNet; curtail=_anSimBase.curtail;
+  }
+
+  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const MDAYS=[31,28,31,30,31,30,31,31,30,31,30,31];
+  const monthOf=new Uint8Array(8760);
+  let hh=0;
+  MDAYS.forEach((d,m)=>{for(let i=0;i<d*24;i++,hh++) monthOf[hh]=m;});
+
+  const pvSrc=_anPvWattsData?'PVWatts_TMY':'ClearSky';
+  const battCols=hasBatt?',batt_charge_kw,batt_discharge_kw,soc_kwh':'';
+  const header=`hour_of_year,month,day_of_month,hour_of_day,pv_kw,load_kw,curtailment_kw${battCols},grid_import_kw,grid_export_kw`;
+  const rows=[header];
+  let dom=1,prevM=0;
+  for(let h=0;h<8760;h++){
+    const m=monthOf[h], hod=h%24;
+    if(m!==prevM){dom=1;prevM=m;}
+    const pv=(+(_anPvHourly[h]||0).toFixed(3));
+    const ld=(+(_anLoadHourly[h]||0).toFixed(3));
+    const cu=(+(curtail[h]||0).toFixed(3));
+    const gn=gridNet[h]||0;
+    const gi=(+(Math.max(0,gn)).toFixed(3));
+    const ge=(+(Math.max(0,-gn)).toFixed(3));
+    const batt=hasBatt?`,${+(battCharge[h]||0).toFixed(3)},${+(battDischarge[h]||0).toFixed(3)},${+(socArr[h]||0).toFixed(3)}`:'';
+    rows.push(`${h+1},${MONTHS[m]},${dom},${hod},${pv},${ld},${cu}${batt},${gi},${ge}`);
+    if(hod===23) dom++;
+  }
+
+  const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  const battTag=hasBatt?`_${s.kwh}kWh`:'_nobatt';
+  a.download=`${(gv('projName')||'solar-sld').replace(/[^a-z0-9]/gi,'_')}_8760_${pvSrc}${battTag}.csv`;
   a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),5000);
 }
