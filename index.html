@@ -946,6 +946,8 @@ function showMonthlyModal(type){
   const label=type==='pv'?'PV Generation':type==='load'?'Load':'Curtailment';
   const color=type==='pv'?'#f5c842':type==='load'?'#60c8f5':'#f07050';
   const peak=Math.max(...series)||1;
+  const seriesTotal=series.reduce((a,b)=>a+b,0)||1;
+  const isCurt=type==='curt';
   // bar chart SVG
   const W=460,H=110,pad=4,barW=Math.floor((W-pad*2)/12)-3;
   let bars='';
@@ -953,9 +955,12 @@ function showMonthlyModal(type){
     const bh=Math.round((series[i]/peak)*(H-20));
     const x=pad+i*(barW+3);
     const y=H-20-bh;
+    const barLabel=isCurt
+      ? (series[i]/seriesTotal*100).toFixed(1)+'%'
+      : series[i].toFixed(1);
     bars+=`<rect x="${x}" y="${y}" width="${barW}" height="${bh}" fill="${color}" rx="2" opacity="0.85"/>`;
     bars+=`<text x="${x+barW/2}" y="${H-6}" text-anchor="middle" font-size="8" fill="#8890a8">${mn}</text>`;
-    bars+=`<text x="${x+barW/2}" y="${y-3}" text-anchor="middle" font-size="7.5" fill="${color}">${series[i].toFixed(1)}</text>`;
+    bars+=`<text x="${x+barW/2}" y="${y-3}" text-anchor="middle" font-size="7.5" fill="${color}">${barLabel}</text>`;
   });
   const svg=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;margin-bottom:12px">${bars}</svg>`;
   // table
@@ -968,12 +973,25 @@ function showMonthlyModal(type){
       <td style="padding:3px 8px;text-align:right;color:#f07050">${curtM[i].toFixed(2)}</td>
     </tr>`;
   });
-  const totPv=pvM.reduce((a,b)=>a+b,0),totLd=loadM.reduce((a,b)=>a+b,0),totCu=curtM.reduce((a,b)=>a+b,0);
+  const totPv=pvM.reduce((a,b)=>a+b,0),totLd=loadM.reduce((a,b)=>a+b,0),totCu=curtM.reduce((a,b)=>a+b,0)||1;
+  // rebuild rows with % column
+  rows='';
+  MONTHS.forEach((mn,i)=>{
+    const pctOfCu=(curtM[i]/totCu*100).toFixed(1);
+    rows+=`<tr>
+      <td style="padding:3px 8px;font-weight:600">${mn}</td>
+      <td style="padding:3px 8px;text-align:right">${pvM[i].toFixed(2)}</td>
+      <td style="padding:3px 8px;text-align:right">${loadM[i].toFixed(2)}</td>
+      <td style="padding:3px 8px;text-align:right;color:#f07050">${curtM[i].toFixed(2)}</td>
+      <td style="padding:3px 8px;text-align:right;color:#f07050;opacity:.75">${pctOfCu}%</td>
+    </tr>`;
+  });
   rows+=`<tr style="border-top:1px solid var(--border);font-weight:700">
     <td style="padding:4px 8px">Total</td>
     <td style="padding:4px 8px;text-align:right">${totPv.toFixed(2)}</td>
     <td style="padding:4px 8px;text-align:right">${totLd.toFixed(2)}</td>
     <td style="padding:4px 8px;text-align:right;color:#f07050">${totCu.toFixed(2)}</td>
+    <td style="padding:4px 8px;text-align:right;color:#f07050;opacity:.75">100%</td>
   </tr>`;
   const thS='padding:4px 8px;text-align:right;font-size:9px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase';
   const table=`<table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px">
@@ -982,6 +1000,7 @@ function showMonthlyModal(type){
       <th style="${thS}">PV (MWh)</th>
       <th style="${thS}">Load (MWh)</th>
       <th style="${thS}">Curt. (MWh)</th>
+      <th style="${thS}">Curt. %</th>
     </tr></thead><tbody>${rows}</tbody></table>`;
   $('monthly-modal-title').textContent=`Monthly Breakdown — ${pvSrc}`;
   $('monthly-modal-body').innerHTML=svg+table;
