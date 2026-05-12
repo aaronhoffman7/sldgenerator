@@ -609,9 +609,10 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             <h3>Dispatch Profile — <span id="an-dispatch-label">Peak Curtailment Day</span></h3>
             <div style="height:220px;position:relative"><canvas id="an-dispatch-chart"></canvas></div>
             <div id="an-batt-slider-row" style="display:none;margin-top:14px">
-              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
-                <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Battery assumption</span>
-                <span id="an-batt-slider-label" style="font-size:11px;font-family:var(--mono);color:var(--text)">--</span>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;gap:8px">
+                <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Battery assumption</span>
+                <span id="an-batt-slider-label" style="font-size:11px;font-family:var(--mono);color:var(--text);flex:1;text-align:right">--</span>
+                <button class="hbtn" id="an-apply-batt-btn" onclick="applyBattToSLD()" title="Apply this battery size to the SLD" style="white-space:nowrap;flex-shrink:0">→ Apply to SLD</button>
               </div>
               <input type="range" id="an-batt-slider" min="0" step="1" value="0"
                      style="width:100%;accent-color:var(--accent2);cursor:pointer"
@@ -3335,6 +3336,25 @@ function anBattSliderChanged(){
   anUpdateBattLabel();
   renderDispatchChart();
   anComputePvSizing();
+}
+
+function applyBattToSLD(){
+  const s=_anSweepResults&&_anBattIdx!=null?_anSweepResults[_anBattIdx]:null;
+  if(!s||s.kwh===0){alert('Select a non-zero battery size on the slider first.');return;}
+  // Ensure battery is enabled on SLD
+  const hasBattEl=document.getElementById('hasBatt');
+  if(hasBattEl&&!hasBattEl.checked){ hasBattEl.checked=true; toggleBattFields(); }
+  $('battKw').value=Math.round(s.kw*10)/10;
+  $('battKwh').value=s.kwh;
+  $('pcsKva').value=Math.round(s.kw*10)/10;
+  render();
+  saveState();
+  // Flash the button to confirm
+  const btn=$('an-apply-batt-btn');
+  const orig=btn.textContent;
+  btn.textContent='✓ Applied';
+  btn.style.color='var(--green)';
+  setTimeout(()=>{btn.textContent=orig;btn.style.color='';},1800);
 }
 
 function anComputePvSizing(){
