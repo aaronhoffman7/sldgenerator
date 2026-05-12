@@ -618,6 +618,17 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
               <div style="display:flex;justify-content:space-between;margin-top:3px;font-size:9px;color:var(--muted)">
                 <span>No battery</span><span id="an-batt-slider-maxlbl"></span>
               </div>
+              <div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                  <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">PV Sizing — Recovery ≥</span>
+                  <input type="number" id="an-pv-target-pct" value="80" min="10" max="100" step="5"
+                         style="width:56px;font-size:11px;padding:3px 6px;font-family:var(--mono)"
+                         oninput="anComputePvSizing()">
+                  <span style="font-size:9px;color:var(--muted)">%</span>
+                  <span id="an-pv-sizing-result" style="font-size:11px;font-family:var(--mono);color:var(--accent2);margin-left:auto">—</span>
+                </div>
+                <div id="an-pv-sizing-sub" style="font-size:9px;color:var(--muted);margin-top:5px"></div>
+              </div>
             </div>
             <div style="margin-top:10px">
               <select id="an-dispatch-day-sel" onchange="showDispatchDay(this.value)" style="font-size:10px;padding:4px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px">
@@ -3061,6 +3072,7 @@ async function runAnalysis(){
     $('an-batt-slider-row').style.display='block';
     anUpdateBattLabel();
     renderDispatchChart();
+    anComputePvSizing();
 
     $('an-placeholder').style.display='none';
     $('an-results').style.display='flex';
@@ -3319,6 +3331,52 @@ function anBattSliderChanged(){
   _anBattIdx=parseInt(gv('an-batt-slider'));
   anUpdateBattLabel();
   renderDispatchChart();
+  anComputePvSizing();
+}
+
+function anComputePvSizing(){
+  const res=$('an-pv-sizing-result'), sub=$('an-pv-sizing-sub');
+  if(!_anPvHourly||!_anLoadHourly||!_anSimParams||!_anSweepResults){
+    res.textContent='Run analysis first'; return;
+  }
+  const s=_anSweepResults[_anBattIdx];
+  const targetFrac=(parseFloat(gv('an-pv-target-pct'))||80)/100;
+  const params=_anSimParams;
+  const pvKw=params.pvKw;
+  const pvNorm=_anPvHourly.map(v=>v/pvKw);
+  const load=_anLoadHourly;
+  const exportLim=params.exportLimKw;
+  const rte=params.rte;
+  const battKwh=s.kwh, battKw=s.kw;
+
+  function checkPv(kw){
+    const pv=pvNorm.map(v=>v*kw);
+    const base=simulate(pv,load,exportLim,0,0,1.0);
+    const totalCurt=anSum(base.curtail);
+    if(totalCurt===0) return 1.0;
+    const battRes=battKwh>0?simulate(pv,load,exportLim,battKw,battKwh,rte):base;
+    return (totalCurt-anSum(battRes.curtail))/totalCurt;
+  }
+
+  // Binary search: find max PV where recovery >= targetFrac
+  let lo=pvKw*0.05, hi=pvKw*20;
+  // If even the minimum fails, no PV works
+  if(checkPv(lo)<targetFrac){
+    res.textContent='< '+lo.toFixed(0)+' kW DC';
+    sub.textContent='Target recovery unachievable even at minimal PV — reduce target % or increase battery.';
+    return;
+  }
+  // If the cap still passes, we hit the ceiling
+  const atCap=checkPv(hi)>=targetFrac;
+  if(!atCap){
+    for(let i=0;i<22;i++){const mid=(lo+hi)/2;if(checkPv(mid)>=targetFrac)lo=mid;else hi=mid;}
+  }
+  const maxPv=atCap?hi:Math.round(lo);
+  const recAtMax=(checkPv(maxPv)*100).toFixed(0);
+  const ratio=(maxPv/pvKw).toFixed(2);
+  res.textContent=(atCap?'> ':'')+Math.round(maxPv)+' kW DC';
+  sub.textContent=`${recAtMax}% recovery · ${ratio}× current system (${pvKw} kW DC)`
+    +(battKwh>0?` · ${battKwh} kWh battery`:'· no battery');
 }
 
 function anUpdateBattLabel(){
