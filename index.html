@@ -948,19 +948,29 @@ function showMonthlyModal(type){
   const peak=Math.max(...series)||1;
   const seriesTotal=series.reduce((a,b)=>a+b,0)||1;
   const isCurt=type==='curt';
-  // bar chart SVG
-  const W=460,H=110,pad=4,barW=Math.floor((W-pad*2)/12)-3;
+  function heatColor(t){
+    const stops=[[40,80,180],[32,178,140],[245,200,20],[240,110,30],[210,35,35]];
+    const si=Math.min(stops.length-2,Math.floor(t*(stops.length-1)));
+    const f=t*(stops.length-1)-si;
+    const [r1,g1,b1]=stops[si],[r2,g2,b2]=stops[si+1];
+    return `rgb(${Math.round(r1+(r2-r1)*f)},${Math.round(g1+(g2-g1)*f)},${Math.round(b1+(b2-b1)*f)})`;
+  }
+  // bar chart SVG — topPad reserves room for label above tallest bar
+  const W=460,H=120,pad=4,topPad=16,bottomPad=18,barW=Math.floor((W-pad*2)/12)-3;
+  const barArea=H-topPad-bottomPad;
   let bars='';
   MONTHS.forEach((mn,i)=>{
-    const bh=Math.round((series[i]/peak)*(H-20));
+    const t=series[i]/peak;
+    const bh=Math.round(t*barArea);
     const x=pad+i*(barW+3);
-    const y=H-20-bh;
+    const y=topPad+barArea-bh;
+    const barColor=isCurt?heatColor(t):color;
     const barLabel=isCurt
       ? (series[i]/seriesTotal*100).toFixed(1)+'%'
       : series[i].toFixed(1);
-    bars+=`<rect x="${x}" y="${y}" width="${barW}" height="${bh}" fill="${color}" rx="2" opacity="0.85"/>`;
-    bars+=`<text x="${x+barW/2}" y="${H-6}" text-anchor="middle" font-size="8" fill="#8890a8">${mn}</text>`;
-    bars+=`<text x="${x+barW/2}" y="${y-3}" text-anchor="middle" font-size="7.5" fill="${color}">${barLabel}</text>`;
+    bars+=`<rect x="${x}" y="${y}" width="${barW}" height="${bh}" fill="${barColor}" rx="2"/>`;
+    bars+=`<text x="${x+barW/2}" y="${H-4}" text-anchor="middle" font-size="8" fill="#8890a8">${mn}</text>`;
+    bars+=`<text x="${x+barW/2}" y="${y-3}" text-anchor="middle" font-size="7.5" fill="${barColor}">${barLabel}</text>`;
   });
   const svg=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;margin-bottom:12px">${bars}</svg>`;
   // table
