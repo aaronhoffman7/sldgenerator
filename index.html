@@ -1107,18 +1107,22 @@ function pvStringSymbol(cx, cy, w, h, idx) {
   const termLen = 5;
   let s = '';
   if(PV_SYM_B64) {
-    // Use uploaded PNG — transparent background, image fills the cell area
-    s += `<image href="${PV_SYM_B64}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet"/>`;
-  } else {
-    s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="#fef9d0" stroke="#a08800" stroke-width="1.3"/>`;
-    const armTopY = y + h * 0.15, armBotY = y + h * 0.82;
-    const armLeftX = x + w * 0.2, armRightX = x + w * 0.8;
-    s += `<line x1="${armLeftX}" y1="${armTopY}" x2="${cx}" y2="${armBotY}" stroke="#a08800" stroke-width="1.6"/>`;
-    s += `<line x1="${armRightX}" y1="${armTopY}" x2="${cx}" y2="${armBotY}" stroke="#a08800" stroke-width="1.6"/>`;
-    const tickW = w * 0.28;
-    s += `<line x1="${cx-tickW/2}" y1="${armBotY}" x2="${cx+tickW/2}" y2="${armBotY}" stroke="#a08800" stroke-width="1.6"/>`;
+    // SVG has built-in terminal leads — render image proportionally, leads at edges
+    // viewBox 142×199: box portion y=22–188, leads y=3–22 (top) and y=188–199 (bottom)
+    const imgH = Math.round(w * 199 / 142); // preserve aspect ratio
+    const imgY = y - Math.round(imgH * 22 / 199); // shift up so box aligns with y
+    s += `<image href="${PV_SYM_B64}" x="${x}" y="${imgY}" width="${w}" height="${imgH}" preserveAspectRatio="xMidYMid meet"/>`;
+    const topTerm = imgY + Math.round(imgH * 3 / 199);   // where top lead starts
+    const botTerm = imgY + Math.round(imgH * 199 / 199); // bottom of image
+    return { svg: s, topTermY: topTerm, botTermY: botTerm };
   }
-  // Terminal leads always drawn
+  s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="#fef9d0" stroke="#a08800" stroke-width="1.3"/>`;
+  const armTopY = y + h * 0.15, armBotY = y + h * 0.82;
+  const armLeftX = x + w * 0.2, armRightX = x + w * 0.8;
+  s += `<line x1="${armLeftX}" y1="${armTopY}" x2="${cx}" y2="${armBotY}" stroke="#a08800" stroke-width="1.6"/>`;
+  s += `<line x1="${armRightX}" y1="${armTopY}" x2="${cx}" y2="${armBotY}" stroke="#a08800" stroke-width="1.6"/>`;
+  const tickW = w * 0.28;
+  s += `<line x1="${cx-tickW/2}" y1="${armBotY}" x2="${cx+tickW/2}" y2="${armBotY}" stroke="#a08800" stroke-width="1.6"/>`;
   s += `<line x1="${cx}" y1="${y}" x2="${cx}" y2="${y-termLen}" stroke="#a08800" stroke-width="1.3"/>`;
   s += `<line x1="${cx}" y1="${y+h}" x2="${cx}" y2="${y+h+termLen}" stroke="#a08800" stroke-width="1.3"/>`;
   return { svg: s, topTermY: y - termLen, botTermY: y + h + termLen };
@@ -1159,7 +1163,6 @@ function renderPVArray(v, cx, startY) {
   for (let i = maxShadow; i > 0; i--) {
     const ox = i * shadowStep, oy = i * shadowStep;
     s += `<rect x="${cx - modW/2 + ox}" y="${startY + oy}" width="${modW}" height="${modH}" rx="2" fill="#fef9d0" stroke="#a08800" stroke-width="0.8" opacity="0.45"/>`;
-    s += `<line x1="${cx - modW/2 + ox + 3}" y1="${startY + oy + modH - 3}" x2="${cx + modW/2 + ox - 3}" y2="${startY + oy + 3}" stroke="#a08800" stroke-width="0.7" opacity="0.35"/>`;
   }
 
   // Front symbol — label suppressed when stacking (count shown in top-left corner instead)
@@ -3834,14 +3837,15 @@ setTimeout(function(){
     .catch(function(){ render(); });
 })();
 (function loadPvSym(){
-  fetch('pvstring.png')
-    .then(r => r.blob())
-    .then(blob => {
+  // Prefer SVG (scales perfectly), fall back to PNG
+  const tryLoad = (url) => fetch(url)
+    .then(r => { if(!r.ok) throw new Error(); return r.blob(); })
+    .then(blob => new Promise(res => {
       const reader = new FileReader();
-      reader.onload = function(){ PV_SYM_B64 = reader.result; render(); };
+      reader.onload = () => { PV_SYM_B64 = reader.result; render(); res(); };
       reader.readAsDataURL(blob);
-    })
-    .catch(function(){}); // silently skip if not present
+    }));
+  tryLoad('pvstring.svg').catch(() => tryLoad('pvstring.png').catch(() => {}));
 })();
 </script>
 </body>
