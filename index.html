@@ -1180,9 +1180,9 @@ function renderPVArray(v, cx, startY) {
     s += `<line x1="${leftCX}" y1="${botTermY}" x2="${rightCX}" y2="${botTermY}" stroke="#a08800" stroke-width="1.8"/>`;
   }
 
-  // Note when more than 6 strings
+  // Note when more than 6 strings — placed right of envelope to clear the vertical conductor at cx
   if (nStr > 6) {
-    s += `<text x="${cx}" y="${envY + envH + 14}" style="fill:#7a6a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-style:italic" text-anchor="middle">showing 6 of ${nStr}</text>`;
+    s += `<text x="${envX + envW + 6}" y="${envY + envH - 6}" style="fill:#7a6a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-style:italic" text-anchor="start">showing 6 of ${nStr}</text>`;
   }
 
   return { svg: s, botY: botTermY, envRightX: envX + envW };
@@ -1807,6 +1807,21 @@ function battVChanged(){
   }
   render();
 }
+// Draw a single inverter electrical symbol (IEC DC→AC) inside a w×h rect centered at (cx, cy).
+function invSymbol(cx, cy, w, h, fill, stroke) {
+  const x = cx - w/2, y = cy - h/2;
+  let s = '';
+  s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${fill}" stroke="${stroke}" stroke-width="1.3"/>`;
+  const gw = Math.round(w * 0.76), gh = Math.round(h * 0.56);
+  const gx = cx - gw/2, gy = cy - gh/2;
+  s += `<line x1="${gx}" y1="${gy+gh}" x2="${gx+gw}" y2="${gy}" stroke="${stroke}" stroke-width="1.2"/>`;
+  s += `<line x1="${gx+2}" y1="${gy+gh*0.27}" x2="${gx+gw/2-2}" y2="${gy+gh*0.27}" stroke="${stroke}" stroke-width="1.1"/>`;
+  s += `<line x1="${gx+2}" y1="${gy+gh*0.44}" x2="${gx+gw/2-2}" y2="${gy+gh*0.44}" stroke="${stroke}" stroke-width="1.1"/>`;
+  const wx0=gx+gw/2+2, wx1=gx+gw-2, wcy=gy+gh*0.73, wa=3, wm=(wx0+wx1)/2;
+  s += `<path d="M ${wx0},${wcy} C ${wx0+3},${wcy-wa} ${wm-3},${wcy-wa} ${wm},${wcy} S ${wm+5},${wcy+wa} ${wx1},${wcy}" fill="none" stroke="${stroke}" stroke-width="1.1"/>`;
+  return { svg: s };
+}
+
 function renderArrayColumn(cfg, cx, startY) {
   const BW=160, BX=cx-BW/2, W=26;
   let s=[];
@@ -1827,7 +1842,7 @@ function renderArrayColumn(cfg, cx, startY) {
       s.push(compBox(BX,y,BW,44,'#edf2ff','#3a6bc0',title,`${cfg.invV} AC`,'NEC 705.12'));
       y+=44; s.push(wireAC(cx,y,cx,y+W)); y+=W;
     }
-    return {svg:s.join('\n'), invBotY:y, invMidY:y-Math.round(W/2), envRightX:pv.envRightX, dcBusY:null};
+    return {svg:s.join('\n'), invBotY:y, invMidY:y-Math.round(W/2), envRightX:pv.envRightX, dcBusY:null, invRightX:cx+BW/2};
   }
 
   // ── String / Central / Hybrid path ─────────────────────────────────────
@@ -1835,56 +1850,83 @@ function renderArrayColumn(cfg, cx, startY) {
   s.push(wlabel(pv.envRightX+12, y-4, `Voc=${stringVoc}V  Isc=${arrayIsc}A`, false, 'start'));
   const PV_DROP=W+24;
   s.push(wireDC(cx,y,cx,y+PV_DROP));
-  s.push(wlabel(BX-4, y+PV_DROP/2+4, `#${dcRows.strW.awg} THWN-2`, false, 'end'));
+  s.push(wlabel(cx-4, y+PV_DROP/2, `#${dcRows.strW.awg} THWN-2`, false, 'end'));
   y+=PV_DROP;
   if(cfg.hasCombiner){
     const title=cfg.colLabel?`String Combiner ${cfg.colLabel}`:'String Combiner(s)';
     s.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8',title,`${cfg.combV} VDC max`,`${cfg.strings} str · ${cfg.combFuse}A OCP · NEC 690.9`));
     y+=54;
     s.push(wireDC(cx,y,cx,y+W));
-    s.push(wlabel(BX-4, y+W/2+4, `#${dcRows.dcW.awg} THWN-2`, false, 'end'));
+    s.push(wlabel(cx-4, y+W/2, `#${dcRows.dcW.awg} THWN-2`, false, 'end'));
     y+=W;
   }
   s.push(discBox(BX+15,y,BW-30,54,'#f5f7fc','#a0aac8','DC Disconnect',`${cfg.combV} VDC · ${Math.ceil(parseFloat(arrayIsc)*1.25)}A`,'NEC 690.13 / 690.15'));
   y+=54;
   if(cfg.hasSPD) s.push(spdSym(cx, y+Math.round(W/2), false, 'right', `${cfg.combV} VDC · Type 1`, 140));
   s.push(wireDC(cx,y,cx,y+W));
-  s.push(wlabel(BX-4, y+W/2, 'DC', false, 'end'));
-  s.push(wlabel(BX-4, y+W/2+10, `#${dcRows.dcW.awg} THWN-2`, false, 'end'));
+  s.push(wlabel(cx-4, y+W/2-4, 'DC', false, 'end'));
+  s.push(wlabel(cx-4, y+W/2+7, `#${dcRows.dcW.awg} THWN-2`, false, 'end'));
   y+=W;
   const iF=cfg.invType==='hybrid'?'#ebf8f3':'#edf2ff';
   const iS=cfg.invType==='hybrid'?'#1e8a60':'#3a6bc0';
   const iL=cfg.invType==='hybrid'?'Hybrid Inverter':cfg.invType==='central'?'Central Inverter':cfg.invCount>1?'String Inverters':'String Inverter';
   const iTotKw=(cfg.invKw*cfg.invCount).toFixed(1).replace(/\.0$/,'');
   const iSub=cfg.invCount>1?`${cfg.invCount}× ${cfg.invKw} kW = ${iTotKw} kW · ${cfg.invV}`:`${cfg.invKw} kW · ${cfg.invV}`;
-  const invH=cfg.hasRSD?92:78;
-  if(cfg.invCount>1){const sh=Math.min(cfg.invCount-1,2);for(let i=sh;i>0;i--) s.push(`<rect x="${cx-100+i*5}" y="${y+i*5}" width="200" height="${invH}" rx="6" fill="${iF}" stroke="${iS}" stroke-width="0.8" opacity="0.45"/>`);}
   const rsdInvSub=cfg.hasRSD?(cfg.rsdMethod==='pvhcs'?'Dedicated RSD Receivers · NEC 690.12(C)':'MLPE — DC Optimizers · NEC 690.12(C)'):null;
-  // Inverter box: title + inline IEC glyph on first row, then sub-text below
-  {
-    const bx=cx-100, bw=200, gw=22, gh=22, pad=8;
-    s.push(`<rect x="${bx}" y="${y}" width="${bw}" height="${invH}" rx="6" fill="${iF}" stroke="${iS}" stroke-width="1"/>`);
-    // Title row: label on left, IEC glyph immediately to its right
-    const titleY=y+pad+11; // baseline of title
-    s.push(`<text x="${bx+pad}" y="${titleY}" class="sld-lbl" text-anchor="start">${esc(iL)}</text>`);
-    // IEC glyph aligned to title baseline, right of title text
-    const gx=cx+32, gy=titleY-gh+3;
-    s.push(`<rect x="${gx}" y="${gy}" width="${gw}" height="${gh}" fill="none" stroke="${iS}" stroke-width="1.1"/>`);
-    s.push(`<line x1="${gx}" y1="${gy+gh}" x2="${gx+gw}" y2="${gy}" stroke="${iS}" stroke-width="1.1"/>`);
-    s.push(`<line x1="${gx+2}" y1="${gy+7}" x2="${gx+gw/2-1}" y2="${gy+7}" stroke="${iS}" stroke-width="1.1"/>`);
-    s.push(`<line x1="${gx+2}" y1="${gy+11}" x2="${gx+gw/2-1}" y2="${gy+11}" stroke="${iS}" stroke-width="1.1"/>`);
-    const wx0=gx+gw/2+1,wx1=gx+gw-2,wcy=gy+gh-7,wa=3,wm=(wx0+wx1)/2;
-    s.push(`<path d="M ${wx0},${wcy} C ${wx0+3},${wcy-wa} ${wm-3},${wcy-wa} ${wm},${wcy} S ${wm+5},${wcy+wa} ${wx1},${wcy}" fill="none" stroke="${iS}" stroke-width="1.1"/>`);
-    // Sub-text lines below title
-    const subLines=[iSub,cfg.invModel,rsdInvSub].filter(Boolean);
-    subLines.forEach((line,i)=>{
-      s.push(`<text x="${bx+pad}" y="${titleY+14*(i+1)}" class="sld-sub" text-anchor="start">${esc(line)}</text>`);
-    });
-    s.push(`<text x="${cx}" y="${y+invH-8}" style="fill:#8090a8;font-family:'Avenir Next','Avenir',sans-serif;font-size:7.5px;font-style:italic" text-anchor="middle">Int. AFCI · NEC 690.11  ·  GFPD · NEC 690.5</text>`);
+  const subLines=[iSub,cfg.invModel,rsdInvSub].filter(Boolean);
+
+  // Side-by-side inverter symbols inside a box (consistent with PV string layout)
+  const invSymW=46, invSymH=58, invGap=8;
+  const showInvCount=Math.min(cfg.invCount,6);
+  const totalInvSymW=showInvCount*invSymW+(showInvCount-1)*invGap;
+  const invBW=Math.max(200,totalInvSymW+28);
+  const invBX=cx-invBW/2;
+
+  // Layout constants
+  const topPad=8, titleH=14, symGap=5, botPad=8, necH=11, subLH=11;
+  const invH=topPad+titleH+symGap+invSymH+symGap+subLines.length*subLH+necH+botPad;
+
+  // Outer box
+  s.push(`<rect x="${invBX}" y="${y}" width="${invBW}" height="${invH}" rx="6" fill="${iF}" stroke="${iS}" stroke-width="1"/>`);
+
+  // Title centered at top
+  const titleY=y+topPad+13;
+  s.push(`<text x="${cx}" y="${titleY}" class="sld-lbl" text-anchor="middle">${esc(iL)}</text>`);
+
+  // Symbol row
+  const symStartY=y+topPad+titleH+symGap;
+  const symCY=symStartY+invSymH/2;
+  const invGroupLeft=cx-totalInvSymW/2;
+  for(let i=0;i<showInvCount;i++){
+    const symCX=invGroupLeft+i*(invSymW+invGap)+invSymW/2;
+    s.push(invSymbol(symCX,symCY,invSymW,invSymH,'#ffffff',iS).svg);
   }
+
+  // Horizontal bus bars when >1 inverter
+  if(showInvCount>1){
+    const lx=invGroupLeft+invSymW/2, rx=invGroupLeft+(showInvCount-1)*(invSymW+invGap)+invSymW/2;
+    s.push(`<line x1="${lx}" y1="${symStartY}" x2="${rx}" y2="${symStartY}" stroke="${iS}" stroke-width="1.5"/>`);
+    s.push(`<line x1="${lx}" y1="${symStartY+invSymH}" x2="${rx}" y2="${symStartY+invSymH}" stroke="${iS}" stroke-width="1.5"/>`);
+  }
+
+  // "showing 6 of N" note right of box
+  if(cfg.invCount>6){
+    s.push(`<text x="${invBX+invBW+6}" y="${symStartY+invSymH}" style="fill:${iS};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-style:italic" text-anchor="start">showing 6 of ${cfg.invCount}</text>`);
+  }
+
+  // Sub-text lines
+  const subY0=y+topPad+titleH+symGap+invSymH+symGap;
+  subLines.forEach((line,i)=>{
+    s.push(`<text x="${cx}" y="${subY0+subLH*(i+1)}" class="sld-sub" text-anchor="middle">${esc(line)}</text>`);
+  });
+
+  // NEC compliance note at bottom
+  s.push(`<text x="${cx}" y="${y+invH-botPad}" style="fill:#8090a8;font-family:'Avenir Next','Avenir',sans-serif;font-size:7.5px;font-style:italic" text-anchor="middle">Int. AFCI · NEC 690.11  ·  GFPD · NEC 690.5</text>`);
+
   const invBotY=y+invH;
   const invMidY=y+Math.round(invH/2);
-  return {svg:s.join('\n'), invBotY, invMidY, envRightX:pv.envRightX, dcBusY:invBotY-invH-Math.round(W/2)};
+  const invRightX=invBX+invBW;
+  return {svg:s.join('\n'), invBotY, invMidY, envRightX:pv.envRightX, dcBusY:invBotY-invH-Math.round(W/2), invRightX};
 }
 
 function render(){
@@ -2020,11 +2062,13 @@ function render(){
   el.push(col1.svg);
 
   let invBot1=col1.invBotY, invBot2=col1.invBotY, col2InvMidY=col1.invMidY;
+  let col2InvRightX=col1.invRightX;
   if(v.hasArr2){
     const col2=renderArrayColumn({...v.a2, modsLast:a2ModsLast, hasRSD:v.hasRSD, rsdMethod:v.rsdMethod, colLabel:'2'}, CX2, PV_START_Y);
     el.push(col2.svg);
     invBot2=col2.invBotY;
     col2InvMidY=col2.invMidY;
+    col2InvRightX=col2.invRightX;
   }
 
   // ── AC merge bus ──────────────────────────────────────────────────────────
@@ -2099,7 +2143,7 @@ function render(){
   // AC Disconnect
   const acMainWire=wireFor(totalInvAcA*1.25);
   el.push(wireAC(MCX,y,MCX,y+W));
-  el.push(wlabel(MCX-10,y+W/2+4,`#${acMainWire.awg} THWN-2`,true,'end'));
+  el.push(wlabel(MCX-4,y+W/2+4,`#${acMainWire.awg} THWN-2`,true,'end'));
   y+=W;
   const acDiscY=y;
   const isMlpeRsd=v.hasRSD&&(v.invType==='micro'||v.rsdMethod==='mlpe');
@@ -2129,14 +2173,14 @@ function render(){
     const monW=175, monH=36;
     const isPvhcs = v.hasRSD && v.rsdMethod==='pvhcs';
     let monX = BX+BW+14;                                     // default: right of MSP
-    if(v.hasArr2) monX = Math.max(monX, CX2+120);            // clear array-2 column
+    if(v.hasArr2) monX = Math.max(monX, col2InvRightX+14);   // clear array-2 inverter box
     if(isPvhcs)   monX = Math.max(monX, MCX+BW/2+214);      // clear RSD transmitter box (MCX+100+200+14)
     const commX = monX + Math.round(monW/2);
     el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Data Logger / Gateway','PV Monitoring · NEC Art. 800'));
     // Comm line: always starts from arr1 AC output, spans across to logger (arr2 taps in along the way)
-    el.push(`<path d="M ${CX1+116} ${col1.invMidY} H ${commX} V ${panelY+14}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3" fill="none"/>`);
+    el.push(`<path d="M ${col1.invRightX+4} ${col1.invMidY} H ${commX} V ${panelY+14}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3" fill="none"/>`);
     // For dual array: junction dot where arr2 output meets the shared comm bus
-    if(v.hasArr2) el.push(`<circle cx="${CX2+116}" cy="${col2InvMidY}" r="3" fill="#7a84a0"/>`);
+    if(v.hasArr2) el.push(`<circle cx="${col2InvRightX+4}" cy="${col2InvMidY}" r="3" fill="#7a84a0"/>`);
   }
 
   // AC SPD between panel and utility meter
