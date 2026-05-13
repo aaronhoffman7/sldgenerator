@@ -1104,16 +1104,20 @@ const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'
 // Returns SVG markup + the Y coordinate of the bottom terminal tip
 function pvStringSymbol(cx, cy, w, h, idx) {
   const x = cx - w/2, y = cy - h/2;
-  const termLen = 5, pd = 8;
+  const termLen = 5;
   let s = '';
-  s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="#fef9d0" stroke="#a08800" stroke-width="1.2"/>`;
-  // Open V-shape: two arms from upper corners meeting at bottom-center apex
-  const vTopY = y + pd, vBotY = y + h - pd;
-  s += `<line x1="${x+pd}" y1="${vTopY}" x2="${cx}" y2="${vBotY}" stroke="#a08800" stroke-width="1.5"/>`;
-  s += `<line x1="${x+w-pd}" y1="${vTopY}" x2="${cx}" y2="${vBotY}" stroke="#a08800" stroke-width="1.5"/>`;
+  s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="#fef9d0" stroke="#a08800" stroke-width="1.3"/>`;
+  // Open V-shape — arms start 25% in from each side near top, meet at bottom center
+  const armTopY = y + h * 0.15;
+  const armBotY = y + h * 0.82;
+  const armLeftX = x + w * 0.2;
+  const armRightX = x + w * 0.8;
+  s += `<line x1="${armLeftX}" y1="${armTopY}" x2="${cx}" y2="${armBotY}" stroke="#a08800" stroke-width="1.6"/>`;
+  s += `<line x1="${armRightX}" y1="${armTopY}" x2="${cx}" y2="${armBotY}" stroke="#a08800" stroke-width="1.6"/>`;
   // Horizontal tick at apex
-  s += `<line x1="${cx-8}" y1="${vBotY}" x2="${cx+8}" y2="${vBotY}" stroke="#a08800" stroke-width="1.5"/>`;
-  // Terminal leads top and bottom
+  const tickW = w * 0.28;
+  s += `<line x1="${cx-tickW/2}" y1="${armBotY}" x2="${cx+tickW/2}" y2="${armBotY}" stroke="#a08800" stroke-width="1.6"/>`;
+  // Terminal leads
   s += `<line x1="${cx}" y1="${y}" x2="${cx}" y2="${y-termLen}" stroke="#a08800" stroke-width="1.3"/>`;
   s += `<line x1="${cx}" y1="${y+h}" x2="${cx}" y2="${y+h+termLen}" stroke="#a08800" stroke-width="1.3"/>`;
   return { svg: s, topTermY: y - termLen, botTermY: y + h + termLen };
@@ -1180,9 +1184,9 @@ function pathDC(d){return`<path d="${d}" stroke="#c9a10a" stroke-width="2" strok
 function gndSym(x,y){return`<line x1="${x}" y1="${y}" x2="${x}" y2="${y+12}" stroke="#8090b8" stroke-width="1.2"/><line x1="${x-12}" y1="${y+12}" x2="${x+12}" y2="${y+12}" stroke="#8090b8" stroke-width="1.5"/><line x1="${x-8}" y1="${y+17}" x2="${x+8}" y2="${y+17}" stroke="#8090b8" stroke-width="1"/><line x1="${x-4}" y1="${y+22}" x2="${x+4}" y2="${y+22}" stroke="#8090b8" stroke-width="0.7"/><text x="${x}" y="${y+33}" class="sld-note" text-anchor="middle">GND</text>`;}
 function meterCircle(cx,cy){return`<circle cx="${cx}" cy="${cy}" r="15" fill="#f5f7fc" stroke="#a0aac8" stroke-width="1"/><text x="${cx}" y="${cy-2}" class="sld-note" text-anchor="middle">kWh</text><text x="${cx}" y="${cy+10}" class="sld-note" text-anchor="middle">MTR</text>`;}
 function wlabel(x,y,txt,ac,anchor='middle'){const col=ac?'#3d8ef8':'#c9a10a';return`<text x="${x}" y="${y}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="${anchor}">${esc(txt)}</text>`;}
-function spdSym(cx,y,isAc,side,info){
+function spdSym(cx,y,isAc,side,info,armLen){
   const col=isAc?'#3d8ef8':'#c9a10a', sw=isAc?2.5:2;
-  const blen=80, r=16;
+  const blen=armLen||90, r=16;
   const lx=side==='left'?cx-blen:cx+blen; // circle center
   const armEdge=side==='left'?lx+r:lx-r;  // where arm meets circle edge
   let s=`<line x1="${cx}" y1="${y}" x2="${armEdge}" y2="${y}" stroke="${col}" stroke-width="${sw}"/>`;
@@ -1824,7 +1828,7 @@ function renderArrayColumn(cfg, cx, startY) {
   }
   s.push(discBox(BX+15,y,BW-30,54,'#f5f7fc','#a0aac8','DC Disconnect',`${cfg.combV} VDC · ${Math.ceil(parseFloat(arrayIsc)*1.25)}A`,'NEC 690.13 / 690.15'));
   y+=54;
-  if(cfg.hasSPD) s.push(spdSym(cx, y+Math.round(W/2), false, 'right', `${cfg.combV} VDC · Type 1`));
+  if(cfg.hasSPD) s.push(spdSym(cx, y+Math.round(W/2), false, 'right', `${cfg.combV} VDC · Type 1`, 140));
   s.push(wireDC(cx,y,cx,y+W));
   s.push(wlabel(BX-4, y+W/2, 'DC', false, 'end'));
   s.push(wlabel(BX-4, y+W/2+10, `#${dcRows.dcW.awg} THWN-2`, false, 'end'));
