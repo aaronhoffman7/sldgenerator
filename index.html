@@ -405,6 +405,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="trow"><span>Utility visible disconnect (NEC 705.22)</span><label class="tog"><input type="checkbox" id="hasUtilDisc" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Bidirectional / net meter</span><label class="tog"><input type="checkbox" id="hasNetMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Monitoring / gateway</span><label class="tog"><input type="checkbox" id="hasMonitoring" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div class="trow"><span>Show NEC section labels</span><label class="tog"><input type="checkbox" id="showNecLabels" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     </div>
   </div>
   <div class="section">
@@ -1128,49 +1129,63 @@ function pvStringSymbol(cx, cy, w, h, idx) {
   return { svg: s, topTermY: y - termLen, botTermY: y + h + termLen };
 }
 
-// Render PV array as a single stacked symbol (like inverter stacking).
+// Render PV array as side-by-side symbols (up to 6), with bus bars when >1.
 // Returns { svg, botY, envRightX }.
 function renderPVArray(v, cx, startY) {
   const nStr = v.strings;
-  const modW = 58, modH = 80, termLen = 5;
-  const maxShadow = Math.min(nStr - 1, 2); // up to 2 shadow layers
-  const shadowStep = 5;
-  const shadowExtent = maxShadow * shadowStep;
+  const modW = 58, modH = 80;
+  const showCount = Math.min(nStr, 6);
+  const gap = 10;
+  const totalSymW = showCount * modW + (showCount - 1) * gap;
+  const groupLeft = cx - totalSymW / 2;
+  const modCY = startY + modH / 2;
+
+  // Get terminal y-positions from a reference symbol at cx
+  const refSym = pvStringSymbol(cx, modCY, modW, modH, null);
+  const topTermY = refSym.topTermY;
+  const botTermY = refSym.botTermY;
 
   const envPad = 14;
-  const envX = cx - modW/2 - envPad;
-  const envY = startY - termLen - envPad;
-  const envW = modW + shadowExtent + envPad * 2;
-  const envH = modH + shadowExtent + termLen * 2 + envPad * 2;
+  const envX = cx - totalSymW / 2 - envPad;
+  const envY = topTermY - envPad;
+  const envW = totalSymW + envPad * 2;
+  const envH = botTermY - topTermY + envPad * 2;
 
   let s = '';
   s += `<rect x="${envX}" y="${envY}" width="${envW}" height="${envH}" rx="6" fill="#fefce8" stroke="#c0a000" stroke-width="1" stroke-dasharray="4 3"/>`;
 
-  // Labels above envelope, centered over the visual stack
+  // Labels above envelope
   const modsLast = v.modsLast || v.mods;
   const hasPartial = modsLast !== v.mods && v.strings > 1;
   const totalMods = hasPartial ? (v.strings - 1) * v.mods + modsLast : v.strings * v.mods;
   const arrayKw = (totalMods * v.modW / 1000).toFixed(2);
   const arrLabel = v.colLabel ? `PV Array ${v.colLabel}` : 'PV Array';
-  const labelCX = cx + shadowExtent / 2;
   const stringSub = hasPartial
     ? `${v.strings - 1}×${v.mods} + 1×${modsLast} mods · ${arrayKw} kWp · ${esc(v.modModel)}`
     : `${v.strings} Strings · ${v.mods} Mods/string · ${arrayKw} kWp · ${esc(v.modModel)}`;
-  s += `<text x="${labelCX}" y="${envY - 16}" style="fill:#1a2040;font-family:'Avenir Next','Avenir',sans-serif;font-size:13px;font-weight:500" text-anchor="middle">${esc(arrLabel)}</text>`;
-  s += `<text x="${labelCX}" y="${envY - 4}" style="fill:#4a5580;font-family:'Avenir Next','Avenir',sans-serif;font-size:10px" text-anchor="middle">${stringSub}</text>`;
+  s += `<text x="${cx}" y="${envY - 16}" style="fill:#1a2040;font-family:'Avenir Next','Avenir',sans-serif;font-size:13px;font-weight:500" text-anchor="middle">${esc(arrLabel)}</text>`;
+  s += `<text x="${cx}" y="${envY - 4}" style="fill:#4a5580;font-family:'Avenir Next','Avenir',sans-serif;font-size:10px" text-anchor="middle">${stringSub}</text>`;
 
-  // Shadow string rects (back to front, like inverter stacking)
-  for (let i = maxShadow; i > 0; i--) {
-    const ox = i * shadowStep, oy = i * shadowStep;
-    s += `<rect x="${cx - modW/2 + ox}" y="${startY + oy}" width="${modW}" height="${modH}" rx="2" fill="#fef9d0" stroke="#a08800" stroke-width="0.8" opacity="0.45"/>`;
+  // Draw each symbol side by side
+  for (let i = 0; i < showCount; i++) {
+    const symCX = groupLeft + i * (modW + gap) + modW / 2;
+    s += pvStringSymbol(symCX, modCY, modW, modH, null).svg;
   }
 
-  // Front symbol — label suppressed when stacking (count shown in top-left corner instead)
-  const modCY = startY + modH / 2;
-  const sym = pvStringSymbol(cx, modCY, modW, modH, nStr === 1 ? 1 : null);
-  s += sym.svg;
+  // Horizontal bus bars connecting all symbols at top and bottom terminals
+  if (showCount > 1) {
+    const leftCX = groupLeft + modW / 2;
+    const rightCX = groupLeft + (showCount - 1) * (modW + gap) + modW / 2;
+    s += `<line x1="${leftCX}" y1="${topTermY}" x2="${rightCX}" y2="${topTermY}" stroke="#a08800" stroke-width="1.8"/>`;
+    s += `<line x1="${leftCX}" y1="${botTermY}" x2="${rightCX}" y2="${botTermY}" stroke="#a08800" stroke-width="1.8"/>`;
+  }
 
-  return { svg: s, botY: sym.botTermY, envRightX: envX + envW };
+  // Note when more than 6 strings
+  if (nStr > 6) {
+    s += `<text x="${cx}" y="${envY + envH + 14}" style="fill:#7a6a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-style:italic" text-anchor="middle">showing 6 of ${nStr}</text>`;
+  }
+
+  return { svg: s, botY: botTermY, envRightX: envX + envW };
 }
 
 function compBox(x,y,w,h,fill,stroke,title,sub1,sub2,sub3){
@@ -2065,8 +2080,7 @@ function render(){
     const acTapY=y+Math.round(W/2);
     const contTop=acTapY-20;
     el.push(pathAC(`M ${MCX} ${acTapY} H ${BX2}`));
-    // AC voltage label on the wire — shows where AC power flows in/out
-    el.push(wlabel((MCX+BX2)/2, acTapY-8, `AC · ${v.invV}`, true));
+    // AC voltage label removed (redundant — inverter box already shows voltage)
     renderBessContainer(contTop);
     battBotY=contTop+contH;
   }
@@ -2085,8 +2099,7 @@ function render(){
   // AC Disconnect
   const acMainWire=wireFor(totalInvAcA*1.25);
   el.push(wireAC(MCX,y,MCX,y+W));
-  el.push(wlabel(MCX+10,y+W/2,'AC',true));
-  el.push(wlabel(MCX-10,y+W/2+10,`#${acMainWire.awg} THWN-2`,true,'end'));
+  el.push(wlabel(MCX-10,y+W/2+4,`#${acMainWire.awg} THWN-2`,true,'end'));
   y+=W;
   const acDiscY=y;
   const isMlpeRsd=v.hasRSD&&(v.invType==='micro'||v.rsdMethod==='mlpe');
@@ -2344,7 +2357,13 @@ function render(){
   svg.setAttribute('width',SVG_W);
   svg.setAttribute('height',totalH);
   svg.setAttribute('viewBox',`0 0 ${SVG_W} ${totalH}`);
-  svg.innerHTML=el.join('\n');
+  let svgHtml=el.join('\n');
+  if(!gc('showNecLabels')){
+    // Remove standalone NEC reference text elements (e.g. "NEC 690.9", "NEC 230.67 / 242")
+    // Keeps compliance note sentences intact (they contain more than just the NEC code)
+    svgHtml=svgHtml.replace(/<text[^>]*>\s*NEC\s+[\d][\d\s./]*\s*<\/text>/g,'');
+  }
+  svg.innerHTML=svgHtml;
   positionDaeOverlay(LX, NY+necH+8);
 
   // ── Conduit sizing ────────────────────────────────────────────────────────
