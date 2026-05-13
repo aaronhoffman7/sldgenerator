@@ -74,8 +74,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .proj-item-meta{font-size:10px;color:var(--muted);margin-top:2px}
 .proj-item-btns{display:flex;gap:5px;flex-shrink:0}
 #projects-list{max-height:340px;overflow-y:auto;margin-top:12px}
-#projects-list::-webkit-scrollbar{width:4px}
-#projects-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+#projects-list::-webkit-scrollbar,#startup-proj-list::-webkit-scrollbar{width:4px}
+#projects-list::-webkit-scrollbar-thumb,#startup-proj-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 .sec-toggle{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
 .sec-toggle .stitle{margin-bottom:0}
 .sec-arrow{font-size:11px;color:var(--muted);transition:transform .2s;display:inline-block}
@@ -691,6 +691,20 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 </main>
 </div>
 
+<!-- Startup Modal -->
+<div id="startup-modal" class="modal-backdrop open">
+  <div class="modal" style="width:420px;max-width:95vw">
+    <div style="text-align:center;margin-bottom:20px">
+      <img src="logo.png" style="height:36px;width:auto;display:block;margin:0 auto 10px" onerror="this.style.display='none'">
+      <div style="font-size:15px;font-weight:600;color:var(--text)">Solar SLD Generator</div>
+    </div>
+    <div id="startup-proj-list" style="display:none;max-height:300px;overflow-y:auto;margin-bottom:16px"></div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button class="hbtn primary" onclick="startupNewProject()">New Project</button>
+    </div>
+  </div>
+</div>
+
 <!-- Save Modal -->
 <div id="save-modal" class="modal-backdrop" onclick="if(event.target===this)closeSaveModal()">
   <div class="modal">
@@ -892,7 +906,9 @@ async function loadProject(key){
   const data = JSON.parse(localStorage.getItem(key) || 'null');
   if(!data) return;
   _currentProjectKey = key;
-  restoreInputState(data.inputs); // sets _daeDismissed before renderDaePreview
+  restoreInputState(data.inputs);
+  toggleBattFields(true);
+  toggleMvFields();
   if(data.hasDae){
     const xml = await idbGet(key);
     if(xml){
@@ -901,13 +917,39 @@ async function loadProject(key){
       renderDaePreview(xml);
     }
   }
-  if(data.inputs && data.inputs.__pvWattsFetched){
-    fetchPVWatts(); // will call scheduleAnalysis() on completion
+  if(data.inputs && data.inputs.__pvWattsFetched && parseFloat(gv('an-lat')) && parseFloat(gv('an-lon'))){
+    fetchPVWatts(); // auto-refetch PVWatts data for this project
   } else {
     _anCanAutoRun=true;
     scheduleAnalysis(400);
   }
+  render();
   closeProjectsModal();
+  $('startup-modal').classList.remove('open');
+}
+
+function _renderStartupModal(){
+  const projects = getSavedProjects();
+  const listEl = $('startup-proj-list');
+  if(!projects.length){ listEl.style.display='none'; return; }
+  listEl.style.display = 'block';
+  listEl.innerHTML =
+    '<div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Saved Projects</div>' +
+    projects.map(p => {
+      const hasPV = p.inputs && p.inputs.__pvWattsFetched;
+      return `<div class="proj-item">
+        <div class="proj-item-info">
+          <div class="proj-item-name" title="${p.name}">${p.name}</div>
+          <div class="proj-item-meta">${p.date}${p.savedBy?' &bull; '+p.savedBy:''}${hasPV?' &bull; PVWatts':''}</div>
+        </div>
+        <button class="hbtn" style="padding:4px 10px;font-size:10px" onclick="loadProject('${p.key}')">Open</button>
+      </div>`;
+    }).join('');
+}
+
+function startupNewProject(){
+  $('startup-modal').classList.remove('open');
+  render();
 }
 
 async function deleteProject(key){
@@ -3883,11 +3925,10 @@ let LOGO_B64 = 'logo.png';
 let PV_SYM_B64 = null; // custom PV string symbol PNG
 // Defer so browser form-state restoration finishes before we read checkbox values
 setTimeout(function(){
-  restoreState();
-  // skipAutosize=true so restored battKw/battKwh aren't overwritten by autosizeBatt()
   toggleBattFields(true);
   toggleMvFields();
-  render();
+  render(); // render blank diagram behind the startup modal
+  _renderStartupModal();
 }, 0);
 (function loadLogo(){
   fetch('logo.png')
