@@ -1074,7 +1074,10 @@ const WIRE_AMP=[
   {awg:'3', amps:100,area:0.0973},{awg:'2',amps:115,area:0.1158},
   {awg:'1', amps:130,area:0.1562},{awg:'1/0',amps:150,area:0.1855},
   {awg:'2/0',amps:175,area:0.2223},{awg:'3/0',amps:200,area:0.2679},
-  {awg:'4/0',amps:230,area:0.3237}
+  {awg:'4/0',amps:230,area:0.3237},
+  {awg:'350 kcmil',amps:310,area:0.5242},{awg:'500 kcmil',amps:380,area:0.7073},
+  {awg:'600 kcmil',amps:420,area:0.8659},{awg:'750 kcmil',amps:475,area:1.0761},
+  {awg:'1000 kcmil',amps:545,area:1.5900}
 ];
 // NEC Ch.9 Table 4 — EMT, 40% fill (in²)
 const EMT_FILL=[
@@ -1224,9 +1227,9 @@ function renderPVArray(v, cx, startY, compact=false) {
     s += `<line x1="${leftCX}" y1="${botTermY}" x2="${rightCX}" y2="${botTermY}" stroke="#a08800" stroke-width="1.8"/>`;
   }
 
-  // Note when more than 6 strings — placed right of envelope to clear the vertical conductor at cx
+  // Note when more than 6 strings — inside envelope bottom, centered
   if (nStr > 6) {
-    s += `<text x="${envX + envW + 6}" y="${envY + envH - 6}" style="fill:#7a6a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-style:italic" text-anchor="start">showing 6 of ${nStr}</text>`;
+    s += `<text x="${cx}" y="${envY + envH - 4}" style="fill:#7a6a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px;font-style:italic" text-anchor="middle">showing 6 of ${nStr}</text>`;
   }
 
   return { svg: s, botY: botTermY, envRightX: envX + envW };
