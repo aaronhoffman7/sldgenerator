@@ -118,6 +118,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   <h1>Single Line Diagram Generator</h1>
   <span>Solar + Battery Storage</span>
   <div class="hbtns">
+    <button class="hbtn" onclick="startupNewProject()">&#43; New Project</button>
     <button class="hbtn" onclick="openSaveModal()">&#9632; Save</button>
     <button class="hbtn" onclick="openProjectsModal()">&#9783; Projects</button>
     <button class="hbtn" onclick="exportSVG()">Export SVG</button>
@@ -419,7 +420,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="cnote">Comms: Cat6 · NEC Art. 800 / 725 Class 2 · EMT 40% fill</div>
     <div class="sec-subtitle" style="margin:10px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Roof → Electrical Room</div>
     <div id="roof-body">
-    <div class="trow"><span>AC combiner on roof</span><label class="tog"><input type="checkbox" id="hasAcCombiner" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div class="trow"><span>AC combiner on roof</span><label class="tog"><input type="checkbox" id="hasAcCombiner" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow" style="margin-top:8px"><span>AC conduit qty</span><select id="acConduitMult" onchange="render()" style="width:auto;min-width:90px"><option value="1">×1 (min.)</option><option value="2">×2</option><option value="3">×3</option></select></div>
     <div id="roof-branch-row" style="display:none">
       <div class="crow">Inv → combiner (per inverter)</div>
@@ -1173,11 +1174,12 @@ function pvStringSymbol(cx, cy, w, h, idx) {
 
 // Render PV array as side-by-side symbols (up to 6), with bus bars when >1.
 // Returns { svg, botY, envRightX }.
-function renderPVArray(v, cx, startY) {
+function renderPVArray(v, cx, startY, compact=false) {
   const nStr = v.strings;
-  const modW = 58, modH = 80;
+  const modW = compact ? 44 : 58;
+  const modH = compact ? 61 : 80;
   const showCount = Math.min(nStr, 6);
-  const gap = 10;
+  const gap = compact ? 6 : 10;
   const totalSymW = showCount * modW + (showCount - 1) * gap;
   const groupLeft = cx - totalSymW / 2;
   const modCY = startY + modH / 2;
@@ -1743,23 +1745,21 @@ function arrSystemKwChanged(n){
   const combV=+agv(n,'combV')||1000;
   const dcAcRatio=+agv(n,'dcAcRatio')||1.2;
   if(!systemKw||systemKw<=0){render();return;}
-  const totalMods=Math.round(systemKw*1000/modW);
+  const idealMods=Math.round(systemKw*1000/modW);
   const maxMps=Math.floor(combV/(voc*1.25)); // NEC 690.7 worst-case Voc × 1.25
   const mps=Math.min(Math.max(1,maxMps),40);
-  const{fullStrings,modsLast,totalStrings,actualKw}=calcStrings(totalMods,mps,modW);
-  a$(n,'strings').value=totalStrings;
+  // Round to nearest whole-string count — avoids partial strings on auto-fill.
+  // User can still create partial strings by manually editing strings/mods fields.
+  const cleanStrings=Math.max(1,Math.round(idealMods/mps));
+  const cleanMods=cleanStrings*mps;
+  const cleanKw=cleanMods*modW/1000;
+  a$(n,'strings').value=cleanStrings;
   a$(n,'mods').value=mps;
-  const numModsEl=a$(n,'numMods'); if(numModsEl) numModsEl.value=totalMods;
-  const hasPartial=modsLast!==mps&&fullStrings>0;
+  const numModsEl=a$(n,'numMods'); if(numModsEl) numModsEl.value=cleanMods;
   const note=a$(n,'system-kw-note');
-  if(note){
-    if(hasPartial)
-      note.textContent=`${fullStrings}×${mps} + 1×${modsLast} mods = ${totalMods} modules · ${actualKw.toFixed(2)} kW DC · max ${mps} mods @ ${combV}VDC`;
-    else
-      note.textContent=`${totalStrings} strings × ${mps} mods/string = ${totalMods} modules · ${actualKw.toFixed(2)} kW DC · max ${mps} mods @ ${combV}VDC`;
-  }
+  if(note) note.textContent=`${cleanStrings} strings × ${mps} mods/string = ${cleanMods} modules · ${cleanKw.toFixed(2)} kW DC · max ${mps} mods @ ${combV}VDC`;
   const invCount=Math.max(1,+agv(n,'invCount')||1);
-  const unitKw=Math.round((systemKw/dcAcRatio/invCount)*10)/10;
+  const unitKw=Math.round((cleanKw/dcAcRatio/invCount)*10)/10;
   const invKwEl=a$(n,'invKw');
   if(invKwEl&&(+invKwEl.value===_lastAutoInvKw[n]||_lastAutoInvKw[n]===null)) invKwEl.value=unitKw;
   _lastAutoInvKw[n]=unitKw;
@@ -1864,10 +1864,10 @@ function invSymbol(cx, cy, w, h, fill, stroke) {
   return { svg: s };
 }
 
-function renderArrayColumn(cfg, cx, startY) {
+function renderArrayColumn(cfg, cx, startY, compact=false) {
   const BW=160, BX=cx-BW/2, W=26;
   let s=[];
-  const pv=renderPVArray(cfg, cx, startY);
+  const pv=renderPVArray(cfg, cx, startY, compact);
   s.push(pv.svg);
   const stringVoc=(cfg.mods*cfg.voc).toFixed(1);
   const arrayIsc=(cfg.strings*cfg.isc).toFixed(1);
@@ -1918,7 +1918,7 @@ function renderArrayColumn(cfg, cx, startY) {
   const subLines=[iSub,cfg.invModel,rsdInvSub].filter(Boolean);
 
   // Side-by-side inverter symbols inside a box (consistent with PV string layout)
-  const invSymW=46, invSymH=58, invGap=8;
+  const invSymW=compact?36:46, invSymH=compact?46:58, invGap=compact?6:8;
   const showInvCount=Math.min(cfg.invCount,6);
   const totalInvSymW=showInvCount*invSymW+(showInvCount-1)*invGap;
   const invBW=Math.max(200,totalInvSymW+28);
@@ -2100,13 +2100,14 @@ function render(){
 
   // ── PV Array columns ──────────────────────────────────────────────────────
   const PV_START_Y=140;
-  const col1=renderArrayColumn({...v, modsLast:arr1ModsLast, colLabel:v.hasArr2?'1':''}, CX1, PV_START_Y);
+  const compact=v.hasArr2;
+  const col1=renderArrayColumn({...v, modsLast:arr1ModsLast, colLabel:v.hasArr2?'1':''}, CX1, PV_START_Y, compact);
   el.push(col1.svg);
 
   let invBot1=col1.invBotY, invBot2=col1.invBotY, col2InvMidY=col1.invMidY;
   let col2InvRightX=col1.invRightX;
   if(v.hasArr2){
-    const col2=renderArrayColumn({...v.a2, modsLast:a2ModsLast, hasRSD:v.hasRSD, rsdMethod:v.rsdMethod, colLabel:'2'}, CX2, PV_START_Y);
+    const col2=renderArrayColumn({...v.a2, modsLast:a2ModsLast, hasRSD:v.hasRSD, rsdMethod:v.rsdMethod, colLabel:'2'}, CX2, PV_START_Y, compact);
     el.push(col2.svg);
     invBot2=col2.invBotY;
     col2InvMidY=col2.invMidY;
@@ -2218,7 +2219,7 @@ function render(){
     if(v.hasArr2) monX = Math.max(monX, col2InvRightX+14);   // clear array-2 inverter box
     if(isPvhcs)   monX = Math.max(monX, MCX+BW/2+214);      // clear RSD transmitter box (MCX+100+200+14)
     const commX = monX + Math.round(monW/2);
-    el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Data Logger / Gateway','PV Monitoring · NEC Art. 800'));
+    el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS','PV Monitoring · NEC Art. 800'));
     // Comm line: always starts from arr1 AC output, spans across to logger (arr2 taps in along the way)
     el.push(`<path d="M ${col1.invRightX+4} ${col1.invMidY} H ${commX} V ${panelY+14}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3" fill="none"/>`);
     // For dual array: junction dot where arr2 output meets the shared comm bus
@@ -2281,8 +2282,8 @@ function render(){
     el.push(`<line x1="${BX}" y1="${panelBot-31}" x2="${gx+12}" y2="${panelBot-31}" stroke="#8090b8" stroke-width="1"/>`);
     el.push(`<line x1="${gx+12}" y1="${panelBot-31}" x2="${gx+12}" y2="${panelBot-20}" stroke="#8090b8" stroke-width="1"/>`);
     el.push(gndSym(gx+12,panelBot-20));
-    el.push(wlabel(gx-8,panelBot-38,'GEC',false));
-    el.push(wlabel(gx-8,panelBot-26,`EGC #${egcSz} AWG`,false));
+    el.push(wlabel(gx-2,panelBot-38,'GEC',false,'end'));
+    el.push(wlabel(gx-2,panelBot-26,`EGC #${egcSz} AWG`,false,'end'));
   }
 
   // Legend + NEC box share the same column width
