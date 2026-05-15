@@ -2248,6 +2248,13 @@ function render(){
   }
   }
 
+  // ── Roof / Electrical Room boundary ─────────────────────────────────────────
+  const breakY = y + Math.round(W/2);
+  const zoneStyle = `font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600;letter-spacing:.1em;fill:#9aa0b8`;
+  el.push(`<line x1="10" y1="${breakY}" x2="${SVG_W-10}" y2="${breakY}" stroke="#b8bfd4" stroke-width="1" stroke-dasharray="8 5"/>`);
+  el.push(`<text x="16" y="${breakY-4}" style="${zoneStyle}">ROOF</text>`);
+  el.push(`<text x="16" y="${breakY+11}" style="${zoneStyle}">ELECTRICAL ROOM</text>`);
+
   // AC Disconnect
   const acMainWire=wireFor(totalInvAcA*1.25);
   el.push(wireAC(MCX,y,MCX,y+W));
