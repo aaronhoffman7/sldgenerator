@@ -498,23 +498,9 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <span class="sec-arrow open" id="conduit-arrow">&#9654;</span>
     </div>
     <div class="sec-body" id="conduit-body">
-    <div id="conduit-content"></div>
-    <div class="cnote">Cu THWN-2 · 75 °C ampacity · EMT 40% fill · EGC per NEC 250.122</div>
-    <div class="cnote">Comms: Cat6 · NEC Art. 800 / 725 Class 2 · EMT 40% fill</div>
-    <div class="sec-subtitle" style="margin:10px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Roof → Electrical Room</div>
-    <div id="roof-body">
     <div class="trow"><span>AC combiner on roof</span><label class="tog"><input type="checkbox" id="hasAcCombiner" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow" style="margin-top:8px"><span>AC conduit qty</span><select id="acConduitMult" onchange="render()" style="width:auto;min-width:90px"><option value="1">×1 (min.)</option><option value="2">×2</option><option value="3">×3</option><option value="4">×4</option><option value="5">×5</option><option value="6">×6</option></select></div>
-    <div id="roof-branch-row" style="display:none">
-      <div class="crow">Inv → combiner (per inverter)</div>
-      <div class="cval" id="c-roof-branch">--</div>
-    </div>
-    <div class="crow" id="c-roof-main-lbl">Direct runs (inverters → elec. room)</div>
-    <div class="cval" id="c-roof-main">--</div>
-    <div class="crow">PV communications (inverter → DAS)</div>
-    <div class="cval" id="c-roof-comm">--</div>
-    <div class="cnote">Cu THWN-2 · 75 °C · EMT 40% fill · Comms: NEC Art. 800 / 725 Class 2</div>
-    </div>
+    <div class="cnote" style="margin-top:6px">Outputs shown in <span onclick="switchTab('sizing')" style="color:var(--accent);cursor:pointer;text-decoration:underline">Wire Schedule tab</span></div>
     </div>
   </div>
 </aside>
@@ -522,6 +508,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   <div class="tab-bar">
     <button class="tab-btn active" id="tab-btn-sld" onclick="switchTab('sld')">Single Line Diagram</button>
     <button class="tab-btn" id="tab-btn-analysis" onclick="switchTab('analysis')">Curtailment Analysis</button>
+    <button class="tab-btn" id="tab-btn-sizing" onclick="switchTab('sizing')">Wire Schedule</button>
     <button class="tab-btn" id="tab-btn-debug" onclick="switchTab('debug')">Debug / Export</button>
   </div>
   <div id="tab-sld" class="tab-panel active">
@@ -770,6 +757,24 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           </div>
         </div>
       </div>
+    </div>
+  </div>
+  <div id="tab-sizing" class="tab-panel">
+    <div style="padding:24px 28px;overflow-y:auto;flex:1;box-sizing:border-box">
+      <h2 style="margin:0 0 16px;font-size:15px;font-weight:600;color:var(--text)">Wire &amp; Conduit Schedule</h2>
+      <div id="conduit-content"></div>
+      <div class="cnote" style="margin-top:8px">Cu THWN-2 · 75 °C ampacity · EMT 40% fill · EGC per NEC 250.122</div>
+      <div class="cnote">Comms: Cat6 · NEC Art. 800 / 725 Class 2 · EMT 40% fill</div>
+      <div class="sec-subtitle" style="margin:14px 0 6px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Roof → Electrical Room</div>
+      <div id="roof-branch-row" style="display:none">
+        <div class="crow">Inv → combiner (per inverter)</div>
+        <div class="cval" id="c-roof-branch">--</div>
+      </div>
+      <div class="crow" id="c-roof-main-lbl">Direct runs (inverters → elec. room)</div>
+      <div class="cval" id="c-roof-main">--</div>
+      <div class="crow">PV communications (inverter → DAS)</div>
+      <div class="cval" id="c-roof-comm">--</div>
+      <div class="cnote">Cu THWN-2 · 75 °C · EMT 40% fill · Comms: NEC Art. 800 / 725 Class 2</div>
     </div>
   </div>
 </main>
@@ -2001,8 +2006,7 @@ document.addEventListener('DOMContentLoaded',function(){
   // Disable arr2 manual fields by default (mirrored)
   const arr2fields = document.getElementById('arr2-fields');
   if(arr2fields) arr2fields.querySelectorAll('input,select').forEach(el => el.disabled = true);
-  // Auto-fill inverter model and monitoring platform on load
-  autoFillInvModel(1);
+  // Auto-fill monitoring platform from default invModel value
   const det = detectMonitoring(gv('invModel'));
   const pf = $('monitorPlatform');
   if (pf && det && !pf.value) pf.value = det.platform;
@@ -2537,6 +2541,13 @@ function render(){
   }
   }
 
+  // AC Roof Combiner box (drawn on roof side, above break line)
+  if(gc('hasAcCombiner')){
+    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+    el.push(compBox(BX,y,BW,48,'#edf2ff','#3a6bc0','AC Roof Combiner',`${v.invV} · ${bkrLabel} OCPD`,'NEC 705.12 · NEMA 3R'));
+    y+=48;
+  }
+
   // ── Roof / Electrical Room boundary ─────────────────────────────────────────
   const breakY = y + Math.round(W/2);
   const zoneStyle = `font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600;letter-spacing:.1em;fill:#9aa0b8`;
@@ -2657,9 +2668,41 @@ function render(){
   // POI marker
   const poiLabel=v.poiKv>=1?`${v.poiKv} kV`:`${(v.poiKv*1000).toFixed(0)}V`;
   el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
-  el.push(compBox(BX,y,BW,36,'#f5f7fc','#a0aac8','GRID',poiLabel+' · '+esc(v.utilityName)));
-  [0,1,2].forEach(i=>{const lx=BX+BW-24,ly=y+10+i*8;el.push(`<line x1="${lx}" y1="${ly}" x2="${lx+16}" y2="${ly}" stroke="#a0aac8" stroke-width="${2-i*0.5}"/>`);});
+  const gridBoxTitle=v.gridNetwork==='san'?'Secondary Area Bus':v.gridNetwork==='ssn'?'Spot Network Bus':'GRID';
+  el.push(compBox(BX,y,BW,36,'#f5f7fc','#a0aac8',gridBoxTitle,poiLabel+' · '+esc(v.utilityName)));
+  if(v.gridNetwork==='radial') [0,1,2].forEach(i=>{const lx=BX+BW-24,ly=y+10+i*8;el.push(`<line x1="${lx}" y1="${ly}" x2="${lx+16}" y2="${ly}" stroke="#a0aac8" stroke-width="${2-i*0.5}"/>`);});
   y+=36;
+  if(v.gridNetwork==='san'||v.gridNetwork==='ssn'){
+    const isSsn=v.gridNetwork==='ssn';
+    const netC='#6b7a9c', netF='#f0f2f8';
+    const npW=110, npH=32, xfW=110, xfH=44;
+    const lCX=MCX-65, rCX=MCX+65;
+    const sbusX1=lCX-npW/2-6, sbusX2=rCX+npW/2+6;
+    // Secondary bus bar (connects to GRID box bottom)
+    el.push(`<line x1="${sbusX1}" y1="${y}" x2="${sbusX2}" y2="${y}" stroke="${netC}" stroke-width="3"/>`);
+    const npY=y+10;
+    el.push(`<line x1="${lCX}" y1="${y}" x2="${lCX}" y2="${npY}" stroke="${netC}" stroke-width="1.5"/>`);
+    el.push(`<line x1="${rCX}" y1="${y}" x2="${rCX}" y2="${npY}" stroke="${netC}" stroke-width="1.5"/>`);
+    // Network Protector boxes
+    el.push(compBox(lCX-npW/2,npY,npW,npH,netF,netC,'Network Protector','Auto · Directional relay'));
+    el.push(compBox(rCX-npW/2,npY,npW,npH,netF,netC,'Network Protector','Auto · Directional relay'));
+    const xfY=npY+npH+8;
+    el.push(`<line x1="${lCX}" y1="${npY+npH}" x2="${lCX}" y2="${xfY}" stroke="${netC}" stroke-width="1.5"/>`);
+    el.push(`<line x1="${rCX}" y1="${npY+npH}" x2="${rCX}" y2="${xfY}" stroke="${netC}" stroke-width="1.5"/>`);
+    // Transformer boxes
+    const xfLabel=isSsn?'Spot Network Xfmr':'Distribution Xfmr';
+    const xfVSub=v.poiKv>=1?`${v.poiKv} kV primary`:`${(v.poiKv*1000).toFixed(0)}V primary`;
+    el.push(compBox(lCX-xfW/2,xfY,xfW,xfH,netF,netC,xfLabel,xfVSub,'Utility-owned · NEMA 3R'));
+    el.push(compBox(rCX-xfW/2,xfY,xfW,xfH,netF,netC,xfLabel,xfVSub,'Utility-owned · NEMA 3R'));
+    // Primary feeder bus
+    const primY=xfY+xfH+8;
+    el.push(`<line x1="${lCX}" y1="${xfY+xfH}" x2="${lCX}" y2="${primY}" stroke="${netC}" stroke-width="1.5"/>`);
+    el.push(`<line x1="${rCX}" y1="${xfY+xfH}" x2="${rCX}" y2="${primY}" stroke="${netC}" stroke-width="1.5"/>`);
+    el.push(`<line x1="${sbusX1}" y1="${primY}" x2="${sbusX2}" y2="${primY}" stroke="${netC}" stroke-width="2"/>`);
+    const pvKvLabel=v.poiKv>=1?`${v.poiKv} kV`:`${(v.poiKv*1000).toFixed(0)}V`;
+    el.push(`<text x="${MCX}" y="${primY+12}" style="fill:${netC};font-family:'Avenir Next','Avenir',sans-serif;font-size:8px;font-weight:600" text-anchor="middle">Utility Primary Feeder · ${pvKvLabel}</text>`);
+    y=primY+22;
+  }
 
   // Grounding
   if(v.hasGnd){
@@ -3099,7 +3142,7 @@ let _chartMonthly=null,_chartSizing=null,_chartDispatch=null;
 let _anPvWattsData=null; // hourly kW array fetched from NREL PVWatts API
 
 function switchTab(name){
-  ['sld','analysis','debug'].forEach(t=>{
+  ['sld','analysis','sizing','debug'].forEach(t=>{
     const p=$('tab-'+t),b=$('tab-btn-'+t);
     if(p) p.classList.toggle('active',t===name);
     if(b) b.classList.toggle('active',t===name);
