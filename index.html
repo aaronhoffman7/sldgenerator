@@ -355,6 +355,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <option value="SunSpec">SunSpec</option>
       <option value="Proprietary">Proprietary</option>
     </select>
+    <div class="trow"><span>Interconnection protection relay</span><label class="tog"><input type="checkbox" id="hasProtRelay" onchange="toggleProtRelayFields();render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div id="protRelay-row" style="display:none">
     <label>Interconnection standard</label>
     <select id="interconnStd" onchange="render()">
       <option value="IEEE 1547-2018">IEEE 1547-2018</option>
@@ -363,6 +365,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <option value="Rule 21">Rule 21 (CA)</option>
       <option value="PREPA">PREPA</option>
     </select>
+    </div>
     </div>
     </div>
   </div>
@@ -406,7 +409,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="trow"><span>Utility visible disconnect (NEC 705.22)</span><label class="tog"><input type="checkbox" id="hasUtilDisc" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Bidirectional / net meter</span><label class="tog"><input type="checkbox" id="hasNetMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Monitoring / gateway</span><label class="tog"><input type="checkbox" id="hasMonitoring" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    <div class="trow"><span>Show NEC section labels</span><label class="tog"><input type="checkbox" id="showNecLabels" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div class="trow"><span>Show NEC section labels</span><label class="tog"><input type="checkbox" id="showNecLabels" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     </div>
   </div>
   <div class="section">
@@ -911,6 +914,7 @@ async function loadProject(key){
   restoreInputState(data.inputs);
   toggleBattFields(true);
   toggleMvFields();
+  toggleProtRelayFields();
   if(data.hasDae){
     const xml = await idbGet(key);
     if(xml){
@@ -1135,7 +1139,7 @@ function vals(){
     battV:gv('battV'),battChem:gv('battChem'),battModel:gv('battModel'),
     battSocMin:+gv('battSocMin')||10,battSocMax:+gv('battSocMax')||90,
     battDcFuse:+gv('battDcFuse')||200,battComms:gv('battComms')||'Modbus TCP',
-    interconnStd:gv('interconnStd')||'IEEE 1547-2018',
+    hasProtRelay:gc('hasProtRelay'),interconnStd:gv('interconnStd')||'IEEE 1547-2018',
     utilityName:gv('utilityName')||'Utility',poiKv:+gv('poiKv')||0.48,
     hasMvXfmr:gc('hasMvXfmr'),mvKva:+gv('mvKva')||1000,mvQty:Math.max(1,+gv('mvQty')||1),
     mvPriKv:+gv('mvPriKv')||13.8,mvSecV:+gv('mvSecV')||480,
@@ -1706,6 +1710,10 @@ function arr2LinkChanged(){
 function toggleMvFields(){
   const el=document.getElementById('mvxfmr-fields');
   if(el) el.style.display=document.getElementById('hasMvXfmr').checked?'block':'none';
+}
+function toggleProtRelayFields(){
+  const el=document.getElementById('protRelay-row');
+  if(el) el.style.display=document.getElementById('hasProtRelay').checked?'block':'none';
 }
 function toggleBattFields(skipAutosize){
   const el=document.getElementById('batt-fields');
@@ -2283,8 +2291,10 @@ function render(){
     el.push(`<text x="${MCX+46}" y="${ptY+5}" style="fill:#c07a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:7px;font-weight:700" text-anchor="middle">PT</text>`);
   }
   y+=W;
-  el.push(compBox(MCX-100,y,200,44,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,'27/59/81/25 · UV/OV/UF/OF/Sync'));
-  y+=44;
+  if(v.hasProtRelay){
+    el.push(compBox(MCX-100,y,200,44,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,'27/59/81/25 · UV/OV/UF/OF/Sync'));
+    y+=44;
+  }
 
   // MV step-up transformer
   if(v.hasMvXfmr){
@@ -2412,7 +2422,7 @@ function render(){
     el.push(`<line x1="${LX+6}" y1="${NY+185}" x2="${LX+NW-6}" y2="${NY+185}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+197}" style="${accentStyle}">CONDUIT NOTES</text>`);
     el.push(`<text x="${LX+10}" y="${NY+209}" class="sld-note">${acRoofNote()}</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+221}" class="sld-note">Provide 1× ${roofCommCond} EMT for PV inverter communications, roof → elec. room · NEC Art. 800</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+221}" class="sld-note">Provide 1× ${roofCommCond} EMT for PV inverter communications, roof → elec. room${_showNec?' · NEC Art. 800':''}</text>`);
     el.push(`<text x="${LX+10}" y="${NY+233}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
     el.push(`<line x1="${LX+6}" y1="${NY+241}" x2="${LX+NW-6}" y2="${NY+241}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+253}" style="${accentStyle}">NEC COMPLIANCE NOTES</text>`);
@@ -2435,7 +2445,7 @@ function render(){
     el.push(`<line x1="${LX+6}" y1="${NY+112}" x2="${LX+NW-6}" y2="${NY+112}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+124}" style="${accentStyle}">CONDUIT NOTES</text>`);
     el.push(`<text x="${LX+10}" y="${NY+136}" class="sld-note">${acRoofNote()}</text>`);
-    el.push(`<text x="${LX+10}" y="${NY+148}" class="sld-note">Provide 1× ${roofCommCond} EMT for PV inverter communications, roof → elec. room · NEC Art. 800</text>`);
+    el.push(`<text x="${LX+10}" y="${NY+148}" class="sld-note">Provide 1× ${roofCommCond} EMT for PV inverter communications, roof → elec. room${_showNec?' · NEC Art. 800':''}</text>`);
     el.push(`<text x="${LX+10}" y="${NY+160}" class="sld-note" style="font-style:italic">DC wiring &amp; conduit by PV installer</text>`);
     el.push(`<line x1="${LX+6}" y1="${NY+168}" x2="${LX+NW-6}" y2="${NY+168}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     el.push(`<text x="${LX+10}" y="${NY+180}" style="${accentStyle}">NEC COMPLIANCE NOTES</text>`);
@@ -3950,6 +3960,7 @@ let PV_SYM_B64 = null; // custom PV string symbol PNG
 setTimeout(function(){
   toggleBattFields(true);
   toggleMvFields();
+  toggleProtRelayFields();
   render(); // render blank diagram behind the startup modal
   _renderStartupModal();
 }, 0);
