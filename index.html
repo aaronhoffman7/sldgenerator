@@ -2462,7 +2462,7 @@ function render(){
     // ── TOTALS first ─────────────────────────────────────────────────────────
     el.push(necDiv(30));
     el.push(necHead(41, 'TOTALS'));
-    el.push(necBold(55, `DC: ${totalKwDc.toFixed(2)} kW  ·  AC: ${totalAcKw.toFixed(1)} kW`));
+    el.push(necBold(55, `System Size: ${totalKwDc.toFixed(2)} kW DC  ·  ${totalAcKw.toFixed(1)} kW AC`));
     el.push(necLine(67, `AC out: ${totalInvAcA.toFixed(1)} A  (×1.25 = ${recBreakerMin.toFixed(1)} A)`));
     el.push(necLine(79, `Breaker: ${bkrLabel}  ·  Panel: ${activePanel}A`));
     // ── Array breakdowns ──────────────────────────────────────────────────────
@@ -2490,7 +2490,7 @@ function render(){
     // ── TOTALS first ─────────────────────────────────────────────────────────
     el.push(necDiv(30));
     el.push(necHead(41, 'TOTALS'));
-    el.push(necBold(55, `DC: ${arrayKw} kW  ·  AC: ${totalAcKw.toFixed(1)} kW`));
+    el.push(necBold(55, `System Size: ${arrayKw} kW DC  ·  ${totalAcKw.toFixed(1)} kW AC`));
     el.push(necLine(67, `Breaker: ${bkrLabel}  ·  Panel: ${activePanel}A`));
     // ── Array specs ───────────────────────────────────────────────────────────
     el.push(necDiv(76));
