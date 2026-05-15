@@ -402,14 +402,16 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <div style="padding-top:18px"><div id="breaker-math" class="cnote" style="margin-top:0;line-height:1.7;white-space:pre-line"></div></div>
     </div>
     <div id="backfeed-check" class="cwarn" style="margin-top:6px"></div>
+    <div class="sec-subtitle" style="margin:14px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Components</div>
     <div class="trow"><span>Rapid shutdown (RSD)</span><label class="tog"><input type="checkbox" id="hasRSD" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow" id="rsd-method-row"><span>RSD method</span><select id="rsdMethod" onchange="render()"><option value="mlpe">MLPE — Microinverters or DC Optimizers (integrated PVHCS)</option><option value="pvhcs">Dedicated RSD Receivers — add-on PVHCS for string inverters</option></select></div>
+    <div class="trow"><span>SPD (NEC 230.67 / 242)</span><label class="tog"><input type="checkbox" id="hasSPD" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Production meter</span><label class="tog"><input type="checkbox" id="hasMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Show grounding</span><label class="tog"><input type="checkbox" id="hasGnd" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    <div class="trow"><span>SPD (NEC 230.67 / 242)</span><label class="tog"><input type="checkbox" id="hasSPD" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Utility visible disconnect (NEC 705.22)</span><label class="tog"><input type="checkbox" id="hasUtilDisc" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Bidirectional / net meter</span><label class="tog"><input type="checkbox" id="hasNetMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Monitoring / DAS</span><label class="tog"><input type="checkbox" id="hasMonitoring" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div class="sec-subtitle" style="margin:14px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Display</div>
     <div class="trow"><span>Show NEC section labels</span><label class="tog"><input type="checkbox" id="showNecLabels" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Show wire sizing labels</span><label class="tog"><input type="checkbox" id="showWireLabels" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     </div>
