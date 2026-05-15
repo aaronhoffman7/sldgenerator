@@ -2287,14 +2287,15 @@ function render(){
 
   // Data logger / gateway — near MSP; position clears RSD boxes and array-2 column
   if(v.hasMonitoring){
-    const monW=175, monH=36;
+    const monW=175, monH=50;
     const isPvhcs = v.hasRSD && v.rsdMethod==='pvhcs';
     let monX = BX+BW+14;                                     // default: right of MSP
     if(v.hasArr2) monX = Math.max(monX, col2InvRightX+14);   // clear array-2 inverter box
     if(isPvhcs)   monX = Math.max(monX, MCX+BW/2+214);      // clear RSD transmitter box (MCX+100+200+14)
     const commX = monX + Math.round(monW/2);
-    el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS','Elec. room · point of interconnection'));
+    el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS','Located in electrical room','at point of interconnection'));
     const commStyle='stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3" fill="none"';
+    const commLblStyle=`fill:#7a84a0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px`;
     if(v.hasArr2){
       // One continuous line from Array 1 left edge through both inverter boxes to trunk
       const trunkX = col2InvRightX + 10;
@@ -2302,8 +2303,10 @@ function render(){
       el.push(`<circle cx="${col1.invLeftX}" cy="${col1.invMidY}" r="3" fill="#7a84a0"/>`);
       el.push(`<circle cx="${col2InvRightX+4}" cy="${col2InvMidY}" r="3" fill="#7a84a0"/>`);
       el.push(`<path d="M ${trunkX} ${col1.invMidY} V ${panelY+14} H ${commX}" ${commStyle}/>`);
+      if(_showWire) el.push(`<text x="${trunkX+4}" y="${Math.round((col1.invMidY+panelY+14)/2)}" style="${commLblStyle}" text-anchor="start">Cat6</text>`);
     } else {
       el.push(`<path d="M ${col1.invRightX+4} ${col1.invMidY} H ${commX} V ${panelY+14}" ${commStyle}/>`);
+      if(_showWire) el.push(`<text x="${commX+4}" y="${Math.round((col1.invMidY+panelY+14)/2)}" style="${commLblStyle}" text-anchor="start">Cat6</text>`);
     }
   }
 
