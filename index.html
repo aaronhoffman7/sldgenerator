@@ -221,7 +221,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <div><label>Qty (parallel)</label><input type="number" id="invCount" value="1" min="1" max="20" oninput="invCountChanged()"></div>
     </div>
     <label>Make / model</label>
-    <input type="text" id="invModel" value="SMA Sunny Boy 10.0" oninput="render()">
+    <input type="text" id="invModel" value="SMA Sunny Boy 10.0" oninput="invModelChanged()">
     </div><!-- end arr1-body -->
   </div>
   <!-- Array 2 -->
@@ -411,6 +411,9 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="trow"><span>Utility visible disconnect (NEC 705.22)</span><label class="tog"><input type="checkbox" id="hasUtilDisc" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Bidirectional / net meter</span><label class="tog"><input type="checkbox" id="hasNetMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Monitoring / DAS</span><label class="tog"><input type="checkbox" id="hasMonitoring" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <label>Platform</label>
+    <input type="text" id="monitorPlatform" placeholder="Auto-detected from inverter model" oninput="render()">
+    <div id="monitor-gateway-note" class="cnote"></div>
     <div class="sec-subtitle" style="margin:14px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Display</div>
     <div class="trow"><span>Show NEC section labels</span><label class="tog"><input type="checkbox" id="showNecLabels" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Show wire sizing labels</span><label class="tog"><input type="checkbox" id="showWireLabels" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
@@ -1093,6 +1096,73 @@ function aid(n,field){ return n===1?field:`a${n}${field}`; }
 function agv(n,field){ return gv(aid(n,field)); }
 function a$(n,field){ return $(aid(n,field)); }
 
+// Inverter brand → monitoring platform lookup
+const MONITORING_DB = [
+  { keys:['sma','sunny boy','sunny tripower','sunny highpower','sunny island','core1','core2','sb ','stp ','si '],
+    platform:'SMA Sunny Portal', gateway:'SMA Data Manager M' },
+  { keys:['solaredge','se3k','se4k','se5k','se6k','se7k','se10k','se17k','se25k','se33k','se50k','se100k','se110k','storedge'],
+    platform:'SolarEdge Monitoring', gateway:'SolarEdge Cloud (built-in)' },
+  { keys:['enphase','iq7','iq8','iq6','iq5','m215','m250','s230'],
+    platform:'Enphase Enlighten', gateway:'Enphase IQ Gateway' },
+  { keys:['fronius','primo','symo','gen24','galvo','eco'],
+    platform:'Fronius Solar.web', gateway:'Fronius Datamanager 2.0' },
+  { keys:['sungrow','sg5','sg10','sg15','sg20','sg25','sg30','sg50','sg80','sg100','sg110','sg125','sg250','sh5','sh8','sh10'],
+    platform:'Sungrow iSolarCloud', gateway:'Sungrow Logger1000' },
+  { keys:['huawei','sun2000','luna2000'],
+    platform:'Huawei FusionSolar', gateway:'Huawei SmartLogger 3000A' },
+  { keys:['growatt','min ','max ','tlx','sph ','mod '],
+    platform:'Growatt ShineServer', gateway:'Growatt ShineWifi-X' },
+  { keys:['goodwe','gw5','gw10','gw15','gw20','et ','es ','em ','dns '],
+    platform:'GoodWe SEMS Portal', gateway:'GoodWe SEMS Gateway' },
+  { keys:['solectria','yaskawa','pvi 1','pvi 2','pvi 3','pvi 5','pvi 10','pvi 14','pvi 28','pvi 50','pvi 60','pvi 75','pvi 82','pvi 93','pvi 100','xti-'],
+    platform:'Yaskawa Solrenview', gateway:'Solrenview Cloud (built-in)' },
+  { keys:['abb','fimer','react2','trio ','uno ','pvi-'],
+    platform:'ABB Ability', gateway:'ABB Data Manager M2M' },
+  { keys:['solis','ginlong'],
+    platform:'Solis SolisCloud', gateway:'Solis S3 WiFi/LAN Stick' },
+  { keys:['delta inverter','delta pv','h5a','h6a','rpi '],
+    platform:'Delta Solar Monitor', gateway:'Delta Data Logger' },
+  { keys:['apsystems','aps ','yc600','yc1000','ds3','qt2','qy2'],
+    platform:'APsystems EMA', gateway:'APsystems ECU-C' },
+  { keys:['hoymiles','hm-','hms-','hmd-'],
+    platform:'Hoymiles S-Miles Cloud', gateway:'Hoymiles DTU-Pro' },
+  { keys:['generac','pwrcell'],
+    platform:'Generac PWRfleet', gateway:'Generac APION Gateway' },
+  { keys:['tesla','powerwall'],
+    platform:'Tesla App', gateway:'Tesla Gateway 2' },
+  { keys:['schneider electric','conext','xw+','xw ','sw '],
+    platform:'Schneider Conext Control', gateway:'Conext ComBox' },
+  { keys:['tmeic'],
+    platform:'TMEIC Monitoring', gateway:'TMEIC Data Logger' },
+  { keys:['ingeteam','ingecon'],
+    platform:'Ingeteam Monitoring', gateway:'Ingeteam Datalogger' },
+  { keys:['power electronics','pe750','pe700','pe300'],
+    platform:'PE Remote Monitoring', gateway:'PE Data Logger' },
+  { keys:['chint','gnx','cps'],
+    platform:'ChintPower Cloud', gateway:'Chint Data Logger' },
+  { keys:['deye','saj-'],
+    platform:'Deye / SAJ Cloud', gateway:'WiFi/LAN Module' },
+  { keys:['ginlong solis'],
+    platform:'Solis SolisCloud', gateway:'Solis Data Logger' },
+];
+
+function detectMonitoring(model) {
+  const m = (model || '').toLowerCase();
+  for (const entry of MONITORING_DB) {
+    if (entry.keys.some(k => m.includes(k))) return entry;
+  }
+  return null;
+}
+
+function invModelChanged() {
+  const det = detectMonitoring(gv('invModel'));
+  const pf = $('monitorPlatform');
+  if (pf && det) pf.value = det.platform;
+  const gn = $('monitor-gateway-note');
+  if (gn) gn.textContent = det ? `Gateway: ${det.gateway}` : '';
+  render();
+}
+
 // NEC Table 310.15(B)(16) — copper THWN-2; 60°C for ≤#10 AWG per NEC 110.14(C)(1), 75°C for ≥#8 AWG
 const WIRE_AMP=[
   {awg:'14',amps:15,area:0.0097},{awg:'12',amps:20,area:0.0133},
@@ -1167,7 +1237,8 @@ function vals(){
     mvPriKv:+gv('mvPriKv')||13.8,mvSecV:+gv('mvSecV')||480,
     panelA:+gv('panelA')||200,busbarA:+gv('busbarA')||(+gv('panelA')||200),solarBreaker:+gv('solarBreaker')||40,
     hasRSD:gc('hasRSD'),rsdMethod:gv('rsdMethod')||'mlpe',hasMeter:gc('hasMeter'),hasGnd:gc('hasGnd'),
-    hasSPD:gc('hasSPD'),hasUtilDisc:gc('hasUtilDisc')||gc('hasMvXfmr'),hasNetMeter:gc('hasNetMeter'),hasMonitoring:gc('hasMonitoring')
+    hasSPD:gc('hasSPD'),hasUtilDisc:gc('hasUtilDisc')||gc('hasMvXfmr'),hasNetMeter:gc('hasNetMeter'),hasMonitoring:gc('hasMonitoring'),
+    monitorPlatform:gv('monitorPlatform')||''
   };
 }
 
@@ -1208,7 +1279,7 @@ function renderPVArray(v, cx, startY, compact=false) {
   const nStr = v.strings;
   const modW = compact ? 44 : 58;
   const modH = compact ? 61 : 80;
-  const showCount = Math.min(nStr, 6);
+  const showCount = Math.min(nStr, 3);
   const gap = compact ? 6 : 10;
   const totalSymW = showCount * modW + (showCount - 1) * gap;
   const groupLeft = cx - totalSymW / 2;
@@ -1257,7 +1328,7 @@ function renderPVArray(v, cx, startY, compact=false) {
 
   // Note when more than 6 strings — inside envelope bottom, centered
   if (nStr > 6) {
-    s += `<text x="${cx}" y="${envY + envH - 4}" style="fill:#7a6a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px;font-style:italic" text-anchor="middle">showing 6 of ${nStr}</text>`;
+    s += `<text x="${cx}" y="${envY + envH - 4}" style="fill:#7a6a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px;font-style:italic" text-anchor="middle">showing 3 of ${nStr}</text>`;
   }
 
   return { svg: s, botY: botTermY, envRightX: envX + envW, envY, envX };
@@ -1773,6 +1844,12 @@ document.addEventListener('DOMContentLoaded',function(){
   // Disable arr2 manual fields by default (mirrored)
   const arr2fields = document.getElementById('arr2-fields');
   if(arr2fields) arr2fields.querySelectorAll('input,select').forEach(el => el.disabled = true);
+  // Auto-fill monitoring platform from default invModel value
+  const det = detectMonitoring(gv('invModel'));
+  const pf = $('monitorPlatform');
+  if (pf && det && !pf.value) pf.value = det.platform;
+  const gn = $('monitor-gateway-note');
+  if (gn && det) gn.textContent = `Gateway: ${det.gateway}`;
 });
 // ── Generalized per-array input calculations ──────────────────────────────────
 // Returns { fullStrings, modsLast, totalStrings, totalMods, actualKw }
@@ -1982,7 +2059,7 @@ function renderArrayColumn(cfg, cx, startY, compact=false) {
 
   // Side-by-side inverter symbols inside a box (consistent with PV string layout)
   const invSymW=compact?36:46, invSymH=compact?46:58, invGap=compact?6:8;
-  const showInvCount=Math.min(cfg.invCount,6);
+  const showInvCount=Math.min(cfg.invCount,3);
   const totalInvSymW=showInvCount*invSymW+(showInvCount-1)*invGap;
   const invBW=Math.max(200,totalInvSymW+28);
   const invBX=cx-invBW/2;
@@ -2016,7 +2093,7 @@ function renderArrayColumn(cfg, cx, startY, compact=false) {
 
   // "showing 6 of N" note right of box
   if(cfg.invCount>6){
-    s.push(`<text x="${invBX+invBW+6}" y="${symStartY+invSymH}" style="fill:${iS};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-style:italic" text-anchor="start">showing 6 of ${cfg.invCount}</text>`);
+    s.push(`<text x="${invBX+invBW+6}" y="${symStartY+invSymH}" style="fill:${iS};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-style:italic" text-anchor="start">showing 3 of ${cfg.invCount}</text>`);
   }
 
   // Sub-text lines
@@ -2287,13 +2364,20 @@ function render(){
 
   // Data logger / gateway — near MSP; position clears RSD boxes and array-2 column
   if(v.hasMonitoring){
-    const monW=175, monH=50;
+    const monPlatform = v.monitorPlatform || (detectMonitoring(v.invModel)||{}).platform || '';
+    const monW=175, monH = monPlatform ? 50 : 38;
     const isPvhcs = v.hasRSD && v.rsdMethod==='pvhcs';
     let monX = BX+BW+14;                                     // default: right of MSP
     if(v.hasArr2) monX = Math.max(monX, col2InvRightX+14);   // clear array-2 inverter box
     if(isPvhcs)   monX = Math.max(monX, MCX+BW/2+214);      // clear RSD transmitter box (MCX+100+200+14)
     const commX = monX + Math.round(monW/2);
-    el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS','Located in electrical room','at point of interconnection'));
+    // Update gateway note in sidebar
+    const detMon = detectMonitoring(v.invModel);
+    const gwNote = $('monitor-gateway-note');
+    if (gwNote) gwNote.textContent = detMon ? `Gateway: ${detMon.gateway}` : '';
+    el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS',
+      monPlatform || 'In elec. room · at POI',
+      monPlatform ? 'In elec. room · at POI' : null));
     const commStyle='stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3" fill="none"';
     const commLblStyle=`fill:#7a84a0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px`;
     if(v.hasArr2){
