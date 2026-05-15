@@ -350,7 +350,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
         </select>
       </div>
       <div><label>Chemistry</label>
-        <select id="battChem" onchange="render()">
+        <select id="battChem" onchange="battChemChanged()">
           <option value="LFP">LiFePO4 (LFP)</option>
           <option value="NMC">NMC Li-ion</option>
           <option value="NCA">NCA Li-ion</option>
@@ -460,6 +460,33 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <label>Platform</label>
     <input type="text" id="monitorPlatform" placeholder="Auto-detected from inverter model" oninput="render()">
     <div id="monitor-gateway-note" class="cnote"></div>
+    <div class="sec-subtitle" style="margin:14px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Grid &amp; Telemetry</div>
+    <label>Grid network type</label>
+    <select id="gridNetwork" onchange="gridNetworkChanged()">
+      <option value="radial">Radial network</option>
+      <option value="san">Secondary area network (SAN)</option>
+      <option value="ssn">Secondary spot network (SSN)</option>
+    </select>
+    <div class="row2" style="margin-top:8px">
+      <div><label>Export limit (kW)</label><input type="number" id="exportLimit" placeholder="None" min="0" step="1" oninput="render()"></div>
+      <div><label>Type</label><select id="exportLimitType" onchange="render()"><option value="net">Net</option><option value="gross">Gross</option></select></div>
+    </div>
+    <label>Power factor requirement</label>
+    <input type="text" id="pfRequirement" placeholder="e.g. 0.85 lag to 0.85 lead" oninput="render()">
+    <div class="trow" style="margin-top:8px"><span>Telemetry required</span><label class="tog"><input type="checkbox" id="hasTelemetry" onchange="telemetryToggled()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div id="telemetry-fields" style="display:none">
+      <label>Protocol</label>
+      <select id="telemetryProtocol" onchange="render()">
+        <option value="DNP3">DNP3</option>
+        <option value="Modbus TCP">Modbus TCP</option>
+        <option value="IEC 61850">IEC 61850</option>
+        <option value="SCADA (proprietary)">SCADA (proprietary)</option>
+      </select>
+      <div class="trow"><span>Revenue-grade metering</span><label class="tog"><input type="checkbox" id="telRevMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+      <div class="trow"><span>Remote curtailment</span><label class="tog"><input type="checkbox" id="telRemoteCurtail" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+      <label>Additional notes</label>
+      <input type="text" id="telNotes" placeholder="Optional utility-specific requirement" oninput="render()">
+    </div>
     <div class="sec-subtitle" style="margin:14px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Display</div>
     <div class="trow"><span>Show NEC section labels</span><label class="tog"><input type="checkbox" id="showNecLabels" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Show wire sizing labels</span><label class="tog"><input type="checkbox" id="showWireLabels" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
@@ -1292,7 +1319,16 @@ function vals(){
     panelA:+gv('panelA')||200,busbarA:+gv('busbarA')||(+gv('panelA')||200),solarBreaker:+gv('solarBreaker')||40,
     hasRSD:gc('hasRSD'),rsdMethod:gv('rsdMethod')||'mlpe',hasMeter:gc('hasMeter'),hasGnd:gc('hasGnd'),
     hasSPD:gc('hasSPD'),hasUtilDisc:gc('hasUtilDisc')||gc('hasMvXfmr'),hasNetMeter:gc('hasNetMeter'),hasMonitoring:gc('hasMonitoring'),
-    monitorPlatform:gv('monitorPlatform')||''
+    monitorPlatform:gv('monitorPlatform')||'',
+    gridNetwork:gv('gridNetwork')||'radial',
+    exportLimit:+gv('exportLimit')||0,
+    exportLimitType:gv('exportLimitType')||'net',
+    pfRequirement:gv('pfRequirement')||'',
+    hasTelemetry:gc('hasTelemetry'),
+    telemetryProtocol:gv('telemetryProtocol')||'DNP3',
+    telRevMeter:gc('telRevMeter'),
+    telRemoteCurtail:gc('telRemoteCurtail'),
+    telNotes:gv('telNotes')||''
   };
 }
 
@@ -2038,12 +2074,49 @@ function autosizeBattV(kw){
   const p=BATT_PRESETS[vKey];
   if(p){ if(p.model) $('battModel').value=p.model; $('battChem').value=p.chem; }
 }
+const CHEM_SOC = {
+  'LFP':       { min:10, max:95 },
+  'NMC':       { min:10, max:90 },
+  'NCA':       { min:10, max:90 },
+  'Lead-Acid': { min:50, max:100 },
+  'VRLA/AGM':  { min:50, max:100 },
+  'Flow':      { min:10, max:90 },
+  'Na-ion':    { min:10, max:95 },
+  'Zinc-hybrid':{ min:0,  max:100 },
+};
+function applyChemSoc(chem){
+  const s = CHEM_SOC[chem];
+  if(!s) return;
+  const minEl=$('battSocMin'), maxEl=$('battSocMax');
+  if(minEl) minEl.value = s.min;
+  if(maxEl) maxEl.value = s.max;
+}
+function battChemChanged(){
+  applyChemSoc(gv('battChem'));
+  render();
+}
+function telemetryToggled(){
+  const on=gc('hasTelemetry');
+  const f=$('telemetry-fields');
+  if(f) f.style.display=on?'block':'none';
+  render();
+}
+function gridNetworkChanged(){
+  // Secondary networks typically require telemetry — suggest it
+  const nw=gv('gridNetwork');
+  if((nw==='san'||nw==='ssn')&&!gc('hasTelemetry')){
+    const cb=$('hasTelemetry');
+    if(cb){ cb.checked=true; telemetryToggled(); return; }
+  }
+  render();
+}
 function battVChanged(){
   const v = gv('battV');
   const p = BATT_PRESETS[v];
   if(p){
     if(p.model) $('battModel').value = p.model;
     $('battChem').value = p.chem;
+    applyChemSoc(p.chem);
   }
   render();
 }
@@ -2470,8 +2543,13 @@ function render(){
   // Utility meter
   el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
   el.push(meterCircle(MCX,y+14));
-  el.push(wlabel(MCX+22,y+15,v.hasNetMeter?'Net Energy Meter (NEM)':'Utility Revenue Meter',true,'start'));
-  if(v.hasNetMeter) el.push(wlabel(MCX+22,y+27,'Bidirectional · Utility-supplied',true,'start'));
+  const utilMeterCY = y+14;
+  const nemLabel = v.hasNetMeter ? 'Net Energy Meter (NEM)' : 'Utility Revenue Meter';
+  const nemSub   = v.hasNetMeter ? 'Bidirectional · Utility-supplied' : 'Utility-supplied';
+  const nemTelSub = v.hasTelemetry && v.telRevMeter ? 'Revenue-grade · Class 0.2S' : null;
+  el.push(wlabel(MCX+22,y+15,nemLabel,true,'start'));
+  el.push(wlabel(MCX+22,y+27,nemSub,true,'start'));
+  if(nemTelSub) el.push(wlabel(MCX+22,y+39,nemTelSub,true,'start'));
   y+=28;
   // Utility visible disconnect (NEC 705.22) — required when AC disconnect not accessible to utility
   if(v.hasUtilDisc){
@@ -2687,7 +2765,62 @@ function render(){
     el.push(compBox(RSD_X,initY,initW,initH,pvF,pvC,'RSD Initiating Device','Listed · At service entrance','NEC 690.12(A)'));
   }
 
-  const overlayBottom=NY+necH+8+210;
+  // ── Grid & Telemetry notes box ───────────────────────────────────────────
+  const showGridBox = v.hasTelemetry || v.gridNetwork!=='radial' || v.exportLimit>0 || v.pfRequirement;
+  let gridBoxH = 0;
+  if(showGridBox){
+    const GY = NY + necH + 10;
+    const gLines = [];
+    const networkLabels = {radial:'Radial network',san:'Secondary area network (SAN)',ssn:'Secondary spot network (SSN)'};
+    const networkLabel = networkLabels[v.gridNetwork]||v.gridNetwork;
+    gLines.push({bold:false, text:`Grid type: ${networkLabel}`});
+    if(v.gridNetwork==='san') gLines.push({bold:false, text:'Anti-islanding relay required · Network protectors on secondary bus'});
+    if(v.gridNetwork==='ssn') gLines.push({bold:false, text:'Anti-islanding relay required · Dedicated spot network transformers'});
+    if(v.exportLimit>0) gLines.push({bold:false, text:`Export limit: ${v.exportLimit} kW ${v.exportLimitType} · Do not exceed at POI`});
+    if(v.pfRequirement) gLines.push({bold:false, text:`Power factor: ${v.pfRequirement}`});
+    if(v.hasTelemetry){
+      gLines.push({bold:true,  text:'TELEMETRY REQUIRED'});
+      gLines.push({bold:false, text:`Protocol: ${v.telemetryProtocol} to utility SCADA`});
+      gLines.push({bold:false, text:'Monitoring: Real-time kW, kVAR, V, I, PF'});
+      if(v.telRevMeter) gLines.push({bold:false, text:'Metering: Revenue-grade (Class 0.2S) · Utility-accessible'});
+      if(v.telRemoteCurtail) gLines.push({bold:false, text:'Remote curtailment: Required — utility dispatch interface'});
+      if(v.telNotes) gLines.push({bold:false, text:v.telNotes});
+    }
+    const hdrH=28, lineH=12, pad=8;
+    gridBoxH = hdrH + gLines.length*lineH + pad;
+    el.push(`<rect x="${LX}" y="${GY}" width="${NW}" height="${gridBoxH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
+    el.push(`<text x="${LX+NW/2}" y="${GY+13}" class="sld-head" text-anchor="middle">Grid &amp; Interconnection Notes</text>`);
+    el.push(`<line x1="${LX+6}" y1="${GY+18}" x2="${LX+NW-6}" y2="${GY+18}" stroke="#d0d5e8" stroke-width="0.7"/>`);
+    gLines.forEach((ln,i)=>{
+      const ty=GY+hdrH+i*lineH;
+      if(ln.bold) el.push(`<text x="${LX+10}" y="${ty}" style="${boldStyle}">${esc(ln.text)}</text>`);
+      else el.push(`<text x="${LX+10}" y="${ty}" class="sld-note">${esc(ln.text)}</text>`);
+    });
+  }
+  // ── Telemetry devices on diagram ─────────────────────────────────────────
+  if(v.hasTelemetry){
+    const telC='#2a6e8c', telF='#eef6fb';
+    // CT (and PT if revenue metering) on AC conductor just below NEM
+    const ctY = utilMeterCY + 22;
+    el.push(`<circle cx="${MCX}" cy="${ctY}" r="8" fill="white" stroke="${telC}" stroke-width="1.2"/>`);
+    el.push(`<text x="${MCX}" y="${ctY+3}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:6px;font-weight:700" text-anchor="middle">CT</text>`);
+    el.push(`<text x="${MCX+12}" y="${ctY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px">3Ø CT${v.telRevMeter?' / PT':''}</text>`);
+    // RTU / Telemetry Gateway box to the right of the main column
+    const rtuX=BX+BW+14, rtuY=utilMeterCY-20, rtuW=170, rtuH=v.telRemoteCurtail?56:44;
+    el.push(compBox(rtuX,rtuY,rtuW,rtuH,telF,telC,'RTU / Telemetry Gateway',
+      v.telemetryProtocol+' · Utility SCADA',
+      v.telRemoteCurtail?'Remote curtailment enabled':null));
+    // Dashed connection from CT to RTU
+    const rtuLY=rtuY+Math.round(rtuH/2);
+    el.push(`<line x1="${MCX+8}" y1="${ctY}" x2="${rtuX}" y2="${rtuLY}" stroke="${telC}" stroke-width="0.8" stroke-dasharray="4 2"/>`);
+    // SCADA communication link going right off-diagram
+    const scadaX=rtuX+rtuW, scadaEndX=Math.min(LX-10,scadaX+70);
+    el.push(`<line x1="${scadaX}" y1="${rtuLY}" x2="${scadaEndX}" y2="${rtuLY}" stroke="${telC}" stroke-width="1" stroke-dasharray="5 3"/>`);
+    el.push(`<polygon points="${scadaEndX},${rtuLY} ${scadaEndX-6},${rtuLY-4} ${scadaEndX-6},${rtuLY+4}" fill="${telC}"/>`);
+    el.push(`<text x="${scadaEndX+4}" y="${rtuLY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px">To Utility SCADA</text>`);
+  }
+
+  const overlayBottom=NY+necH+(showGridBox?gridBoxH+18:8)+210;
   const totalH=Math.max(y+30, battBotY+30, 620, overlayBottom+20);
   const svg=$('sld-svg');
   svg.setAttribute('width',SVG_W);
@@ -2695,7 +2828,7 @@ function render(){
   svg.setAttribute('viewBox',`0 0 ${SVG_W} ${totalH}`);
   const svgHtml=el.join('\n');
   svg.innerHTML=svgHtml;
-  positionDaeOverlay(LX, NY+necH+8);
+  positionDaeOverlay(LX, NY+necH+(showGridBox?gridBoxH+18:8));
 
   // ── Conduit sizing ────────────────────────────────────────────────────────
   // (CAT6_AREA, c1, perInvAcW, etc. computed above before NEC box)
