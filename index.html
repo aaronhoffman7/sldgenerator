@@ -209,7 +209,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="row2">
       <div><label>Unit size (kW)</label><input type="number" id="invKw" value="10" min="1" max="500" oninput="invKwChanged()"></div>
       <div><label>Output voltage</label>
-        <select id="invV" onchange="render()">
+        <select id="invV" onchange="invVChanged()">
           <option value="120VAC 1ph">120VAC 1ph</option>
           <option value="240VAC 1ph">240VAC 1ph</option>
           <option value="208VAC 3ph">208VAC 3ph</option>
@@ -278,9 +278,9 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <div><label>AC size (kW)</label><div id="a2ac-system-kw" class="cval" style="padding-top:4px">--</div></div>
     </div>
     <div class="row2">
-      <div><label>Unit size (kW)</label><input type="number" id="a2invKw" value="10" min="1" max="500" oninput="render()"></div>
+      <div><label>Unit size (kW)</label><input type="number" id="a2invKw" value="10" min="1" max="500" oninput="arrInvKwChanged(2)"></div>
       <div><label>Output voltage</label>
-        <select id="a2invV" onchange="render()">
+        <select id="a2invV" onchange="autoFillInvModel(2);render()">
           <option value="120VAC 1ph">120VAC 1ph</option>
           <option value="240VAC 1ph">240VAC 1ph</option>
           <option value="208VAC 3ph">208VAC 3ph</option>
@@ -468,7 +468,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <option value="ssn">Secondary spot network (SSN)</option>
     </select>
     <div class="row2" style="margin-top:8px">
-      <div><label>Export limit (kW)</label><input type="number" id="exportLimit" placeholder="None" min="0" step="1" oninput="render()"></div>
+      <div><label>Export limit (kW)</label><input type="number" id="exportLimit" placeholder="None" min="0" step="1" oninput="exportLimitChanged()"></div>
       <div><label>Type</label><select id="exportLimitType" onchange="render()"><option value="net">Net</option><option value="gross">Gross</option></select></div>
     </div>
     <label>Power factor requirement</label>
@@ -575,7 +575,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           <label>Panel tilt (°)</label>
           <input type="number" id="an-tilt" value="20" step="1" min="0" max="60">
           <label>Export limit (kW)</label>
-          <input type="number" id="an-export" value="0" step="1" oninput="anExportHint()">
+          <input type="number" id="an-export" value="0" step="1" oninput="anExportChanged()">
           <div id="an-export-hint" class="cnote"></div>
         </div>
         <div class="section">
@@ -1234,6 +1234,73 @@ function invModelChanged() {
   const gn = $('monitor-gateway-note');
   if (gn) gn.textContent = det ? `Gateway: ${det.gateway}` : '';
   render();
+}
+
+// Standard inverter BOD — nearest model is auto-suggested when unit kW changes.
+// User can always type to override; auto-fill only applies while the field still
+// shows the last auto-filled value (same guard pattern as _lastAutoInvKw).
+const INV_BOD = [
+  // ── 1-phase ──────────────────────────────────────────────
+  {ph:1, kw:0.315, model:'Enphase IQ8+ Micro (0.315 kW)'},
+  {ph:1, kw:3.8,   model:'SMA Sunny Boy 3.8-US'},
+  {ph:1, kw:5.0,   model:'SMA Sunny Boy 5.0-US'},
+  {ph:1, kw:6.0,   model:'SolarEdge SE6000H'},
+  {ph:1, kw:7.6,   model:'SolarEdge SE7600H'},
+  {ph:1, kw:7.7,   model:'SMA Sunny Boy 7.7-US'},
+  {ph:1, kw:10.0,  model:'SMA Sunny Boy 10.0-US'},
+  {ph:1, kw:11.4,  model:'SolarEdge SE11400H'},
+  // ── 3-phase ──────────────────────────────────────────────
+  {ph:3, kw:6.0,   model:'SMA Sunny Tripower 6.0'},
+  {ph:3, kw:8.0,   model:'SMA Sunny Tripower 8.0'},
+  {ph:3, kw:10.0,  model:'SolarEdge SE10K-US'},
+  {ph:3, kw:12.0,  model:'SMA Sunny Tripower 12.0'},
+  {ph:3, kw:14.4,  model:'SolarEdge SE14.4K-US'},
+  {ph:3, kw:15.0,  model:'SMA Sunny Tripower 15000TL'},
+  {ph:3, kw:17.0,  model:'SolarEdge SE17K-US'},
+  {ph:3, kw:20.0,  model:'SMA Sunny Tripower 20000TL'},
+  {ph:3, kw:24.2,  model:'SolarEdge SE24.2K-US'},
+  {ph:3, kw:25.0,  model:'SMA Sunny Tripower 25000TL'},
+  {ph:3, kw:27.6,  model:'SolarEdge SE27.6K-US'},
+  {ph:3, kw:30.0,  model:'Fronius Symo 30.0-3-480'},
+  {ph:3, kw:33.3,  model:'SolarEdge SE33.3K-US'},
+  {ph:3, kw:36.0,  model:'Fronius Symo 36.0-3-480'},
+  {ph:3, kw:40.0,  model:'Fronius Symo 40.0-3-480'},
+  {ph:3, kw:50.0,  model:'Sungrow SG50CX'},
+  {ph:3, kw:60.0,  model:'Sungrow SG60CX'},
+  {ph:3, kw:75.0,  model:'Sungrow SG75CX'},
+  {ph:3, kw:100.0, model:'Sungrow SG100CX'},
+  {ph:3, kw:110.0, model:'Sungrow SG110CX'},
+  {ph:3, kw:125.0, model:'Sungrow SG125CX'},
+  {ph:3, kw:150.0, model:'Sungrow SG150CX'},
+  {ph:3, kw:175.0, model:'Sungrow SG175CX'},
+  {ph:3, kw:200.0, model:'Sungrow SG200CX'},
+  {ph:3, kw:250.0, model:'Solectria SGI 250XTR'},
+  {ph:3, kw:300.0, model:'SMA SC 300 UD-US'},
+  {ph:3, kw:500.0, model:'SMA SC 500 UD-US'},
+];
+const _lastAutoInvModel = {1: null, 2: null};
+
+function autoFillInvModel(n){
+  const kw = parseFloat(agv(n,'invKw')) || 0;
+  if(kw <= 0) return;
+  const volt = agv(n,'invV') || '480VAC 3ph';
+  const ph = volt.includes('3ph') ? 3 : 1;
+  const pool = INV_BOD.filter(e => e.ph === ph);
+  if(!pool.length) return;
+  const best = pool.reduce((a,b) => Math.abs(b.kw-kw) < Math.abs(a.kw-kw) ? b : a);
+  const el = a$(n,'invModel');
+  if(!el) return;
+  if(el.value === _lastAutoInvModel[n] || _lastAutoInvModel[n] === null){
+    el.value = best.model;
+    _lastAutoInvModel[n] = best.model;
+    if(n === 1){
+      const det = detectMonitoring(best.model);
+      const pf = $('monitorPlatform');
+      if(pf && det && !pf.value) pf.value = det.platform;
+      const gn = $('monitor-gateway-note');
+      if(gn) gn.textContent = det ? `Gateway: ${det.gateway}` : '';
+    }
+  }
 }
 
 // NEC Table 310.15(B)(16) — copper THWN-2; 60°C for ≤#10 AWG per NEC 110.14(C)(1), 75°C for ≥#8 AWG
@@ -1934,7 +2001,8 @@ document.addEventListener('DOMContentLoaded',function(){
   // Disable arr2 manual fields by default (mirrored)
   const arr2fields = document.getElementById('arr2-fields');
   if(arr2fields) arr2fields.querySelectorAll('input,select').forEach(el => el.disabled = true);
-  // Auto-fill monitoring platform from default invModel value
+  // Auto-fill inverter model and monitoring platform on load
+  autoFillInvModel(1);
   const det = detectMonitoring(gv('invModel'));
   const pf = $('monitorPlatform');
   if (pf && det && !pf.value) pf.value = det.platform;
@@ -1978,6 +2046,7 @@ function arrSystemKwChanged(n){
   const invKwEl=a$(n,'invKw');
   if(invKwEl&&(+invKwEl.value===_lastAutoInvKw[n]||_lastAutoInvKw[n]===null)) invKwEl.value=unitKw;
   _lastAutoInvKw[n]=unitKw;
+  autoFillInvModel(n);
   if(gc('hasBatt')) autosizeBatt(); else render();
 }
 function arrStringsChanged(n){
@@ -2044,7 +2113,9 @@ function modWChanged(){ arrModWChanged(1); }
 function vocChanged(){ arrVocChanged(1); }
 function combVChanged(){ arrCombVChanged(1); }
 function dcAcRatioChanged(){ arrDcAcRatioChanged(1); }
-function invKwChanged(){ if(gc('hasBatt')) autosizeBatt(); else render(); }
+function invKwChanged(){ autoFillInvModel(1); if(gc('hasBatt')) autosizeBatt(); else render(); }
+function invVChanged(){ autoFillInvModel(1); render(); }
+function arrInvKwChanged(n){ autoFillInvModel(n); if(gc('hasBatt')) autosizeBatt(); else render(); }
 function invCountChanged(){ arrInvCountChanged(1); }
 const BATT_PRESETS = {
   '12VDC':            { model: '',                          chem: 'Lead-Acid' },
@@ -2547,9 +2618,10 @@ function render(){
   const nemLabel = v.hasNetMeter ? 'Net Energy Meter (NEM)' : 'Utility Revenue Meter';
   const nemSub   = v.hasNetMeter ? 'Bidirectional · Utility-supplied' : 'Utility-supplied';
   const nemTelSub = v.hasTelemetry && v.telRevMeter ? 'Revenue-grade · Class 0.2S' : null;
-  el.push(wlabel(MCX+22,y+15,nemLabel,true,'start'));
-  el.push(wlabel(MCX+22,y+27,nemSub,true,'start'));
-  if(nemTelSub) el.push(wlabel(MCX+22,y+39,nemTelSub,true,'start'));
+  const nemLX=v.hasTelemetry?MCX-22:MCX+22, nemAnc=v.hasTelemetry?'end':'start';
+  el.push(wlabel(nemLX,y+15,nemLabel,true,nemAnc));
+  el.push(wlabel(nemLX,y+27,nemSub,true,nemAnc));
+  if(nemTelSub) el.push(wlabel(nemLX,y+39,nemTelSub,true,nemAnc));
   y+=28;
   // Utility visible disconnect (NEC 705.22) — required when AC disconnect not accessible to utility
   if(v.hasUtilDisc){
@@ -2804,7 +2876,7 @@ function render(){
     const ctY = utilMeterCY + 22;
     el.push(`<circle cx="${MCX}" cy="${ctY}" r="8" fill="white" stroke="${telC}" stroke-width="1.2"/>`);
     el.push(`<text x="${MCX}" y="${ctY+3}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:6px;font-weight:700" text-anchor="middle">CT</text>`);
-    el.push(`<text x="${MCX+12}" y="${ctY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px">3Ø CT${v.telRevMeter?' / PT':''}</text>`);
+    el.push(`<text x="${MCX-12}" y="${ctY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="end">3Ø CT${v.telRevMeter?' / PT':''}</text>`);
     // RTU / Telemetry Gateway box to the right of the main column
     const rtuX=BX+BW+14, rtuY=utilMeterCY-20, rtuW=170, rtuH=v.telRemoteCurtail?56:44;
     el.push(compBox(rtuX,rtuY,rtuW,rtuH,telF,telC,'RTU / Telemetry Gateway',
@@ -3097,6 +3169,16 @@ function anExportHint(){
   if(isNaN(v)||v===0) el.textContent='0 = no export (zero-export / network)';
   else if(v>0) el.textContent=`Max ${v} kW allowed to flow to grid`;
   else el.textContent=`Spot network: must import ≥ ${-v} kW at all times`;
+}
+function exportLimitChanged(){
+  const val=parseFloat(gv('exportLimit'))||0;
+  const anEl=$('an-export'); if(anEl) anEl.value=val;
+  anExportHint(); render();
+}
+function anExportChanged(){
+  const val=parseFloat(gv('an-export'))||0;
+  const sldEl=$('exportLimit'); if(sldEl) sldEl.value=val>0?val:'';
+  anExportHint(); render();
 }
 
 function anLoadTypeChanged(){
