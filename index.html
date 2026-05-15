@@ -35,6 +35,7 @@ aside::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px;margin-top:8px}
 label:first-of-type{margin-top:0}
 input[type=text],input[type=number],select{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:12px;padding:5px 8px;border-radius:4px;outline:none;transition:border-color .15s}
+.fields-locked{opacity:0.45;pointer-events:none;user-select:none}
 input:focus,select:focus{border-color:var(--accent2)}
 select option{background:var(--surface2)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -1699,7 +1700,15 @@ function arr2Toggle(){
   const arrow = $('arr2-arrow');
   body.style.display = on ? 'block' : 'none';
   arrow.classList.toggle('open', on);
-  if(on) arr2Sync();
+  if(on){
+    arr2Sync();
+    const linked = gc('arr2-linked');
+    const fields = $('arr2-fields');
+    if(fields){
+      fields.querySelectorAll('input,select').forEach(el => el.disabled = linked);
+      fields.classList.toggle('fields-locked', linked);
+    }
+  }
 }
 
 function arr2Sync(){
@@ -1721,6 +1730,7 @@ function arr2LinkChanged(){
   const fields = $('arr2-fields');
   if(fields){
     fields.querySelectorAll('input,select').forEach(el => el.disabled = linked);
+    fields.classList.toggle('fields-locked', linked);
   }
   if(linked) arr2Sync();
   render();
@@ -2162,7 +2172,7 @@ function render(){
   let invBot1=col1.invBotY, invBot2=col1.invBotY, col2InvMidY=col1.invMidY;
   let col2InvRightX=col1.invRightX;
   if(v.hasArr2){
-    const col2=renderArrayColumn({...v.a2, modsLast:a2ModsLast, hasRSD:v.hasRSD, rsdMethod:v.rsdMethod, colLabel:'2'}, CX2, PV_START_Y, compact);
+    const col2=renderArrayColumn({...v.a2, modsLast:a2ModsLast, hasRSD:v.hasRSD, rsdMethod:v.rsdMethod, hasSPD:v.hasSPD, colLabel:'2'}, CX2, PV_START_Y, compact);
     el.push(col2.svg);
     invBot2=col2.invBotY;
     col2InvMidY=col2.invMidY;
@@ -2274,7 +2284,7 @@ function render(){
     if(v.hasArr2) monX = Math.max(monX, col2InvRightX+14);   // clear array-2 inverter box
     if(isPvhcs)   monX = Math.max(monX, MCX+BW/2+214);      // clear RSD transmitter box (MCX+100+200+14)
     const commX = monX + Math.round(monW/2);
-    el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS','PV Monitoring · NEC Art. 800'));
+    el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS','Elec. room · point of interconnection'));
     const commStyle='stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3" fill="none"';
     if(v.hasArr2){
       // One continuous line from Array 1 left edge through both inverter boxes to trunk
