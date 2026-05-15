@@ -210,9 +210,11 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <div><label>Unit size (kW)</label><input type="number" id="invKw" value="10" min="1" max="500" oninput="invKwChanged()"></div>
       <div><label>Output voltage</label>
         <select id="invV" onchange="render()">
+          <option value="120VAC 1ph">120VAC 1ph</option>
           <option value="240VAC 1ph">240VAC 1ph</option>
           <option value="208VAC 3ph">208VAC 3ph</option>
           <option value="480VAC 3ph" selected>480VAC 3ph</option>
+          <option value="600VAC 3ph">600VAC 3ph</option>
         </select>
       </div>
     </div>
@@ -279,9 +281,11 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <div><label>Unit size (kW)</label><input type="number" id="a2invKw" value="10" min="1" max="500" oninput="render()"></div>
       <div><label>Output voltage</label>
         <select id="a2invV" onchange="render()">
+          <option value="120VAC 1ph">120VAC 1ph</option>
           <option value="240VAC 1ph">240VAC 1ph</option>
           <option value="208VAC 3ph">208VAC 3ph</option>
           <option value="480VAC 3ph" selected>480VAC 3ph</option>
+          <option value="600VAC 3ph">600VAC 3ph</option>
         </select>
       </div>
     </div>
@@ -316,20 +320,46 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="row2">
       <div><label>Voltage</label>
         <select id="battV" onchange="battVChanged()">
-          <option value="12VDC">12 VDC (low-voltage)</option>
-          <option value="24VDC">24 VDC (low-voltage)</option>
-          <option value="48VDC" selected>48 VDC (low-voltage)</option>
-          <option value="51.2VDC">51.2 VDC (LFP nominal)</option>
-          <option value="~350–400VDC">~350–400 VDC (Tesla Powerwall)</option>
-          <option value="~400VDC">~400 VDC (Enphase IQ)</option>
-          <option value="~450VDC">~450 VDC (Franklin aPower)</option>
-          <option value="HV 100–500VDC">HV 100–500 VDC (SolarEdge)</option>
-          <option value="HV 400VDC">HV 400 VDC (Generac PWRcell)</option>
-          <option value="HV 500VDC">HV 500 VDC (LG RESU Prime)</option>
+          <optgroup label="Low-Voltage">
+            <option value="12VDC">12 VDC (low-voltage)</option>
+            <option value="24VDC">24 VDC (low-voltage)</option>
+            <option value="48VDC" selected>48 VDC (low-voltage)</option>
+            <option value="51.2VDC">51.2 VDC (LFP nominal)</option>
+          </optgroup>
+          <optgroup label="Residential HV">
+            <option value="102.4VDC">102.4 VDC (BYD Battery-Box HVS/HVM)</option>
+            <option value="~120VDC">~120 VDC (Sonnen ECO)</option>
+            <option value="~350–450VDC">~350–450 VDC (Tesla Powerwall 2)</option>
+            <option value="~400VDC">~400 VDC (Enphase IQ / Panasonic EverVolt)</option>
+            <option value="~430VDC">~430 VDC (Tesla Powerwall 3)</option>
+            <option value="~450VDC">~450 VDC (Franklin aPower)</option>
+          </optgroup>
+          <optgroup label="Commercial HV">
+            <option value="HV 48–550VDC">HV 48–550 VDC (Sungrow SBR/SBH)</option>
+            <option value="HV 80–600VDC">HV 80–600 VDC (GoodWe Lynx Home F)</option>
+            <option value="HV 100–500VDC">HV 100–500 VDC (SolarEdge / Huawei LUNA2000)</option>
+            <option value="HV 400VDC">HV 400 VDC (Generac PWRcell)</option>
+            <option value="HV 480VDC">HV 480 VDC (AlphaESS SMILE-HI)</option>
+            <option value="HV 500VDC">HV 500 VDC (LG RESU Prime)</option>
+            <option value="HV 600VDC">HV 600 VDC (Sonnen ecoLinx / C&amp;I BESS)</option>
+          </optgroup>
+          <optgroup label="Utility / C&amp;I Scale">
+            <option value="HV 800VDC">HV 800 VDC (CATL EnerOne / utility BESS)</option>
+            <option value="HV 1000–1500VDC">HV 1000–1500 VDC (Tesla Megapack / utility scale)</option>
+          </optgroup>
         </select>
       </div>
       <div><label>Chemistry</label>
-        <select id="battChem" onchange="render()"><option value="LFP">LiFePO4 (LFP)</option><option value="NMC">NMC Li-ion</option><option value="Lead-Acid">Lead-Acid</option></select>
+        <select id="battChem" onchange="render()">
+          <option value="LFP">LiFePO4 (LFP)</option>
+          <option value="NMC">NMC Li-ion</option>
+          <option value="NCA">NCA Li-ion</option>
+          <option value="Lead-Acid">Flooded Lead-Acid</option>
+          <option value="VRLA/AGM">VRLA / AGM</option>
+          <option value="Flow">Vanadium Redox Flow</option>
+          <option value="Na-ion">Sodium-ion (Na-ion)</option>
+          <option value="Zinc-hybrid">Zinc-Hybrid</option>
+        </select>
       </div>
     </div>
     <div class="row2">
@@ -350,21 +380,37 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <label>Comms protocol</label>
     <select id="battComms" onchange="render()">
       <option value="Modbus TCP">Modbus TCP</option>
+      <option value="Modbus RTU">RS-485 / Modbus RTU</option>
       <option value="CANbus">CANbus</option>
-      <option value="RS-485 Modbus">RS-485 / Modbus RTU</option>
+      <option value="CAN J1939">CAN J1939</option>
       <option value="EtherNet/IP">EtherNet/IP</option>
-      <option value="SunSpec">SunSpec</option>
+      <option value="SunSpec">SunSpec (Modbus)</option>
+      <option value="DNP3">DNP3</option>
+      <option value="IEC 61850">IEC 61850</option>
+      <option value="BACnet/IP">BACnet/IP</option>
+      <option value="OCPP 2.0">OCPP 2.0</option>
       <option value="Proprietary">Proprietary</option>
     </select>
     <div class="trow"><span>Interconnection protection relay</span><label class="tog"><input type="checkbox" id="hasProtRelay" onchange="toggleProtRelayFields();render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div id="protRelay-row" style="display:none">
     <label>Interconnection standard</label>
     <select id="interconnStd" onchange="render()">
-      <option value="IEEE 1547-2018">IEEE 1547-2018</option>
-      <option value="IEEE 1547-2003">IEEE 1547-2003</option>
-      <option value="UL 9540">UL 9540</option>
-      <option value="Rule 21">Rule 21 (CA)</option>
-      <option value="PREPA">PREPA</option>
+      <optgroup label="IEEE / UL Standards">
+        <option value="IEEE 1547-2018">IEEE 1547-2018</option>
+        <option value="IEEE 1547a-2020">IEEE 1547a-2020</option>
+        <option value="IEEE 1547-2003">IEEE 1547-2003 (legacy)</option>
+        <option value="UL 1741-SA">UL 1741-SA</option>
+        <option value="UL 1741-SB">UL 1741-SB</option>
+        <option value="UL 9540">UL 9540 (BESS)</option>
+      </optgroup>
+      <optgroup label="Utility / State Rules">
+        <option value="Rule 21">Rule 21 (CA)</option>
+        <option value="HECO Rule 14H">HECO Rule 14H (HI)</option>
+        <option value="Con Edison IR">Con Edison IR (NY)</option>
+        <option value="PSEG/JCP&L">PSEG / JCP&amp;L (NJ)</option>
+        <option value="PREPA">PREPA (PR)</option>
+        <option value="FERC Order 2222">FERC Order 2222</option>
+      </optgroup>
     </select>
     </div>
     </div>
@@ -431,7 +477,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="sec-subtitle" style="margin:10px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Roof → Electrical Room</div>
     <div id="roof-body">
     <div class="trow"><span>AC combiner on roof</span><label class="tog"><input type="checkbox" id="hasAcCombiner" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    <div class="trow" style="margin-top:8px"><span>AC conduit qty</span><select id="acConduitMult" onchange="render()" style="width:auto;min-width:90px"><option value="1">×1 (min.)</option><option value="2">×2</option><option value="3">×3</option></select></div>
+    <div class="trow" style="margin-top:8px"><span>AC conduit qty</span><select id="acConduitMult" onchange="render()" style="width:auto;min-width:90px"><option value="1">×1 (min.)</option><option value="2">×2</option><option value="3">×3</option><option value="4">×4</option><option value="5">×5</option><option value="6">×6</option></select></div>
     <div id="roof-branch-row" style="display:none">
       <div class="crow">Inv → combiner (per inverter)</div>
       <div class="cval" id="c-roof-branch">--</div>
@@ -1183,11 +1229,19 @@ const EMT_FILL=[
   {size:'2½"',f:1.847},{size:'3"',f:2.829},{size:'4"',f:4.754}
 ];
 function wireFor(a){return WIRE_AMP.find(w=>w.amps>=a)||WIRE_AMP[WIRE_AMP.length-1];}
+function wireForParallel(a){
+  const single=WIRE_AMP.find(w=>w.amps>=a);
+  if(single) return{...single,sets:1};
+  const largest=WIRE_AMP[WIRE_AMP.length-1];
+  const sets=Math.ceil(a/largest.amps);
+  return{...largest,sets};
+}
+function wireLbl(w){return w.sets>1?`${w.sets}× #${w.awg} THWN-2`:`#${w.awg} THWN-2`;}
 function conduitFor(n,wireArea){const tot=n*wireArea;return(EMT_FILL.find(c=>c.f>=tot)||EMT_FILL[EMT_FILL.length-1]).size;}
 // Compute conduit sizing data for one array config object
 function conduitRows(cfg){
   const invV=cfg.invV||'480VAC 3ph';
-  const invVolts=invV.startsWith('240')?240:invV.startsWith('208')?208:480;
+  const invVolts=invV.startsWith('120')?120:invV.startsWith('240')?240:invV.startsWith('208')?208:invV.startsWith('600')?600:480;
   const is3ph=invV.includes('3ph');
   const acConds=is3ph?4:3;
   const invCount=Math.max(1,cfg.invCount||1);
@@ -1915,10 +1969,12 @@ function arrModsChanged(n){
     const hasPartial=modsLast!==mps&&fullStrings>0;
     const note=a$(n,'system-kw-note');
     if(note){
-      if(hasPartial)
-        note.textContent=`${fullStrings}×${mps} + 1×${modsLast} mods = ${totalMods} modules · ${actualKw.toFixed(2)} kW DC`;
-      else
+      if(hasPartial){
+        const warn = modsLast < 4 ? ` ⚠ partial string of ${modsLast} mod${modsLast>1?'s':''} — adjust count` : '';
+        note.textContent=`${fullStrings}×${mps} + 1×${modsLast} mods = ${totalMods} modules · ${actualKw.toFixed(2)} kW DC${warn}`;
+      } else {
         note.textContent=`${totalStrings} strings × ${mps} mods = ${totalMods} modules · ${actualKw.toFixed(2)} kW DC`;
+      }
     }
   }
   render();
@@ -1955,18 +2011,28 @@ function dcAcRatioChanged(){ arrDcAcRatioChanged(1); }
 function invKwChanged(){ if(gc('hasBatt')) autosizeBatt(); else render(); }
 function invCountChanged(){ arrInvCountChanged(1); }
 const BATT_PRESETS = {
-  '24VDC':         { model: '',                       chem: 'LFP' },
-  '48VDC':         { model: '',                       chem: 'LFP' },
-  '51.2VDC':       { model: '',                       chem: 'LFP' },
-  '~350–400VDC':   { model: 'Tesla Powerwall 2',      chem: 'NMC' },
-  '~400VDC':       { model: 'Enphase IQ Battery 5P',  chem: 'LFP' },
-  '~450VDC':       { model: 'Franklin aPower 2',      chem: 'LFP' },
-  'HV 100–500VDC': { model: 'SolarEdge Home Battery', chem: 'LFP' },
-  'HV 400VDC':     { model: 'Generac PWRcell',        chem: 'NMC' },
-  'HV 500VDC':     { model: 'LG RESU Prime',          chem: 'NMC' },
+  '12VDC':            { model: '',                          chem: 'Lead-Acid' },
+  '24VDC':            { model: '',                          chem: 'LFP' },
+  '48VDC':            { model: '',                          chem: 'LFP' },
+  '51.2VDC':          { model: '',                          chem: 'LFP' },
+  '102.4VDC':         { model: 'BYD Battery-Box HVS 10.2', chem: 'LFP' },
+  '~120VDC':          { model: 'Sonnen ECO 10',             chem: 'LFP' },
+  '~350–450VDC':      { model: 'Tesla Powerwall 2',         chem: 'NMC' },
+  '~400VDC':          { model: 'Enphase IQ Battery 5P',     chem: 'LFP' },
+  '~430VDC':          { model: 'Tesla Powerwall 3',         chem: 'LFP' },
+  '~450VDC':          { model: 'Franklin aPower 2',         chem: 'LFP' },
+  'HV 48–550VDC':     { model: 'Sungrow SBR128',            chem: 'LFP' },
+  'HV 80–600VDC':     { model: 'GoodWe Lynx Home F 10',    chem: 'LFP' },
+  'HV 100–500VDC':    { model: 'SolarEdge Home Battery',   chem: 'LFP' },
+  'HV 400VDC':        { model: 'Generac PWRcell',           chem: 'NMC' },
+  'HV 480VDC':        { model: 'AlphaESS SMILE-HI10',       chem: 'LFP' },
+  'HV 500VDC':        { model: 'LG RESU Prime',             chem: 'NMC' },
+  'HV 600VDC':        { model: 'Sonnen ecoLinx 15',         chem: 'LFP' },
+  'HV 800VDC':        { model: 'CATL EnerOne',              chem: 'LFP' },
+  'HV 1000–1500VDC':  { model: 'Tesla Megapack 2XL',        chem: 'LFP' },
 };
 function autosizeBattV(kw){
-  const vKey = kw<=3 ? '48VDC' : kw<=5 ? '51.2VDC' : kw<=30 ? '~350–400VDC' : 'HV 500VDC';
+  const vKey = kw<=3 ? '48VDC' : kw<=5 ? '51.2VDC' : kw<=30 ? '~350–450VDC' : 'HV 500VDC';
   const sel=$('battV');
   if(sel) sel.value=vKey;
   const p=BATT_PRESETS[vKey];
@@ -2149,7 +2215,7 @@ function render(){
     a2Kw=a2TotalMods*v.a2.modW/1000;
     a2StrVoc=v.a2.mods*v.a2.voc;
     a2ArrIsc=v.a2.strings*v.a2.isc;
-    const a2V=v.a2.invV.startsWith('240')?240:v.a2.invV.startsWith('208')?208:480;
+    const a2V=v.a2.invV.startsWith('120')?120:v.a2.invV.startsWith('240')?240:v.a2.invV.startsWith('208')?208:v.a2.invV.startsWith('600')?600:480;
     const a23ph=v.a2.invV.includes('3ph');
     a2InvAcA=(v.a2.invKw*v.a2.invCount*1000)/(a2V*(a23ph?1.732:1));
     a2perInvRaw=(v.a2.invKw*1000)/(a2V*(a23ph?1.732:1));
@@ -2296,7 +2362,7 @@ function render(){
       // Battery bank section
       const bankY=contTop+divY2;
       el.push(`<text x="${BATTCX}" y="${bankY+14}" class="sld-lbl" text-anchor="middle">Battery Bank</text>`);
-      el.push(`<text x="${BATTCX}" y="${bankY+27}" class="sld-sub" text-anchor="middle">${v.battKwh} kWh · ${dur}h · C${cRate}C</text>`);
+      el.push(`<text x="${BATTCX}" y="${bankY+27}" class="sld-sub" text-anchor="middle">${v.battKwh} kWh · ${dur}h · ${cRate}C</text>`);
       el.push(`<text x="${BATTCX}" y="${bankY+40}" class="sld-sub" text-anchor="middle">${usableKwh} kWh usable · SOC ${v.battSocMin}–${v.battSocMax}%</text>`);
       el.push(`<text x="${BATTCX}" y="${bankY+54}" class="sld-sub" text-anchor="middle">${v.battChem}</text>`);
       // Comms annotation — dashed line from right edge, mid-height of battery section
@@ -2335,9 +2401,9 @@ function render(){
   el.push(`<text x="16" y="${breakY+11}" style="${zoneStyle}">ELECTRICAL ROOM</text>`);
 
   // AC Disconnect
-  const acMainWire=wireFor(totalInvAcA*1.25);
+  const acMainWire=wireForParallel(totalInvAcA*1.25);
   el.push(wireAC(MCX,y,MCX,y+W));
-  if(_showWire) el.push(wlabel(MCX-4,y+W/2-16,`#${acMainWire.awg} THWN-2`,true,'end'));
+  if(_showWire) el.push(wlabel(MCX-4,y+W/2-16,wireLbl(acMainWire),true,'end'));
   y+=W;
   const acDiscY=y;
   const isMlpeRsd=v.hasRSD&&(v.invType==='micro'||v.rsdMethod==='mlpe');
@@ -2483,7 +2549,7 @@ function render(){
   const perInvAcA = c1.perInvAcA;
   const acConductors = c1.acConds;
   const totalAcA = c1.perInvAcA * c1.invCount;
-  const totalAcW = wireFor(totalAcA);
+  const totalAcW = wireForParallel(totalAcA);
   const perInvLabel = c1.invCount > 1 ? ` · ×${c1.invCount} runs` : '';
   const commRuns = c1.invCount;
   const commConduit = c1.commCond;
@@ -4008,18 +4074,19 @@ function buildDebugReport(){
     lines.push('');
     lines.push('Battery Sweep Results:');
     const TH=['kWh','kW','Rec%','GridAvoid_MWh','Cycles/yr'];
-    const TW=[6,7,8,14,10];
-    const lp=(s,n)=>String(s).padEnd(n);
-    lines.push('  '+TH.map((h,i)=>lp(h,TW[i])).join('  '));
+    const TW=[8,10,7,13,10];
+    const lh=(s,n)=>String(s).padEnd(n);   // left-align headers
+    const rp=(s,n)=>String(s).padStart(n); // right-align numbers
+    lines.push('  '+TH.map((h,i)=>lh(h,TW[i])).join('  '));
     lines.push('  '+TW.map(n=>'-'.repeat(n)).join('  '));
     _anSweepResults.forEach(s=>{
       const pct=totalCurt>0?(s.curtRec/totalCurt*100).toFixed(1)+'%':'—';
       lines.push('  '+[
-        lp(s.kwh,TW[0]),
-        lp(s.kw.toFixed(1),TW[1]),
-        lp(pct,TW[2]),
-        lp((s.gridAvoided/1000).toFixed(2),TW[3]),
-        lp(s.cycles.toFixed(1),TW[4])
+        rp(s.kwh,TW[0]),
+        rp(s.kw.toFixed(1),TW[1]),
+        rp(pct,TW[2]),
+        rp((s.gridAvoided/1000).toFixed(2),TW[3]),
+        rp(s.cycles.toFixed(1),TW[4])
       ].join('  '));
     });
   } else {
