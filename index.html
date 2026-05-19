@@ -2558,7 +2558,7 @@ function render(){
   // AC Disconnect
   const acMainWire=wireForParallel(totalInvAcA*1.25);
   el.push(wireAC(MCX,y,MCX,y+W));
-  if(_showWire) el.push(wlabel(MCX-4,y+W/2-16,wireLbl(acMainWire),true,'end'));
+  if(_showWire) el.push(wlabel(MCX-4,gc('hasAcCombiner')?y+W-8:y+W/2-16,wireLbl(acMainWire),true,'end'));
   y+=W;
   const acDiscY=y;
   const isMlpeRsd=v.hasRSD&&(v.invType==='micro'||v.rsdMethod==='mlpe');
@@ -2608,10 +2608,12 @@ function render(){
       el.push(`<circle cx="${col1.invLeftX}" cy="${col1.invMidY}" r="3" fill="#7a84a0"/>`);
       el.push(`<circle cx="${col2InvRightX+4}" cy="${col2InvMidY}" r="3" fill="#7a84a0"/>`);
       el.push(`<path d="M ${trunkX} ${col1.invMidY} V ${panelY+14} H ${commX}" ${commStyle}/>`);
-      if(_showWire) el.push(`<text x="${trunkX+4}" y="${Math.round((col1.invMidY+panelY+14)/2)}" style="${commLblStyle}" text-anchor="start">Cat6</text>`);
+      {const _my=Math.round((col1.invMidY+panelY+14)/2),_cy=Math.abs(_my-breakY)<14?breakY+16:_my;
+      if(_showWire) el.push(`<text x="${trunkX+4}" y="${_cy}" style="${commLblStyle}" text-anchor="start">Cat6</text>`);}
     } else {
       el.push(`<path d="M ${col1.invRightX+4} ${col1.invMidY} H ${commX} V ${panelY+14}" ${commStyle}/>`);
-      if(_showWire) el.push(`<text x="${commX+4}" y="${Math.round((col1.invMidY+panelY+14)/2)}" style="${commLblStyle}" text-anchor="start">Cat6</text>`);
+      {const _my=Math.round((col1.invMidY+panelY+14)/2),_cy=Math.abs(_my-breakY)<14?breakY+16:_my;
+      if(_showWire) el.push(`<text x="${commX+4}" y="${_cy}" style="${commLblStyle}" text-anchor="start">Cat6</text>`);}
     }
   }
 
