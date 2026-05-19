@@ -280,7 +280,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="row2">
       <div><label>Unit size (kW)</label><input type="number" id="a2invKw" value="10" min="1" max="500" oninput="arrInvKwChanged(2)"></div>
       <div><label>Output voltage</label>
-        <select id="a2invV" onchange="autoFillInvModel(2);render()">
+        <select id="a2invV" onchange="arrInvVChanged(2)">
           <option value="120VAC 1ph">120VAC 1ph</option>
           <option value="240VAC 1ph">240VAC 1ph</option>
           <option value="208VAC 3ph">208VAC 3ph</option>
@@ -851,8 +851,10 @@ let _showNec = true;
 let _showWire = true;
 let _showConduitNotes = true;
 let _showNecNotes = true;
-const _lastAutoInvKw = {1: null, 2: null};
-const _lastAutoCombV = {1: null, 2: null};
+const _lastAutoInvKw    = {1: null, 2: null};
+const _lastAutoInvV     = {1: null, 2: null};
+const _lastAutoInvCount = {1: null, 2: null};
+const _lastAutoCombV    = {1: null, 2: null};
 
 // IndexedDB for DAE files (localStorage is too small for most .dae exports)
 const _idbName = 'sld_dae_db', _idbStore = 'dae';
@@ -1295,6 +1297,33 @@ const INV_BOD = [
 ];
 const _lastAutoInvModel = {1: null, 2: null};
 
+function autoFillInvV(n, totalAcKw){
+  const el = a$(n,'invV');
+  if(!el) return;
+  const auto = totalAcKw > 100 ? '480VAC 3ph' : totalAcKw > 20 ? '208VAC 3ph' : '240VAC 1ph';
+  if(el.value === _lastAutoInvV[n] || _lastAutoInvV[n] === null){
+    el.value = auto;
+    _lastAutoInvV[n] = auto;
+  }
+}
+function autoFillInvCount(n, totalAcKw){
+  const countEl = a$(n,'invCount');
+  if(!countEl) return;
+  const volt = agv(n,'invV') || '480VAC 3ph';
+  const ph = volt.includes('3ph') ? 3 : 1;
+  const pool = INV_BOD.filter(e => e.ph === ph);
+  if(!pool.length) return;
+  let bestCount = 1, bestErr = Infinity;
+  for(const inv of pool){
+    const count = Math.max(1, Math.round(totalAcKw / inv.kw));
+    const err = Math.abs(count * inv.kw - totalAcKw) / totalAcKw;
+    if(err < bestErr){ bestErr = err; bestCount = count; }
+  }
+  if(+countEl.value === _lastAutoInvCount[n] || _lastAutoInvCount[n] === null){
+    countEl.value = bestCount;
+    _lastAutoInvCount[n] = bestCount;
+  }
+}
 function autoFillInvModel(n){
   const kw = parseFloat(agv(n,'invKw')) || 0;
   if(kw <= 0) return;
@@ -2077,8 +2106,11 @@ function arrSystemKwChanged(n){
   const numModsEl=a$(n,'numMods'); if(numModsEl) numModsEl.value=cleanMods;
   const note=a$(n,'system-kw-note');
   if(note) note.textContent=`${cleanStrings} strings × ${mps} mods/string = ${cleanMods} modules · ${cleanKw.toFixed(2)} kW DC · max ${mps} mods @ ${combV}VDC`;
+  const totalAcKw=cleanKw/dcAcRatio;
+  autoFillInvV(n, totalAcKw);
+  autoFillInvCount(n, totalAcKw);
   const invCount=Math.max(1,+agv(n,'invCount')||1);
-  const unitKw=Math.round((cleanKw/dcAcRatio/invCount)*10)/10;
+  const unitKw=Math.round((totalAcKw/invCount)*10)/10;
   const invKwEl=a$(n,'invKw');
   if(invKwEl&&(+invKwEl.value===_lastAutoInvKw[n]||_lastAutoInvKw[n]===null)) invKwEl.value=unitKw;
   _lastAutoInvKw[n]=unitKw;
@@ -2142,8 +2174,13 @@ function arrCombVChanged(n){
   if(other && other.value !== val) other.value = val;
   if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else render();
 }
-function arrDcAcRatioChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else render(); }
-function arrInvCountChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else if(gc('hasBatt')) autosizeBatt(); else render(); }
+function arrDcAcRatioChanged(n){
+  if(+agv(n,'systemKw')>0){
+    _lastAutoInvKw[n]=null; _lastAutoInvCount[n]=null;
+    arrSystemKwChanged(n);
+  } else render();
+}
+function arrInvCountChanged(n){ _lastAutoInvCount[n]=-1; if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else if(gc('hasBatt')) autosizeBatt(); else render(); }
 // Array 1 wrappers — preserve existing oninput= attribute names in HTML
 function systemKwChanged(){ arrSystemKwChanged(1); }
 function stringsChanged(){ arrStringsChanged(1); }
@@ -2162,9 +2199,10 @@ function invTypeChanged(){
   }
   render();
 }
-function invKwChanged(){ autoFillInvModel(1); if(gc('hasBatt')) autosizeBatt(); else render(); }
-function invVChanged(){ autoFillInvModel(1); render(); }
-function arrInvKwChanged(n){ autoFillInvModel(n); if(gc('hasBatt')) autosizeBatt(); else render(); }
+function invKwChanged(){ _lastAutoInvKw[1]=-1; autoFillInvModel(1); if(gc('hasBatt')) autosizeBatt(); else render(); }
+function invVChanged(){ _lastAutoInvV[1]=-1; autoFillInvModel(1); render(); }
+function arrInvKwChanged(n){ _lastAutoInvKw[n]=-1; autoFillInvModel(n); if(gc('hasBatt')) autosizeBatt(); else render(); }
+function arrInvVChanged(n){ _lastAutoInvV[n]=-1; autoFillInvModel(n); render(); }
 function invCountChanged(){ arrInvCountChanged(1); }
 const BATT_PRESETS = {
   '12VDC':            { model: '',                          chem: 'Lead-Acid' },
