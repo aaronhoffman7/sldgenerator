@@ -490,6 +490,12 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="sec-subtitle" style="margin:14px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Display</div>
     <div class="trow"><span>Show NEC section labels</span><label class="tog"><input type="checkbox" id="showNecLabels" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Show wire sizing labels</span><label class="tog"><input type="checkbox" id="showWireLabels" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div class="trow"><span>Show conduit notes</span><label class="tog"><input type="checkbox" id="showConduitNotes" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div class="trow"><span>Show NEC compliance notes</span><label class="tog"><input type="checkbox" id="showNecNotes" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div class="trow"><span>Additional notes</span><label class="tog"><input type="checkbox" id="showCustomNotes" onchange="toggleCustomNotes(this.checked)"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div id="customNotesWrap" style="display:none;margin-top:6px">
+      <textarea id="customNotesText" placeholder="Notes to display on diagram (one per line)…" rows="3" style="width:100%;box-sizing:border-box;font-size:11px;resize:vertical;font-family:var(--font)" oninput="render()"></textarea>
+    </div>
     </div>
   </div>
   <div class="section">
@@ -842,6 +848,8 @@ let _currentProjectKey = null; // tracks the active save slot for overwrite
 let _lastAutoBreaker = null, _lastAutoPanel = null;
 let _showNec = true;
 let _showWire = true;
+let _showConduitNotes = true;
+let _showNecNotes = true;
 const _lastAutoInvKw = {1: null, 2: null};
 
 // IndexedDB for DAE files (localStorage is too small for most .dae exports)
@@ -1979,6 +1987,10 @@ function toggleProtRelayFields(){
   const el=document.getElementById('protRelay-row');
   if(el) el.style.display=document.getElementById('hasProtRelay').checked?'block':'none';
 }
+function toggleCustomNotes(checked){
+  $('customNotesWrap').style.display = checked ? 'block' : 'none';
+  render();
+}
 function toggleBattFields(skipAutosize){
   const el=document.getElementById('batt-fields');
   const on=document.getElementById('hasBatt').checked;
@@ -2330,6 +2342,8 @@ function renderArrayColumn(cfg, cx, startY, compact=false) {
 function render(){
   _showNec = gc('showNecLabels');
   _showWire = gc('showWireLabels');
+  _showConduitNotes = gc('showConduitNotes');
+  _showNecNotes = gc('showNecNotes');
   if(gc('hasArr2') && gc('arr2-linked')) arr2Sync();
   const v=vals();
   $('rsd-method-row').style.display = (v.hasRSD && v.invType !== 'micro') ? 'flex' : 'none';
@@ -2770,14 +2784,12 @@ function render(){
   // NEC calcs box
   const NY=LY+134;
   const accentStyle = `fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600;letter-spacing:.06em`;
-  const baseNecH = v.hasArr2 ? 302 : 272;
   const rsdCompNote = v.hasRSD ? (
     v.invType==='micro' ? 'RSD: Microinverters — inherent MLPE PVHCS · NEC 690.12(C)' :
     v.rsdMethod==='pvhcs' ? 'RSD: Dedicated shutdown receivers (PVHCS) · NEC 690.12(C)' :
     'RSD: DC Optimizers — module-level shutdown · NEC 690.12(C)'
   ) : '';
-  const necH = baseNecH + 64 + (v.hasRSD ? 12 : 0);
-  // AC roof conduit note — returns [line1, line2] to keep each line short enough to fit the box
+  // AC roof conduit note
   const acMult=+gv('acConduitMult')||1;
   const mPfx=`${acMult}× `;
   function acRoofNote(){
@@ -2799,69 +2811,78 @@ function render(){
   function necHead(y, label){ return `<text x="${LX+10}" y="${NY+y}" style="${accentStyle}">${label}</text>`; }
   function necLine(y, txt, extra=''){ return `<text x="${LX+10}" y="${NY+y}" class="sld-note"${extra}>${txt}</text>`; }
   function necBold(y, txt){ return `<text x="${LX+10}" y="${NY+y}" style="${boldStyle}">${txt}</text>`; }
-  const sharedHeader = [
-    `<rect x="${LX}" y="${NY}" width="${NW}" height="${necH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`,
-    `<text x="${LX+NW/2}" y="${NY+13}" class="sld-head" text-anchor="middle">PV Electrical Notes (NEC 690)</text>`,
-    `<text x="${LX+NW/2}" y="${NY+22}" style="${italicNote}" text-anchor="middle">Estimated · consult PV designer and site electrician for final calculations.</text>`,
-  ];
-  el.push(...sharedHeader);
+
+  const necItems = [];
+  let necY = 0;
 
   if(v.hasArr2){
-    // ── TOTALS first ─────────────────────────────────────────────────────────
-    el.push(necDiv(30));
-    el.push(necHead(41, 'TOTALS'));
-    el.push(necBold(55, `${totalKwDc.toFixed(2)} kW DC`));
-    el.push(necBold(67, `${totalAcKw.toFixed(1)} kW AC`));
-    el.push(necLine(79, `AC out: ${totalInvAcA.toFixed(1)} A  (×1.25 = ${recBreakerMin.toFixed(1)} A)`));
-    el.push(necLine(91, `Breaker: ${bkrLabel}  ·  Panel: ${activePanel}A`));
-    // ── Array breakdowns ──────────────────────────────────────────────────────
-    el.push(necDiv(100));
-    el.push(necHead(111, 'ARRAY 1'));
-    el.push(necLine(123, `Voc: ${stringVoc} V  (max ${necVoc} V)  ·  Isc: ${arrayIsc} A  ·  AC out: ${parseFloat(invAC).toFixed(1)} A`));
-    el.push(necDiv(131));
-    el.push(necHead(142, 'ARRAY 2'));
-    el.push(necLine(154, `Voc: ${a2StrVoc.toFixed(1)} V  (max ${(a2StrVoc*1.25).toFixed(0)} V)  ·  Isc: ${a2ArrIsc.toFixed(1)} A  ·  AC out: ${a2InvAcA.toFixed(1)} A`));
-    // ── Conduit notes ─────────────────────────────────────────────────────────
-    el.push(necDiv(162));
-    el.push(necHead(173, 'CONDUIT NOTES'));
-    el.push(necLine(185, acRoofNote()));
-    el.push(necLine(197, `Provide 1× ${roofCommCond} EMT for PV inverter communications, roof → elec. room${_showNec?' · NEC Art. 800':''}`));
-    el.push(necLine(209, 'DC wiring &amp; conduit by PV installer', ' style="font-style:italic"'));
-    // ── NEC compliance notes ──────────────────────────────────────────────────
-    el.push(necDiv(217));
-    el.push(necHead(228, 'NEC COMPLIANCE NOTES'));
-    el.push(necLine(240, '1.  AFCI: Integral arc-fault protection per NEC 690.11'));
-    el.push(necLine(252, '2.  GFPD: Ground-fault protection per NEC 690.5'));
-    el.push(necLine(264, `3.  ${v.hasSPD?'SPD: Surge protection per NEC 230.67 (AC) · NEC 242 (DC)':'SPD not shown — verify AHJ requirements'}`));
-    el.push(necLine(276, '4.  Grounding: Equipment grounded per NEC 690.43 · EGC per Table 250.122'));
-    if(v.hasRSD) el.push(necLine(288, `5.  ${rsdCompNote}`));
+    necItems.push(necDiv(30));
+    necItems.push(necHead(41, 'TOTALS'));
+    necItems.push(necBold(55, `${totalKwDc.toFixed(2)} kW DC`));
+    necItems.push(necBold(67, `${totalAcKw.toFixed(1)} kW AC`));
+    necItems.push(necLine(79, `AC out: ${totalInvAcA.toFixed(1)} A  (×1.25 = ${recBreakerMin.toFixed(1)} A)`));
+    necItems.push(necLine(91, `Breaker: ${bkrLabel}  ·  Panel: ${activePanel}A`));
+    necItems.push(necDiv(100));
+    necItems.push(necHead(111, 'ARRAY 1'));
+    necItems.push(necLine(123, `Voc: ${stringVoc} V  (max ${necVoc} V)  ·  Isc: ${arrayIsc} A  ·  AC out: ${parseFloat(invAC).toFixed(1)} A`));
+    necItems.push(necDiv(131));
+    necItems.push(necHead(142, 'ARRAY 2'));
+    necItems.push(necLine(154, `Voc: ${a2StrVoc.toFixed(1)} V  (max ${(a2StrVoc*1.25).toFixed(0)} V)  ·  Isc: ${a2ArrIsc.toFixed(1)} A  ·  AC out: ${a2InvAcA.toFixed(1)} A`));
+    necY = 154;
   } else {
-    // ── TOTALS first ─────────────────────────────────────────────────────────
-    el.push(necDiv(30));
-    el.push(necHead(41, 'TOTALS'));
-    el.push(necBold(55, `${arrayKw} kW DC`));
-    el.push(necBold(67, `${totalAcKw.toFixed(1)} kW AC`));
-    el.push(necLine(79, `Breaker: ${bkrLabel}  ·  Panel: ${activePanel}A`));
-    // ── Array specs ───────────────────────────────────────────────────────────
-    el.push(necDiv(88));
-    el.push(necHead(99, 'ARRAY'));
-    el.push(necLine(111, `Voc: ${stringVoc} V  (max ${necVoc} V)`));
-    el.push(necLine(123, `Isc: ${arrayIsc} A  ·  Inv. AC out: ${invAC} A`));
-    // ── Conduit notes ─────────────────────────────────────────────────────────
-    el.push(necDiv(132));
-    el.push(necHead(143, 'CONDUIT NOTES'));
-    el.push(necLine(155, acRoofNote()));
-    el.push(necLine(167, `Provide 1× ${roofCommCond} EMT for PV inverter communications, roof → elec. room${_showNec?' · NEC Art. 800':''}`));
-    el.push(necLine(179, 'DC wiring &amp; conduit by PV installer', ' style="font-style:italic"'));
-    // ── NEC compliance notes ──────────────────────────────────────────────────
-    el.push(necDiv(187));
-    el.push(necHead(198, 'NEC COMPLIANCE NOTES'));
-    el.push(necLine(210, '1.  AFCI: Integral arc-fault protection per NEC 690.11'));
-    el.push(necLine(222, '2.  GFPD: Ground-fault protection per NEC 690.5'));
-    el.push(necLine(234, `3.  ${v.hasSPD?'SPD: Surge protection per NEC 230.67 (AC) · NEC 242 (DC)':'SPD not shown — verify AHJ requirements'}`));
-    el.push(necLine(246, '4.  Grounding: Equipment grounded per NEC 690.43 · EGC per Table 250.122'));
-    if(v.hasRSD) el.push(necLine(258, `5.  ${rsdCompNote}`));
+    necItems.push(necDiv(30));
+    necItems.push(necHead(41, 'TOTALS'));
+    necItems.push(necBold(55, `${arrayKw} kW DC`));
+    necItems.push(necBold(67, `${totalAcKw.toFixed(1)} kW AC`));
+    necItems.push(necLine(79, `Breaker: ${bkrLabel}  ·  Panel: ${activePanel}A`));
+    necItems.push(necDiv(88));
+    necItems.push(necHead(99, 'ARRAY'));
+    necItems.push(necLine(111, `Voc: ${stringVoc} V  (max ${necVoc} V)`));
+    necItems.push(necLine(123, `Isc: ${arrayIsc} A  ·  Inv. AC out: ${invAC} A`));
+    necY = 123;
   }
+
+  if(_showConduitNotes){
+    const dY = necY + 8;
+    necItems.push(necDiv(dY));
+    necItems.push(necHead(dY+11, 'CONDUIT NOTES'));
+    necItems.push(necLine(dY+23, acRoofNote()));
+    necItems.push(necLine(dY+35, `Provide 1× ${roofCommCond} EMT for PV inverter communications, roof → elec. room${_showNec?' · NEC Art. 800':''}`));
+    necItems.push(necLine(dY+47, 'DC wiring &amp; conduit by PV installer', ' style="font-style:italic"'));
+    necY = dY + 47;
+  }
+
+  if(_showNecNotes){
+    const dY = necY + 8;
+    necItems.push(necDiv(dY));
+    necItems.push(necHead(dY+11, 'NEC COMPLIANCE NOTES'));
+    necItems.push(necLine(dY+23, '1.  AFCI: Integral arc-fault protection per NEC 690.11'));
+    necItems.push(necLine(dY+35, '2.  GFPD: Ground-fault protection per NEC 690.5'));
+    necItems.push(necLine(dY+47, `3.  ${v.hasSPD?'SPD: Surge protection per NEC 230.67 (AC) · NEC 242 (DC)':'SPD not shown — verify AHJ requirements'}`));
+    necItems.push(necLine(dY+59, '4.  Grounding: Equipment grounded per NEC 690.43 · EGC per Table 250.122'));
+    if(v.hasRSD){ necItems.push(necLine(dY+71, `5.  ${rsdCompNote}`)); necY = dY+71; }
+    else necY = dY+59;
+  }
+
+  const _showCustomNotesDiag = gc('showCustomNotes');
+  const customNoteLines = _showCustomNotesDiag
+    ? (gv('customNotesText')||'').trim().split('\n').filter(l=>l.trim())
+    : [];
+  if(customNoteLines.length > 0){
+    const dY = necY + 8;
+    necItems.push(necDiv(dY));
+    necItems.push(necHead(dY+11, 'ADDITIONAL NOTES'));
+    customNoteLines.forEach((line, i) => {
+      necItems.push(necLine(dY+23+i*12, esc(line)));
+    });
+    necY = dY + 23 + (customNoteLines.length - 1) * 12;
+  }
+
+  const necH = necY + 20;
+  el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="${necH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
+  el.push(`<text x="${LX+NW/2}" y="${NY+13}" class="sld-head" text-anchor="middle">PV Electrical Notes (NEC 690)</text>`);
+  el.push(`<text x="${LX+NW/2}" y="${NY+22}" style="${italicNote}" text-anchor="middle">Estimated · consult PV designer and site electrician for final calculations.</text>`);
+  el.push(...necItems);
 
   // ── RSD diagram elements (PVHCS) ────────────────────────────────────────
   if(v.hasRSD && v.rsdMethod==='pvhcs'){
