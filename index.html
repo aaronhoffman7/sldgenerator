@@ -1308,20 +1308,25 @@ function autoFillInvV(n, totalAcKw){
 }
 function autoFillInvCount(n, totalAcKw){
   const countEl = a$(n,'invCount');
+  const kwEl = a$(n,'invKw');
   if(!countEl) return;
   const volt = agv(n,'invV') || '480VAC 3ph';
   const ph = volt.includes('3ph') ? 3 : 1;
   const pool = INV_BOD.filter(e => e.ph === ph);
   if(!pool.length) return;
-  let bestCount = 1, bestErr = Infinity;
+  let bestCount = 1, bestUnitKw = Math.round(totalAcKw*10)/10, bestErr = Infinity;
   for(const inv of pool){
     const count = Math.max(1, Math.round(totalAcKw / inv.kw));
     const err = Math.abs(count * inv.kw - totalAcKw) / totalAcKw;
-    if(err < bestErr){ bestErr = err; bestCount = count; }
+    if(err < bestErr){ bestErr = err; bestCount = count; bestUnitKw = inv.kw; }
   }
   if(+countEl.value === _lastAutoInvCount[n] || _lastAutoInvCount[n] === null){
     countEl.value = bestCount;
     _lastAutoInvCount[n] = bestCount;
+    if(kwEl && (+kwEl.value === _lastAutoInvKw[n] || _lastAutoInvKw[n] === null)){
+      kwEl.value = bestUnitKw;
+      _lastAutoInvKw[n] = bestUnitKw;
+    }
   }
 }
 function autoFillInvModel(n){
@@ -2109,11 +2114,6 @@ function arrSystemKwChanged(n){
   const totalAcKw=cleanKw/dcAcRatio;
   autoFillInvV(n, totalAcKw);
   autoFillInvCount(n, totalAcKw);
-  const invCount=Math.max(1,+agv(n,'invCount')||1);
-  const unitKw=Math.round((totalAcKw/invCount)*10)/10;
-  const invKwEl=a$(n,'invKw');
-  if(invKwEl&&(+invKwEl.value===_lastAutoInvKw[n]||_lastAutoInvKw[n]===null)) invKwEl.value=unitKw;
-  _lastAutoInvKw[n]=unitKw;
   autoFillCombV(n);
   autoFillInvModel(n);
   if(gc('hasBatt')) autosizeBatt(); else render();
@@ -2172,7 +2172,15 @@ function arrCombVChanged(n){
   const otherId = n===1 ? 'a2combV' : 'combV';
   const other = $(otherId);
   if(other && other.value !== val) other.value = val;
-  if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else render();
+  if(+agv(n,'systemKw')>0){
+    arrSystemKwChanged(n);
+  } else {
+    const voc=+agv(n,'voc')||49.9, combV=+agv(n,'combV')||1000;
+    const maxMps=Math.floor(combV/(voc*1.25));
+    const modsEl=a$(n,'mods');
+    if(modsEl && +modsEl.value > maxMps) modsEl.value=maxMps;
+    render();
+  }
 }
 function arrDcAcRatioChanged(n){
   if(+agv(n,'systemKw')>0){
