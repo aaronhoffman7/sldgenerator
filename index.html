@@ -462,7 +462,19 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <input type="text" id="monitorPlatform" placeholder="Auto-detected from inverter model" oninput="render()">
     <div id="monitor-gateway-note" class="cnote"></div>
     <div class="sec-subtitle" style="margin:14px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Grid &amp; Telemetry</div>
-    <label>Grid network type</label>
+    <label>Interconnection mode</label>
+    <select id="interconnType" autocomplete="off" onchange="interconnTypeChanged()">
+      <option value="behind-meter">Behind-meter (service entrance)</option>
+      <option value="radial-feeder">Radial feeder injection (MV tap)</option>
+    </select>
+    <div id="feeder-fields" style="display:none;margin-top:8px">
+      <div class="row2">
+        <div><label>Feeder voltage (kV)</label><input type="number" id="feederKv" value="12.47" step="0.01" min="1" max="35" oninput="render()"></div>
+        <div><label>Feeder ID</label><input type="text" id="feederName" placeholder="e.g. Feeder F23" oninput="render()"></div>
+      </div>
+      <div class="trow" style="margin-top:6px"><span>Recloser at POI tap</span><label class="tog"><input type="checkbox" id="feederRecloser" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    </div>
+    <label style="margin-top:8px">Grid network type</label>
     <select id="gridNetwork" onchange="gridNetworkChanged()">
       <option value="radial">Radial network</option>
       <option value="san">Secondary area network (SAN)</option>
@@ -1439,6 +1451,10 @@ function vals(){
     hasRSD:gc('hasRSD'),rsdMethod:gv('rsdMethod')||'mlpe',hasMeter:gc('hasMeter'),hasGnd:gc('hasGnd'),
     hasSPD:gc('hasSPD'),hasUtilDisc:gc('hasUtilDisc')||gc('hasMvXfmr'),hasNetMeter:gc('hasNetMeter'),hasMonitoring:gc('hasMonitoring'),
     monitorPlatform:gv('monitorPlatform')||'',
+    interconnType:gv('interconnType')||'behind-meter',
+    feederKv:+gv('feederKv')||12.47,
+    feederName:gv('feederName')||'',
+    feederRecloser:gc('feederRecloser'),
     gridNetwork:gv('gridNetwork')||'radial',
     exportLimit:+gv('exportLimit')||0,
     exportLimitType:gv('exportLimitType')||'net',
@@ -2328,11 +2344,29 @@ function telemetryToggled(){
   render();
 }
 function gridNetworkChanged(){
-  // Secondary networks typically require telemetry — suggest it
   const nw=gv('gridNetwork');
   if((nw==='san'||nw==='ssn')&&!gc('hasTelemetry')){
     const cb=$('hasTelemetry');
     if(cb){ cb.checked=true; telemetryToggled(); return; }
+  }
+  render();
+}
+function interconnTypeChanged(){
+  const isFeeder = gv('interconnType')==='radial-feeder';
+  const ff=$('feeder-fields');
+  if(ff) ff.style.display=isFeeder?'block':'none';
+  if(isFeeder){
+    // MV transformer required for feeder injection
+    const mvCb=$('hasMvXfmr');
+    if(mvCb&&!mvCb.checked){ mvCb.checked=true; toggleMvFields(); }
+    // Protection relay mandatory
+    const prCb=$('hasProtRelay');
+    if(prCb&&!prCb.checked) prCb.checked=true;
+    // Telemetry typically required by utility
+    if(!gc('hasTelemetry')){
+      const telCb=$('hasTelemetry');
+      if(telCb){ telCb.checked=true; telemetryToggled(); return; }
+    }
   }
   render();
 }
@@ -2723,148 +2757,257 @@ function render(){
   }
 
   // ── Roof / Electrical Room boundary ─────────────────────────────────────────
+  const isFeederMode = v.interconnType === 'radial-feeder';
+  let panelY=0, panelBot=0, acDiscY=0;
   const breakY = y + Math.round(W/2);
   const zoneStyle = `font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600;letter-spacing:.1em;fill:#9aa0b8`;
   el.push(`<line x1="10" y1="${breakY}" x2="${SVG_W-10}" y2="${breakY}" stroke="#b8bfd4" stroke-width="1" stroke-dasharray="8 5"/>`);
   el.push(`<text x="16" y="${breakY-4}" style="${zoneStyle}">ROOF</text>`);
-  el.push(`<text x="16" y="${breakY+11}" style="${zoneStyle}">ELECTRICAL ROOM</text>`);
+  el.push(`<text x="16" y="${breakY+11}" style="${zoneStyle}">${isFeederMode?'INVERTER ROOM':'ELECTRICAL ROOM'}</text>`);
 
-  // AC Disconnect
+  // AC Disconnect / AC Gen-tie Switchgear
   const acMainWire=wireForParallel(totalInvAcA*1.25);
   el.push(wireAC(MCX,y,MCX,y+W));
   if(_showWire) el.push(wlabel(MCX-4,gc('hasAcCombiner')?y+W-8:y+W/2-16,wireLbl(acMainWire),true,'end'));
   y+=W;
-  const acDiscY=y;
-  const isMlpeRsd=v.hasRSD&&(v.invType==='micro'||v.rsdMethod==='mlpe');
-  const acDiscLabel=isMlpeRsd?'AC Disconnect / RSD Init.':'AC Disconnect';
-  const acDiscNec=isMlpeRsd?'NEC 690.15 / 705.20 / 690.12':'NEC 690.15 / 705.20';
-  const acDiscW=isMlpeRsd?190:BW-30;
-  el.push(discBox(MCX-acDiscW/2,y,acDiscW,54,'#edf2ff','#3a6bc0',acDiscLabel,`${v.invV} · ${bkrLabel}`,acDiscNec));
-  y+=54;
+  if(isFeederMode){
+    // Gen-tie switchgear replaces standard AC disconnect + MSP
+    el.push(compBox(BX,y,BW,64,'#f0eaff','#6b45c0','AC Gen-tie Switchgear',`${v.invV} · ${bkrLabel} OCPD`,'NEC 705 · Utility-grade AC breaker'));
+    panelY=y; panelBot=y+64; y=panelBot;
+    // Data logger / gateway — same anchor as panel
+    if(v.hasMonitoring){
+      const monPlatform=v.monitorPlatform||(detectMonitoring(v.invModel)||{}).platform||'';
+      const monW=175, monH=monPlatform?50:38;
+      const isPvhcs=v.hasRSD&&v.rsdMethod==='pvhcs';
+      let monX=BX+BW+14;
+      if(v.hasArr2) monX=Math.max(monX,col2InvRightX+14);
+      if(isPvhcs) monX=Math.max(monX,MCX+BW/2+214);
+      const commX=monX+Math.round(monW/2);
+      const detMon=detectMonitoring(v.invModel);
+      const gwNote=$('monitor-gateway-note');
+      if(gwNote) gwNote.textContent=detMon?`Gateway: ${detMon.gateway}`:'';
+      el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS',monPlatform||'In gen-tie room · at POI',monPlatform?'In gen-tie room · at POI':null));
+      const commStyle='stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3" fill="none"';
+      const commLblStyle=`fill:#7a84a0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px`;
+      if(v.hasArr2){
+        const trunkX=col2InvRightX+10;
+        el.push(`<path d="M ${col1.invLeftX} ${col1.invMidY} H ${trunkX}" ${commStyle}/>`);
+        el.push(`<circle cx="${col1.invLeftX}" cy="${col1.invMidY}" r="3" fill="#7a84a0"/>`);
+        el.push(`<circle cx="${col2InvRightX+4}" cy="${col2InvMidY}" r="3" fill="#7a84a0"/>`);
+        el.push(`<path d="M ${trunkX} ${col1.invMidY} V ${panelY+14} H ${commX}" ${commStyle}/>`);
+        {const _my=Math.round((col1.invMidY+panelY+14)/2),_cy=Math.abs(_my-breakY)<14?breakY+16:_my;
+        if(_showWire) el.push(`<text x="${trunkX+4}" y="${_cy}" style="${commLblStyle}" text-anchor="start">Cat6</text>`);}
+      } else {
+        el.push(`<path d="M ${col1.invRightX+4} ${col1.invMidY} H ${commX} V ${panelY+14}" ${commStyle}/>`);
+        {const _my=Math.round((col1.invMidY+panelY+14)/2),_cy=Math.abs(_my-breakY)<14?breakY+16:_my;
+        if(_showWire) el.push(`<text x="${commX+4}" y="${_cy}" style="${commLblStyle}" text-anchor="start">Cat6</text>`);}
+      }
+    }
+    if(v.hasSPD){
+      el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+      el.push(wireAC(MCX,y,MCX,y+W));
+      el.push(spdSym(MCX,y+Math.round(W/2),true,'right',`${v.invV} · Type 2`));
+      y+=W;
+    }
+    // Protection relay — mandatory for feeder injection
+    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+    el.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,'21/27/59/81/25/67/67N/32 · IEEE 1547'));
+    y+=54;
+    // Revenue metering package (LV side, before step-up)
+    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+    el.push(compBox(BX,y,BW,54,'#fff8ec','#c07a00','Revenue Metering Package','CT/PT · Class 0.2S · Bidirectional','Utility-accessible · Revenue-grade'));
+    const utilMeterCY=y+27;
+    y+=54;
+    // RTU / Telemetry gateway (feeder mode — anchored to metering package)
+    if(v.hasTelemetry){
+      const telC='#2a6e8c', telF='#eef6fb';
+      const rtuX=BX+BW+14, rtuY=utilMeterCY-20, rtuW=170, rtuH=v.telRemoteCurtail?56:44;
+      el.push(compBox(rtuX,rtuY,rtuW,rtuH,telF,telC,'RTU / Telemetry Gateway',v.telemetryProtocol+' · Utility SCADA',v.telRemoteCurtail?'Remote curtailment enabled':null));
+      const rtuLY=rtuY+Math.round(rtuH/2);
+      el.push(`<line x1="${BX+BW}" y1="${utilMeterCY}" x2="${rtuX}" y2="${rtuLY}" stroke="${telC}" stroke-width="0.8" stroke-dasharray="4 2"/>`);
+      const scadaX=rtuX+rtuW, scadaEndX=Math.min(SVG_W-30,scadaX+70);
+      el.push(`<line x1="${scadaX}" y1="${rtuLY}" x2="${scadaEndX}" y2="${rtuLY}" stroke="${telC}" stroke-width="1" stroke-dasharray="5 3"/>`);
+      el.push(`<polygon points="${scadaEndX},${rtuLY} ${scadaEndX-6},${rtuLY-4} ${scadaEndX-6},${rtuLY+4}" fill="${telC}"/>`);
+      el.push(`<text x="${scadaEndX+4}" y="${rtuLY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px">To Utility SCADA</text>`);
+    }
+    // MV step-up transformer
+    const mvLabel=`${v.mvQty>1?v.mvQty+'× ':''}${v.mvKva} kVA Pad-Mount Transformer`;
+    const mvSecV=v.mvSecV||480;
+    const mvPriKv=v.feederKv||v.mvPriKv||12.47;
+    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+    el.push(compBox(MCX-100,y,200,54,'#fff8ec','#c07a00',mvLabel,`${mvSecV}V / ${mvPriKv} kV · 3Φ 60Hz`,'NEMA 3R · Oil-Cooled'));
+    y+=54;
+    // MV wire color (orange) from transformer down
+    const mvC='#c07a00', mvW='stroke-width="2.5"';
+    el.push(`<line x1="${MCX}" y1="${y}" x2="${MCX}" y2="${y+W}" stroke="${mvC}" ${mvW}/>`);
+    // MV Switchgear
+    y+=W;
+    el.push(`<rect x="${BX}" y="${y}" width="${BW}" height="44" rx="6" fill="#fff3e0" stroke="${mvC}" stroke-width="1.5"/>`);
+    el.push(`<text x="${MCX}" y="${y+14}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:11px;font-weight:700" text-anchor="middle">MV Switchgear / Disconnect</text>`);
+    el.push(`<text x="${MCX}" y="${y+26}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle">${mvPriKv} kV · ${esc(v.utilityName)}-grade</text>`);
+    el.push(`<text x="${MCX}" y="${y+38}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle">Vacuum interrupter · Lockable · IEEE 1547</text>`);
+    y+=44;
+    // Optional recloser
+    if(v.feederRecloser){
+      el.push(`<line x1="${MCX}" y1="${y}" x2="${MCX}" y2="${y+W}" stroke="${mvC}" ${mvW}/>`);
+      y+=W;
+      el.push(`<rect x="${MCX-65}" y="${y}" width="130" height="44" rx="6" fill="#fff3e0" stroke="${mvC}" stroke-width="1.5"/>`);
+      el.push(`<text x="${MCX}" y="${y+14}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:11px;font-weight:700" text-anchor="middle">Automatic Recloser</text>`);
+      el.push(`<text x="${MCX}" y="${y+26}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle">${mvPriKv} kV · Trip coordination</text>`);
+      el.push(`<text x="${MCX}" y="${y+38}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle">IEEE 1547-2018 · Anti-islanding</text>`);
+      y+=44;
+    }
+    // MV vertical wire to feeder tap
+    el.push(`<line x1="${MCX}" y1="${y}" x2="${MCX}" y2="${y+W}" stroke="${mvC}" ${mvW}/>`);
+    y+=W;
+    // Feeder tap point
+    const feederY=y;
+    const feederLabel=v.feederName?v.feederName:`${mvPriKv} kV Distribution Feeder`;
+    const feederExtL=Math.min(MCX-20, 60), feederExtR=Math.max(MCX+20, SVG_W-80);
+    // Draw feeder line
+    el.push(`<line x1="${feederExtL}" y1="${feederY}" x2="${feederExtR}" y2="${feederY}" stroke="${mvC}" stroke-width="3"/>`);
+    // Tap circle
+    el.push(`<circle cx="${MCX}" cy="${feederY}" r="6" fill="${mvC}"/>`);
+    // Direction arrows
+    el.push(`<polygon points="${feederExtL+2},${feederY} ${feederExtL+10},${feederY-5} ${feederExtL+10},${feederY+5}" fill="${mvC}"/>`);
+    el.push(`<polygon points="${feederExtR-2},${feederY} ${feederExtR-10},${feederY-5} ${feederExtR-10},${feederY+5}" fill="${mvC}"/>`);
+    // Feeder labels
+    el.push(`<text x="${MCX}" y="${feederY-10}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:10px;font-weight:700" text-anchor="middle">POI</text>`);
+    el.push(`<text x="${MCX}" y="${feederY+18}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle">${esc(feederLabel)} · ${esc(v.utilityName)}</text>`);
+    // Source / load direction labels
+    el.push(`<text x="${feederExtL+14}" y="${feederY-6}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="start">← Source</text>`);
+    el.push(`<text x="${feederExtR-14}" y="${feederY-6}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="end">Load →</text>`);
+    y+=30;
+    // Feeder injection has no standard SAN/SSN grid box
+  } else {
+    // ── Standard behind-meter downstream path ──────────────────────────────
+    acDiscY=y;
+    const isMlpeRsd=v.hasRSD&&(v.invType==='micro'||v.rsdMethod==='mlpe');
+    const acDiscLabel=isMlpeRsd?'AC Disconnect / RSD Init.':'AC Disconnect';
+    const acDiscNec=isMlpeRsd?'NEC 690.15 / 705.20 / 690.12':'NEC 690.15 / 705.20';
+    const acDiscW=isMlpeRsd?190:BW-30;
+    el.push(discBox(MCX-acDiscW/2,y,acDiscW,54,'#edf2ff','#3a6bc0',acDiscLabel,`${v.invV} · ${bkrLabel}`,acDiscNec));
+    y+=54;
 
-  // Production meter
-  if(v.hasMeter){
+    // Production meter
+    if(v.hasMeter){
+      el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+      el.push(meterCircle(MCX,y+14));
+      el.push(wlabel(MCX+22,y+15,'PV Production Meter',true,'start'));
+      y+=28;
+    }
+
+    // Main panel
+    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+    panelY=y;
+    const panelSub=`${activePanel}A · ${v.invV}`;
+    el.push(compBox(BX,y,BW,64,'#f0eaff','#6b45c0','Main Service Panel',panelSub,`Solar backfeed: ${bkrLabel}`));
+    panelBot=y+64; y=panelBot;
+
+    // Data logger / gateway — near MSP
+    if(v.hasMonitoring){
+      const monPlatform = v.monitorPlatform || (detectMonitoring(v.invModel)||{}).platform || '';
+      const monW=175, monH = monPlatform ? 50 : 38;
+      const isPvhcs = v.hasRSD && v.rsdMethod==='pvhcs';
+      let monX = BX+BW+14;
+      if(v.hasArr2) monX = Math.max(monX, col2InvRightX+14);
+      if(isPvhcs)   monX = Math.max(monX, MCX+BW/2+214);
+      const commX = monX + Math.round(monW/2);
+      const detMon = detectMonitoring(v.invModel);
+      const gwNote = $('monitor-gateway-note');
+      if (gwNote) gwNote.textContent = detMon ? `Gateway: ${detMon.gateway}` : '';
+      el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS',
+        monPlatform || 'In elec. room · at POI',
+        monPlatform ? 'In elec. room · at POI' : null));
+      const commStyle='stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3" fill="none"';
+      const commLblStyle=`fill:#7a84a0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px`;
+      if(v.hasArr2){
+        const trunkX = col2InvRightX + 10;
+        el.push(`<path d="M ${col1.invLeftX} ${col1.invMidY} H ${trunkX}" ${commStyle}/>`);
+        el.push(`<circle cx="${col1.invLeftX}" cy="${col1.invMidY}" r="3" fill="#7a84a0"/>`);
+        el.push(`<circle cx="${col2InvRightX+4}" cy="${col2InvMidY}" r="3" fill="#7a84a0"/>`);
+        el.push(`<path d="M ${trunkX} ${col1.invMidY} V ${panelY+14} H ${commX}" ${commStyle}/>`);
+        {const _my=Math.round((col1.invMidY+panelY+14)/2),_cy=Math.abs(_my-breakY)<14?breakY+16:_my;
+        if(_showWire) el.push(`<text x="${trunkX+4}" y="${_cy}" style="${commLblStyle}" text-anchor="start">Cat6</text>`);}
+      } else {
+        el.push(`<path d="M ${col1.invRightX+4} ${col1.invMidY} H ${commX} V ${panelY+14}" ${commStyle}/>`);
+        {const _my=Math.round((col1.invMidY+panelY+14)/2),_cy=Math.abs(_my-breakY)<14?breakY+16:_my;
+        if(_showWire) el.push(`<text x="${commX+4}" y="${_cy}" style="${commLblStyle}" text-anchor="start">Cat6</text>`);}
+      }
+    }
+
+    // AC SPD
+    if(v.hasSPD){
+      el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+      el.push(wireAC(MCX,y,MCX,y+W));
+      el.push(spdSym(MCX, y+Math.round(W/2), true, 'right', `${v.invV} · Type 2`));
+      y+=W;
+    }
+    // Utility meter
     el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
     el.push(meterCircle(MCX,y+14));
-    el.push(wlabel(MCX+22,y+15,'PV Production Meter',true,'start'));
+    const utilMeterCY = y+14;
+    const nemLabel = v.hasNetMeter ? 'Net Energy Meter (NEM)' : 'Utility Revenue Meter';
+    const nemSub   = v.hasNetMeter ? 'Bidirectional · Utility-supplied' : 'Utility-supplied';
+    const nemTelSub = v.hasTelemetry && v.telRevMeter ? 'Revenue-grade · Class 0.2S' : null;
+    const nemLX=v.hasTelemetry?MCX-28:MCX+22, nemAnc=v.hasTelemetry?'end':'start';
+    el.push(wlabel(nemLX,y+15,nemLabel,true,nemAnc));
+    el.push(wlabel(nemLX,y+27,nemSub,true,nemAnc));
+    if(nemTelSub) el.push(wlabel(nemLX,y+39,nemTelSub,true,nemAnc));
     y+=28;
-  }
-
-  // Main panel
-  el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
-  const panelY=y;
-  const panelSub=`${activePanel}A · ${v.invV}`;
-  el.push(compBox(BX,y,BW,64,'#f0eaff','#6b45c0','Main Service Panel',panelSub,`Solar backfeed: ${bkrLabel}`));
-  const panelBot=y+64; y=panelBot;
-
-  // Data logger / gateway — near MSP; position clears RSD boxes and array-2 column
-  if(v.hasMonitoring){
-    const monPlatform = v.monitorPlatform || (detectMonitoring(v.invModel)||{}).platform || '';
-    const monW=175, monH = monPlatform ? 50 : 38;
-    const isPvhcs = v.hasRSD && v.rsdMethod==='pvhcs';
-    let monX = BX+BW+14;                                     // default: right of MSP
-    if(v.hasArr2) monX = Math.max(monX, col2InvRightX+14);   // clear array-2 inverter box
-    if(isPvhcs)   monX = Math.max(monX, MCX+BW/2+214);      // clear RSD transmitter box (MCX+100+200+14)
-    const commX = monX + Math.round(monW/2);
-    // Update gateway note in sidebar
-    const detMon = detectMonitoring(v.invModel);
-    const gwNote = $('monitor-gateway-note');
-    if (gwNote) gwNote.textContent = detMon ? `Gateway: ${detMon.gateway}` : '';
-    el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS',
-      monPlatform || 'In elec. room · at POI',
-      monPlatform ? 'In elec. room · at POI' : null));
-    const commStyle='stroke="#7a84a0" stroke-width="1" stroke-dasharray="5 3" fill="none"';
-    const commLblStyle=`fill:#7a84a0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px`;
-    if(v.hasArr2){
-      // One continuous line from Array 1 left edge through both inverter boxes to trunk
-      const trunkX = col2InvRightX + 10;
-      el.push(`<path d="M ${col1.invLeftX} ${col1.invMidY} H ${trunkX}" ${commStyle}/>`);
-      el.push(`<circle cx="${col1.invLeftX}" cy="${col1.invMidY}" r="3" fill="#7a84a0"/>`);
-      el.push(`<circle cx="${col2InvRightX+4}" cy="${col2InvMidY}" r="3" fill="#7a84a0"/>`);
-      el.push(`<path d="M ${trunkX} ${col1.invMidY} V ${panelY+14} H ${commX}" ${commStyle}/>`);
-      {const _my=Math.round((col1.invMidY+panelY+14)/2),_cy=Math.abs(_my-breakY)<14?breakY+16:_my;
-      if(_showWire) el.push(`<text x="${trunkX+4}" y="${_cy}" style="${commLblStyle}" text-anchor="start">Cat6</text>`);}
-    } else {
-      el.push(`<path d="M ${col1.invRightX+4} ${col1.invMidY} H ${commX} V ${panelY+14}" ${commStyle}/>`);
-      {const _my=Math.round((col1.invMidY+panelY+14)/2),_cy=Math.abs(_my-breakY)<14?breakY+16:_my;
-      if(_showWire) el.push(`<text x="${commX+4}" y="${_cy}" style="${commLblStyle}" text-anchor="start">Cat6</text>`);}
+    // ATS for islanding / backup — AC-coupled only
+    if(v.hasIslanding && v.hasBatt && v.battCouple!=='dc'){
+      el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+      const atsY=y;
+      el.push(compBox(BX,y,BW,54,'#fff8ec','#c07a00','Auto Transfer Switch (ATS)',`${v.invV} · Grid isolation`,'NEC 706 · UL 1008 · UL 9540'));
+      y+=54;
+      const clW=140, clH=44, clX=BX+BW+14;
+      el.push(`<line x1="${BX+BW}" y1="${atsY+27}" x2="${clX}" y2="${atsY+27}" stroke="#3a6bc0" stroke-width="1.5" stroke-dasharray="6 3" fill="none"/>`);
+      if(_showWire) el.push(`<text x="${BX+BW+4}" y="${atsY+22}" class="sld-note" text-anchor="start" style="fill:#3a6bc0;font-style:italic">load output</text>`);
+      el.push(compBox(clX,atsY+5,clW,clH,'#f0f4ff','#3a6bc0','Critical Loads Panel','Backup circuits','NEC 702'));
+      el.push(`<line x1="${BX}" y1="${atsY+27}" x2="${BX-44}" y2="${atsY+27}" stroke="#c07a00" stroke-width="1" stroke-dasharray="4 2"/>`);
+      el.push(`<text x="${BX-47}" y="${atsY+24}" class="sld-note" text-anchor="end" style="fill:#c07a00;font-style:italic">dry contact (24VDC)</text>`);
+      el.push(`<text x="${BX-47}" y="${atsY+36}" class="sld-note" text-anchor="end" style="fill:#c07a00">← BESS inverter ctrl.</text>`);
     }
-  }
-
-  // AC SPD between panel and utility meter
-  if(v.hasSPD){
-    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+    // Utility visible disconnect
+    if(v.hasUtilDisc){
+      el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+      el.push(discBox(MCX-65,y,130,54,'#edf2ff','#3a6bc0','Utility Visible Disconnect',v.invV,'NEC 705.22 · Lockable'));
+      y+=54;
+    }
     el.push(wireAC(MCX,y,MCX,y+W));
-    el.push(spdSym(MCX, y+Math.round(W/2), true, 'right', `${v.invV} · Type 2`));
+    if(v.hasMvXfmr){
+      const ctY=y+Math.round(W*0.35);
+      el.push(`<circle cx="${MCX-9}" cy="${ctY}" r="7" fill="#fff8ec" stroke="#c07a00" stroke-width="1"/><text x="${MCX-9}" y="${ctY+3}" style="fill:#c07a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:6px;font-weight:700" text-anchor="middle">CT</text>`);
+      el.push(`<circle cx="${MCX+9}" cy="${ctY}" r="7" fill="#fff8ec" stroke="#c07a00" stroke-width="1"/><text x="${MCX+9}" y="${ctY+3}" style="fill:#c07a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:6px;font-weight:700" text-anchor="middle">CT</text>`);
+      const ptY=y+Math.round(W*0.68);
+      el.push(`<line x1="${MCX}" y1="${ptY}" x2="${MCX+32}" y2="${ptY}" stroke="#c07a00" stroke-width="1" stroke-dasharray="3 2"/>`);
+      el.push(`<rect x="${MCX+32}" y="${ptY-9}" width="28" height="18" rx="3" fill="#fff8ec" stroke="#c07a00" stroke-width="1"/>`);
+      el.push(`<text x="${MCX+46}" y="${ptY+5}" style="fill:#c07a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:7px;font-weight:700" text-anchor="middle">PT</text>`);
+    }
     y+=W;
-  }
-  // Utility meter
-  el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
-  el.push(meterCircle(MCX,y+14));
-  const utilMeterCY = y+14;
-  const nemLabel = v.hasNetMeter ? 'Net Energy Meter (NEM)' : 'Utility Revenue Meter';
-  const nemSub   = v.hasNetMeter ? 'Bidirectional · Utility-supplied' : 'Utility-supplied';
-  const nemTelSub = v.hasTelemetry && v.telRevMeter ? 'Revenue-grade · Class 0.2S' : null;
-  const nemLX=v.hasTelemetry?MCX-22:MCX+22, nemAnc=v.hasTelemetry?'end':'start';
-  el.push(wlabel(nemLX,y+15,nemLabel,true,nemAnc));
-  el.push(wlabel(nemLX,y+27,nemSub,true,nemAnc));
-  if(nemTelSub) el.push(wlabel(nemLX,y+39,nemTelSub,true,nemAnc));
-  y+=28;
-  // ATS for islanding / backup — AC-coupled only (hybrid has internal transfer switch)
-  if(v.hasIslanding && v.hasBatt && v.battCouple!=='dc'){
-    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
-    const atsY=y;
-    el.push(compBox(BX,y,BW,54,'#fff8ec','#c07a00','Auto Transfer Switch (ATS)',`${v.invV} · Grid isolation`,'NEC 706 · UL 1008 · UL 9540'));
-    y+=54;
-    // Critical loads panel — right side (load terminal output)
-    const clW=140, clH=44, clX=BX+BW+14;
-    el.push(`<line x1="${BX+BW}" y1="${atsY+27}" x2="${clX}" y2="${atsY+27}" stroke="#3a6bc0" stroke-width="1.5" stroke-dasharray="6 3" fill="none"/>`);
-    if(_showWire) el.push(`<text x="${BX+BW+4}" y="${atsY+22}" class="sld-note" text-anchor="start" style="fill:#3a6bc0;font-style:italic">load output</text>`);
-    el.push(compBox(clX,atsY+5,clW,clH,'#f0f4ff','#3a6bc0','Critical Loads Panel','Backup circuits','NEC 702'));
-    // Control signal stub — left side toward BESS inverter
-    el.push(`<line x1="${BX}" y1="${atsY+27}" x2="${BX-44}" y2="${atsY+27}" stroke="#c07a00" stroke-width="1" stroke-dasharray="4 2"/>`);
-    el.push(`<text x="${BX-47}" y="${atsY+24}" class="sld-note" text-anchor="end" style="fill:#c07a00;font-style:italic">dry contact (24VDC)</text>`);
-    el.push(`<text x="${BX-47}" y="${atsY+36}" class="sld-note" text-anchor="end" style="fill:#c07a00">← BESS inverter ctrl.</text>`);
-  }
-  // Utility visible disconnect (NEC 705.22) — required when AC disconnect not accessible to utility
-  if(v.hasUtilDisc){
-    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
-    el.push(discBox(MCX-65,y,130,54,'#edf2ff','#3a6bc0','Utility Visible Disconnect',v.invV,'NEC 705.22 · Lockable'));
-    y+=54;
-  }
-  el.push(wireAC(MCX,y,MCX,y+W));
-  if(v.hasMvXfmr){
-    const ctY=y+Math.round(W*0.35);
-    el.push(`<circle cx="${MCX-9}" cy="${ctY}" r="7" fill="#fff8ec" stroke="#c07a00" stroke-width="1"/><text x="${MCX-9}" y="${ctY+3}" style="fill:#c07a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:6px;font-weight:700" text-anchor="middle">CT</text>`);
-    el.push(`<circle cx="${MCX+9}" cy="${ctY}" r="7" fill="#fff8ec" stroke="#c07a00" stroke-width="1"/><text x="${MCX+9}" y="${ctY+3}" style="fill:#c07a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:6px;font-weight:700" text-anchor="middle">CT</text>`);
-    const ptY=y+Math.round(W*0.68);
-    el.push(`<line x1="${MCX}" y1="${ptY}" x2="${MCX+32}" y2="${ptY}" stroke="#c07a00" stroke-width="1" stroke-dasharray="3 2"/>`);
-    el.push(`<rect x="${MCX+32}" y="${ptY-9}" width="28" height="18" rx="3" fill="#fff8ec" stroke="#c07a00" stroke-width="1"/>`);
-    el.push(`<text x="${MCX+46}" y="${ptY+5}" style="fill:#c07a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:7px;font-weight:700" text-anchor="middle">PT</text>`);
-  }
-  y+=W;
-  if(v.hasProtRelay){
-    el.push(compBox(MCX-100,y,200,44,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,'27/59/81/25 · UV/OV/UF/OF/Sync'));
-    y+=44;
-  }
+    if(v.hasProtRelay){
+      el.push(compBox(MCX-100,y,200,44,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,'27/59/81/25 · UV/OV/UF/OF/Sync'));
+      y+=44;
+    }
 
-  // MV step-up transformer
-  if(v.hasMvXfmr){
-    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
-    const mvLabel=`${v.mvQty>1?v.mvQty+'× ':''}${v.mvKva} kVA Pad-Mount Transformer`;
-    const mvSub=`${v.mvSecV}V / ${v.mvPriKv} kV · 3Φ 60Hz`;
-    el.push(compBox(MCX-100,y,200,54,'#fff8ec','#c07a00',mvLabel,mvSub,'NEMA 3R · Oil-Cooled'));
-    y+=54;
-  }
+    // MV step-up transformer
+    if(v.hasMvXfmr){
+      el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+      const mvLabel=`${v.mvQty>1?v.mvQty+'× ':''}${v.mvKva} kVA Pad-Mount Transformer`;
+      const mvSub=`${v.mvSecV}V / ${v.mvPriKv} kV · 3Φ 60Hz`;
+      el.push(compBox(MCX-100,y,200,54,'#fff8ec','#c07a00',mvLabel,mvSub,'NEMA 3R · Oil-Cooled'));
+      y+=54;
+    }
 
-  // POI marker
-  const poiLabel=v.poiKv>=1?`${v.poiKv} kV`:`${(v.poiKv*1000).toFixed(0)}V`;
-  el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
-  const gridBoxTitle=v.gridNetwork==='san'?'Secondary Area Bus':v.gridNetwork==='ssn'?'Spot Network Bus':'GRID';
-  el.push(compBox(BX,y,BW,36,'#f5f7fc','#a0aac8',gridBoxTitle,poiLabel+' · '+esc(v.utilityName)));
-  if(v.gridNetwork==='radial') [0,1,2].forEach(i=>{const lx=BX+BW-24,ly=y+10+i*8;el.push(`<line x1="${lx}" y1="${ly}" x2="${lx+16}" y2="${ly}" stroke="#a0aac8" stroke-width="${2-i*0.5}"/>`);});
-  y+=36;
-  if(v.gridNetwork==='san'||v.gridNetwork==='ssn'){
+    // POI marker
+    const poiLabel=v.poiKv>=1?`${v.poiKv} kV`:`${(v.poiKv*1000).toFixed(0)}V`;
+    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+    const gridBoxTitle=v.gridNetwork==='san'?'Secondary Area Bus':v.gridNetwork==='ssn'?'Spot Network Bus':'GRID';
+    el.push(compBox(BX,y,BW,36,'#f5f7fc','#a0aac8',gridBoxTitle,poiLabel+' · '+esc(v.utilityName)));
+    if(v.gridNetwork==='radial') [0,1,2].forEach(i=>{const lx=BX+BW-24,ly=y+10+i*8;el.push(`<line x1="${lx}" y1="${ly}" x2="${lx+16}" y2="${ly}" stroke="#a0aac8" stroke-width="${2-i*0.5}"/>`);});
+    y+=36;
+    if(v.gridNetwork==='san'||v.gridNetwork==='ssn'){
     const isSsn=v.gridNetwork==='ssn';
     const netC='#6b7a9c', netF='#f0f2f8';
     const npW=110, npH=32, xfW=110, xfH=44;
@@ -2894,7 +3037,8 @@ function render(){
     const pvKvLabel=v.poiKv>=1?`${v.poiKv} kV`:`${(v.poiKv*1000).toFixed(0)}V`;
     el.push(`<text x="${MCX}" y="${primY+12}" style="fill:${netC};font-family:'Avenir Next','Avenir',sans-serif;font-size:8px;font-weight:600" text-anchor="middle">Utility Primary Feeder · ${pvKvLabel}</text>`);
     y=primY+22;
-  }
+    }
+  } // end behind-meter else
 
   // Grounding
   if(v.hasGnd){
@@ -3132,7 +3276,7 @@ function render(){
     const ctY = utilMeterCY + 22;
     el.push(`<circle cx="${MCX}" cy="${ctY}" r="8" fill="white" stroke="${telC}" stroke-width="1.2"/>`);
     el.push(`<text x="${MCX}" y="${ctY+3}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:6px;font-weight:700" text-anchor="middle">CT</text>`);
-    el.push(`<text x="${MCX-12}" y="${ctY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="end">3Ø CT${v.telRevMeter?' / PT':''}</text>`);
+    el.push(`<text x="${MCX+12}" y="${ctY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="start">3Ø CT${v.telRevMeter?' / PT':''}</text>`);
     // RTU / Telemetry Gateway box to the right of the main column
     const rtuX=BX+BW+14, rtuY=utilMeterCY-20, rtuW=170, rtuH=v.telRemoteCurtail?56:44;
     el.push(compBox(rtuX,rtuY,rtuW,rtuH,telF,telC,'RTU / Telemetry Gateway',
