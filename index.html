@@ -196,7 +196,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div id="fuse-check" class="cnote"></div>
     <div class="stitle" style="margin-top:12px">Inverter 1</div>
     <label>Type</label>
-    <select id="invType" onchange="render()">
+    <select id="invType" onchange="invTypeChanged()">
       <option value="string">String inverter</option>
       <option value="hybrid">Hybrid (DC-coupled battery)</option>
       <option value="micro">Microinverters</option>
@@ -391,6 +391,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <option value="OCPP 2.0">OCPP 2.0</option>
       <option value="Proprietary">Proprietary</option>
     </select>
+    <div class="trow"><span>Islanding / backup capable</span><label class="tog"><input type="checkbox" id="hasIslanding" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Interconnection protection relay</span><label class="tog"><input type="checkbox" id="hasProtRelay" onchange="toggleProtRelayFields();render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div id="protRelay-row" style="display:none">
     <label>Interconnection standard</label>
@@ -851,6 +852,7 @@ let _showWire = true;
 let _showConduitNotes = true;
 let _showNecNotes = true;
 const _lastAutoInvKw = {1: null, 2: null};
+const _lastAutoCombV = {1: null, 2: null};
 
 // IndexedDB for DAE files (localStorage is too small for most .dae exports)
 const _idbName = 'sld_dae_db', _idbStore = 'dae';
@@ -1387,7 +1389,7 @@ function vals(){
       invType:gv('a2invType'),dcAcRatio:+gv('a2dcAcRatio')||1.2,invKw:+gv('a2invKw')||10,invCount:Math.max(1,+gv('a2invCount')||1),
       invV:gv('a2invV'),invModel:gv('a2invModel'),
     },
-    hasBatt:gc('hasBatt'),battCouple:gv('battCouple'),battKwh:+gv('battKwh')||13.5,
+    hasBatt:gc('hasBatt'),hasIslanding:gc('hasIslanding'),battCouple:gv('battCouple'),battKwh:+gv('battKwh')||13.5,
     battKw:+gv('battKw')||5,battQty:Math.max(1,+gv('battQty')||1),pcsKva:+gv('pcsKva')||5,
     battV:gv('battV'),battChem:gv('battChem'),battModel:gv('battModel'),
     battSocMin:+gv('battSocMin')||10,battSocMax:+gv('battSocMax')||90,
@@ -2037,6 +2039,24 @@ function calcStrings(totalMods, mps, modW){
   const actualKw=(totalMods*modW/1000);
   return{fullStrings,modsLast,totalStrings,totalMods,actualKw};
 }
+function autoFillCombV(n){
+  const mods=+agv(n,'mods')||1;
+  const voc=+agv(n,'voc')||49.9;
+  const necVoc=mods*voc*1.25;
+  const auto=necVoc<=600?600:necVoc<=1000?1000:1500;
+  const el=a$(n,'combV');
+  if(!el) return;
+  if(_lastAutoCombV[n]===null||+el.value===_lastAutoCombV[n]){
+    el.value=auto;
+    const otherN=n===1?2:1;
+    const otherEl=$(n===1?'a2combV':'combV');
+    if(otherEl&&(_lastAutoCombV[otherN]===null||+otherEl.value===_lastAutoCombV[otherN])){
+      otherEl.value=auto;
+      _lastAutoCombV[otherN]=auto;
+    }
+  }
+  _lastAutoCombV[n]=auto;
+}
 function arrSystemKwChanged(n){
   const systemKw=+agv(n,'systemKw');
   const modW=+agv(n,'modW')||550;
@@ -2062,6 +2082,7 @@ function arrSystemKwChanged(n){
   const invKwEl=a$(n,'invKw');
   if(invKwEl&&(+invKwEl.value===_lastAutoInvKw[n]||_lastAutoInvKw[n]===null)) invKwEl.value=unitKw;
   _lastAutoInvKw[n]=unitKw;
+  autoFillCombV(n);
   autoFillInvModel(n);
   if(gc('hasBatt')) autosizeBatt(); else render();
 }
@@ -2098,6 +2119,7 @@ function arrModsChanged(n){
       }
     }
   }
+  autoFillCombV(n);
   render();
 }
 function arrNumModsChanged(n){
@@ -2110,8 +2132,9 @@ function arrNumModsChanged(n){
   arrModsChanged(n); // uses calcStrings — allows partial last string unlike arrSystemKwChanged
 }
 function arrModWChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else if(+agv(n,'numMods')>0) arrNumModsChanged(n); else render(); }
-function arrVocChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else render(); }
+function arrVocChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else { autoFillCombV(n); render(); } }
 function arrCombVChanged(n){
+  _lastAutoCombV[1]=-1; _lastAutoCombV[2]=-1; // user manually set — don't auto-override
   // Mirror to the other array — DC voltage rating is always the same across both arrays
   const val = agv(n,'combV');
   const otherId = n===1 ? 'a2combV' : 'combV';
@@ -2129,6 +2152,16 @@ function modWChanged(){ arrModWChanged(1); }
 function vocChanged(){ arrVocChanged(1); }
 function combVChanged(){ arrCombVChanged(1); }
 function dcAcRatioChanged(){ arrDcAcRatioChanged(1); }
+function invTypeChanged(){
+  const isHybrid = gv('invType') === 'hybrid';
+  const battEl = $('hasBatt');
+  if(battEl){
+    battEl.checked = isHybrid;
+    if(isHybrid){ const ce=$('battCouple'); if(ce) ce.value='dc'; }
+    toggleBattFields(true);
+  }
+  render();
+}
 function invKwChanged(){ autoFillInvModel(1); if(gc('hasBatt')) autosizeBatt(); else render(); }
 function invVChanged(){ autoFillInvModel(1); render(); }
 function arrInvKwChanged(n){ autoFillInvModel(n); if(gc('hasBatt')) autosizeBatt(); else render(); }
@@ -2329,7 +2362,9 @@ function renderArrayColumn(cfg, cx, startY, compact=false) {
   });
 
   // NEC compliance note at bottom
-  const afciLine=_showNec?'Int. AFCI · NEC 690.11  ·  GFPD · NEC 690.5':'Int. AFCI · GFPD';
+  const afciLine=cfg.invType==='hybrid'&&cfg.hasIslanding
+    ?'Int. AFCI · GFPD · Int. ATS · UL 1741 SA'
+    :_showNec?'Int. AFCI · NEC 690.11  ·  GFPD · NEC 690.5':'Int. AFCI · GFPD';
   s.push(`<text x="${cx}" y="${y+invH-botPad}" style="fill:#8090a8;font-family:'Avenir Next','Avenir',sans-serif;font-size:7.5px;font-style:italic" text-anchor="middle">${afciLine}</text>`);
 
   const invBotY=y+invH;
@@ -2486,6 +2521,16 @@ function render(){
     col2InvRightX=col2.invRightX;
   }
 
+  // Critical loads panel — DC-coupled / hybrid: branches right off inverter EPS output
+  if(v.hasIslanding && v.hasBatt && v.battCouple==='dc'){
+    const clW=140, clH=44;
+    const clX=col1.invRightX+14;
+    const clMidY=col1.invMidY;
+    el.push(`<line x1="${col1.invRightX}" y1="${clMidY}" x2="${clX}" y2="${clMidY}" stroke="#1e8a60" stroke-width="1.5" stroke-dasharray="6 3" fill="none"/>`);
+    if(_showWire) el.push(`<text x="${col1.invRightX+4}" y="${clMidY-4}" class="sld-note" text-anchor="start" style="fill:#1e8a60;font-style:italic">EPS output</text>`);
+    el.push(compBox(clX,clMidY-Math.round(clH/2),clW,clH,'#ebf8f3','#1e8a60','Critical Loads Panel','Backup circuits','NEC 702 · UL 9540'));
+  }
+
   // ── AC merge bus ──────────────────────────────────────────────────────────
   const mergeY=Math.max(invBot1,invBot2);
   let y=mergeY;
@@ -2507,28 +2552,37 @@ function render(){
     const BW2=230, BX2=BATTCX-BW2/2;
     const divY1=64;  // PCS section (3 lines)
     const divY2=82;  // DC fuse row (18px)
-    const contH=160; // battery bank section = 78px
+    const contH=160; // AC-coupled full container height
+    const dcContH=92; // DC-coupled battery-bank-only container height
 
     function renderBessContainer(contTop){
-      el.push(`<text x="${BATTCX}" y="${contTop-4}" class="sld-note" text-anchor="middle" style="fill:#1e8a60;font-weight:600">${qtyLabel}BESS Container</text>`);
-      el.push(`<rect x="${BX2}" y="${contTop}" width="${BW2}" height="${contH}" rx="7" fill="#ebf8f3" stroke="#1e8a60" stroke-width="1.5"/>`);
-      // PCS section — AC voltage shown on external wire, DC voltage shown at internal divider
-      el.push(`<line x1="${BX2+10}" y1="${contTop+divY1}" x2="${BX2+BW2-10}" y2="${contTop+divY1}" stroke="#1e8a60" stroke-width="0.8" stroke-dasharray="4 2"/>`);
-      el.push(`<text x="${BATTCX}" y="${contTop+14}" class="sld-lbl" text-anchor="middle">PCS / Inverter</text>`);
-      el.push(`<text x="${BATTCX}" y="${contTop+27}" class="sld-sub" text-anchor="middle">${v.battKw} kW / ${v.pcsKva} kVA</text>`);
-      el.push(`<text x="${BATTCX}" y="${contTop+40}" class="sld-sub" text-anchor="middle">${v.battModel}</text>`);
-      el.push(`<text x="${BATTCX}" y="${contTop+divY1-4}" class="sld-note" text-anchor="middle" style="fill:#1e8a60">DC: ${v.battV}</text>`);
-      // DC fuse/contactor row
-      el.push(`<line x1="${BX2+10}" y1="${contTop+divY2}" x2="${BX2+BW2-10}" y2="${contTop+divY2}" stroke="#1e8a60" stroke-width="0.8" stroke-dasharray="4 2"/>`);
-      el.push(`<text x="${BATTCX}" y="${contTop+divY1+12}" class="sld-note" text-anchor="middle" style="font-style:italic">DC Fuse / Contactor: ${v.battDcFuse}A</text>`);
-      // Battery bank section
-      const bankY=contTop+divY2;
+      const isDc = v.battCouple === 'dc';
+      const h = isDc ? dcContH : contH;
+      el.push(`<text x="${BATTCX}" y="${contTop-4}" class="sld-note" text-anchor="middle" style="fill:#1e8a60;font-weight:600">${qtyLabel}${isDc?'Battery Bank (DC-coupled)':'BESS Container'}</text>`);
+      el.push(`<rect x="${BX2}" y="${contTop}" width="${BW2}" height="${h}" rx="7" fill="#ebf8f3" stroke="#1e8a60" stroke-width="1.5"/>`);
+      if(!isDc){
+        // PCS / Inverter section — AC-coupled only (DC-coupled uses the hybrid inverter as PCS)
+        el.push(`<line x1="${BX2+10}" y1="${contTop+divY1}" x2="${BX2+BW2-10}" y2="${contTop+divY1}" stroke="#1e8a60" stroke-width="0.8" stroke-dasharray="4 2"/>`);
+        el.push(`<text x="${BATTCX}" y="${contTop+14}" class="sld-lbl" text-anchor="middle">PCS / Inverter</text>`);
+        el.push(`<text x="${BATTCX}" y="${contTop+27}" class="sld-sub" text-anchor="middle">${v.battKw} kW / ${v.pcsKva} kVA</text>`);
+        el.push(`<text x="${BATTCX}" y="${contTop+40}" class="sld-sub" text-anchor="middle">${v.battModel}</text>`);
+        el.push(`<text x="${BATTCX}" y="${contTop+divY1-4}" class="sld-note" text-anchor="middle" style="fill:#1e8a60">DC: ${v.battV}</text>`);
+        el.push(`<line x1="${BX2+10}" y1="${contTop+divY2}" x2="${BX2+BW2-10}" y2="${contTop+divY2}" stroke="#1e8a60" stroke-width="0.8" stroke-dasharray="4 2"/>`);
+        el.push(`<text x="${BATTCX}" y="${contTop+divY1+12}" class="sld-note" text-anchor="middle" style="font-style:italic">DC Fuse / Contactor: ${v.battDcFuse}A</text>`);
+      }
+      const bankY = isDc ? contTop : contTop+divY2;
       el.push(`<text x="${BATTCX}" y="${bankY+14}" class="sld-lbl" text-anchor="middle">Battery Bank</text>`);
-      el.push(`<text x="${BATTCX}" y="${bankY+27}" class="sld-sub" text-anchor="middle">${v.battKwh} kWh · ${dur}h · ${cRate}C</text>`);
-      el.push(`<text x="${BATTCX}" y="${bankY+40}" class="sld-sub" text-anchor="middle">${usableKwh} kWh usable · SOC ${v.battSocMin}–${v.battSocMax}%</text>`);
-      el.push(`<text x="${BATTCX}" y="${bankY+54}" class="sld-sub" text-anchor="middle">${v.battChem}</text>`);
-      // Comms annotation — dashed line from right edge, mid-height of battery section
-      const commsY=bankY+27;
+      if(isDc){
+        el.push(`<text x="${BATTCX}" y="${bankY+26}" class="sld-sub" text-anchor="middle">${v.battModel}</text>`);
+        el.push(`<text x="${BATTCX}" y="${bankY+38}" class="sld-sub" text-anchor="middle">${v.battKwh} kWh · ${dur}h · ${cRate}C</text>`);
+        el.push(`<text x="${BATTCX}" y="${bankY+50}" class="sld-sub" text-anchor="middle">${usableKwh} kWh usable · SOC ${v.battSocMin}–${v.battSocMax}%</text>`);
+        el.push(`<text x="${BATTCX}" y="${bankY+62}" class="sld-sub" text-anchor="middle">${v.battChem} · DC: ${v.battV}</text>`);
+      } else {
+        el.push(`<text x="${BATTCX}" y="${bankY+27}" class="sld-sub" text-anchor="middle">${v.battKwh} kWh · ${dur}h · ${cRate}C</text>`);
+        el.push(`<text x="${BATTCX}" y="${bankY+40}" class="sld-sub" text-anchor="middle">${usableKwh} kWh usable · SOC ${v.battSocMin}–${v.battSocMax}%</text>`);
+        el.push(`<text x="${BATTCX}" y="${bankY+54}" class="sld-sub" text-anchor="middle">${v.battChem}</text>`);
+      }
+      const commsY = isDc ? bankY+38 : bankY+27;
       const commsX=BX2+BW2;
       el.push(`<line x1="${commsX}" y1="${commsY}" x2="${commsX+48}" y2="${commsY}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="4 2"/>`);
       el.push(`<text x="${commsX+51}" y="${commsY-3}" class="sld-note" text-anchor="start" style="fill:#7a84a0;font-style:italic">COMMS</text>`);
@@ -2551,7 +2605,7 @@ function render(){
     // DC bus voltage on the wire — shows solar DC input to PCS
     el.push(wlabel((CX1+BX2loc)/2, dcConnY-8, `DC · ${v.combV} VDC`, false));
     renderBessContainer(contTop);
-    battBotY=contTop+contH;
+    battBotY=contTop+dcContH;
   }
   }
 
@@ -2650,6 +2704,22 @@ function render(){
   el.push(wlabel(nemLX,y+27,nemSub,true,nemAnc));
   if(nemTelSub) el.push(wlabel(nemLX,y+39,nemTelSub,true,nemAnc));
   y+=28;
+  // ATS for islanding / backup — AC-coupled only (hybrid has internal transfer switch)
+  if(v.hasIslanding && v.hasBatt && v.battCouple!=='dc'){
+    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+    const atsY=y;
+    el.push(compBox(BX,y,BW,54,'#fff8ec','#c07a00','Auto Transfer Switch (ATS)',`${v.invV} · Grid isolation`,'NEC 706 · UL 1008 · UL 9540'));
+    y+=54;
+    // Critical loads panel — right side (load terminal output)
+    const clW=140, clH=44, clX=BX+BW+14;
+    el.push(`<line x1="${BX+BW}" y1="${atsY+27}" x2="${clX}" y2="${atsY+27}" stroke="#3a6bc0" stroke-width="1.5" stroke-dasharray="6 3" fill="none"/>`);
+    if(_showWire) el.push(`<text x="${BX+BW+4}" y="${atsY+22}" class="sld-note" text-anchor="start" style="fill:#3a6bc0;font-style:italic">load output</text>`);
+    el.push(compBox(clX,atsY+5,clW,clH,'#f0f4ff','#3a6bc0','Critical Loads Panel','Backup circuits','NEC 702'));
+    // Control signal stub — left side toward BESS inverter
+    el.push(`<line x1="${BX}" y1="${atsY+27}" x2="${BX-44}" y2="${atsY+27}" stroke="#c07a00" stroke-width="1" stroke-dasharray="4 2"/>`);
+    el.push(`<text x="${BX-47}" y="${atsY+24}" class="sld-note" text-anchor="end" style="fill:#c07a00;font-style:italic">dry contact (24VDC)</text>`);
+    el.push(`<text x="${BX-47}" y="${atsY+36}" class="sld-note" text-anchor="end" style="fill:#c07a00">← BESS inverter ctrl.</text>`);
+  }
   // Utility visible disconnect (NEC 705.22) — required when AC disconnect not accessible to utility
   if(v.hasUtilDisc){
     el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
@@ -2846,9 +2916,9 @@ function render(){
     const dY = necY + 8;
     necItems.push(necDiv(dY));
     necItems.push(necHead(dY+11, 'CONDUIT NOTES'));
-    necItems.push(necLine(dY+23, acRoofNote()));
-    necItems.push(necLine(dY+35, `Provide 1× ${roofCommCond} EMT for PV inverter communications, roof → elec. room${_showNec?' · NEC Art. 800':''}`));
-    necItems.push(necLine(dY+47, 'DC wiring &amp; conduit by PV installer', ' style="font-style:italic"'));
+    necItems.push(necLine(dY+23, `1.  ${acRoofNote()}`));
+    necItems.push(necLine(dY+35, `2.  Provide 1× ${roofCommCond} EMT for PV inverter communications, roof → elec. room${_showNec?' · NEC Art. 800':''}`));
+    necItems.push(necLine(dY+47, '3.  DC wiring &amp; conduit by PV installer', ' style="font-style:italic"'));
     necY = dY + 47;
   }
 
@@ -2862,6 +2932,20 @@ function render(){
     necItems.push(necLine(dY+59, '4.  Grounding: Equipment grounded per NEC 690.43 · EGC per Table 250.122'));
     if(v.hasRSD){ necItems.push(necLine(dY+71, `5.  ${rsdCompNote}`)); necY = dY+71; }
     else necY = dY+59;
+  }
+
+  if(v.hasIslanding && v.hasBatt){
+    const dY = necY + 8;
+    necItems.push(necDiv(dY));
+    necItems.push(necHead(dY+11, 'ISLANDING / BACKUP NOTES'));
+    const isDcIsland = v.battCouple === 'dc';
+    necItems.push(necLine(dY+23, isDcIsland
+      ? '1.  Hybrid inverter: integral ATS · grid-forming · UL 1741 SA · NEC 706.15'
+      : '1.  External ATS (UL 1008) · static transfer switch · NEC 706.15 · UL 9540'));
+    necItems.push(necLine(dY+35, '2.  Critical loads panel: NEC 702 (optional standby) or NEC 700 (emergency)'));
+    necItems.push(necLine(dY+47, '3.  Anti-islanding: IEEE 1547-2018 · 2-cycle detection · Category B inverter req.'));
+    necItems.push(necLine(dY+59, '4.  ESS: NEC 706 · rapid shutdown NEC 706.31 · grounding NEC 706.40'));
+    necY = dY + 59;
   }
 
   const _showCustomNotesDiag = gc('showCustomNotes');
