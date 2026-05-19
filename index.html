@@ -196,7 +196,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div id="fuse-check" class="cnote"></div>
     <div class="stitle" style="margin-top:12px">Inverter 1</div>
     <label>Type</label>
-    <select id="invType" onchange="invTypeChanged()">
+    <select id="invType" autocomplete="off" onchange="invTypeChanged()">
       <option value="string" selected>String inverter</option>
       <option value="hybrid">Hybrid (DC-coupled battery)</option>
       <option value="micro">Microinverters</option>
@@ -1058,6 +1058,9 @@ function startupNewProject(fromHeader){
     if(el.type === 'checkbox') el.checked = el.defaultChecked;
     else el.value = el.defaultValue;
   });
+  // Ensure invType is always string after reset (browser may not honour defaultValue)
+  const _it=document.getElementById('invType');
+  if(_it) _it.value='string';
   // Clear project and analysis state
   _currentProjectKey = null;
   _lastDaeXml = null;
@@ -2051,6 +2054,9 @@ function autosizeBatt(){
 document.addEventListener('DOMContentLoaded',function(){
   const cb=document.getElementById('hasMvXfmr');
   if(cb) cb.addEventListener('change',toggleMvFields);
+  // Ensure invType defaults to string (browser may restore a cached selection)
+  const invTypeEl=document.getElementById('invType');
+  if(invTypeEl&&!invTypeEl.value) invTypeEl.value='string';
   // Disable arr2 manual fields by default (mirrored)
   const arr2fields = document.getElementById('arr2-fields');
   if(arr2fields) arr2fields.querySelectorAll('input,select').forEach(el => el.disabled = true);
