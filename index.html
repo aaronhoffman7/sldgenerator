@@ -2178,10 +2178,26 @@ function arrNumModsChanged(n){
   const numMods=+agv(n,'numMods');
   const modW=+agv(n,'modW')||550;
   if(numMods>0&&modW>0){
+    const systemKw=numMods*modW/1000;
     const kwEl=a$(n,'systemKw');
-    if(kwEl) kwEl.value=(numMods*modW/1000).toFixed(2);
+    if(kwEl) kwEl.value=systemKw.toFixed(2);
+    // Apply size-based combV before arrModsChanged reads it
+    const combVEl=a$(n,'combV');
+    if(combVEl&&(_lastAutoCombV[n]===null||+combVEl.value===_lastAutoCombV[n])){
+      const sizeV=systemKw<200?600:1000;
+      combVEl.value=sizeV; _lastAutoCombV[n]=sizeV;
+      const otherN=n===1?2:1;
+      const otherEl=$(n===1?'a2combV':'combV');
+      if(otherEl&&(_lastAutoCombV[otherN]===null||+otherEl.value===_lastAutoCombV[otherN])){
+        otherEl.value=sizeV; _lastAutoCombV[otherN]=sizeV;
+      }
+      const voc=+agv(n,'voc')||49.9;
+      const mps=Math.min(Math.max(1,Math.floor(sizeV/(voc*1.25))),40);
+      const modsEl=a$(n,'mods');
+      if(modsEl) modsEl.value=mps;
+    }
   }
-  arrModsChanged(n); // uses calcStrings — allows partial last string unlike arrSystemKwChanged
+  arrModsChanged(n);
 }
 function arrModWChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else if(+agv(n,'numMods')>0) arrNumModsChanged(n); else render(); }
 function arrVocChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else { autoFillCombV(n); render(); } }
@@ -2227,9 +2243,27 @@ function invTypeChanged(){
   }
   render();
 }
-function invKwChanged(){ _lastAutoInvKw[1]=-1; autoFillInvModel(1); if(gc('hasBatt')) autosizeBatt(); else render(); }
+function invKwChanged(){ arrInvKwChanged(1); }
 function invVChanged(){ _lastAutoInvV[1]=-1; autoFillInvModel(1); render(); }
-function arrInvKwChanged(n){ _lastAutoInvKw[n]=-1; autoFillInvModel(n); if(gc('hasBatt')) autosizeBatt(); else render(); }
+function arrInvKwChanged(n){
+  _lastAutoInvKw[n]=-1;
+  // Auto-adjust count to match target AC size with new unit kW, unless count is manually locked
+  const countEl=a$(n,'invCount');
+  if(countEl&&(_lastAutoInvCount[n]===null||+countEl.value===_lastAutoInvCount[n])){
+    const systemKw=+agv(n,'systemKw');
+    if(systemKw>0){
+      const totalAcKw=systemKw/(+agv(n,'dcAcRatio')||1.2);
+      const unitKw=+agv(n,'invKw');
+      if(unitKw>0){
+        const count=Math.max(1,Math.round(totalAcKw/unitKw));
+        countEl.value=count;
+        _lastAutoInvCount[n]=count;
+      }
+    }
+  }
+  autoFillInvModel(n);
+  if(gc('hasBatt')) autosizeBatt(); else render();
+}
 function arrInvVChanged(n){ _lastAutoInvV[n]=-1; autoFillInvModel(n); render(); }
 function invCountChanged(){ arrInvCountChanged(1); }
 const BATT_PRESETS = {
