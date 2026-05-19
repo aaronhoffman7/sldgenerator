@@ -197,7 +197,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="stitle" style="margin-top:12px">Inverter 1</div>
     <label>Type</label>
     <select id="invType" onchange="invTypeChanged()">
-      <option value="string">String inverter</option>
+      <option value="string" selected>String inverter</option>
       <option value="hybrid">Hybrid (DC-coupled battery)</option>
       <option value="micro">Microinverters</option>
       <option value="central">Central inverter</option>
@@ -2123,11 +2123,15 @@ function arrStringsChanged(n){
   const mps=+agv(n,'mods');
   const modW=+agv(n,'modW')||550;
   if(strings>0&&mps>0){
-    const actual=(strings*mps*modW/1000).toFixed(2);
+    const dcKw=strings*mps*modW/1000;
+    const actual=dcKw.toFixed(2);
     const kwEl=a$(n,'systemKw'); if(kwEl) kwEl.value=actual;
     const numModsEl=a$(n,'numMods'); if(numModsEl) numModsEl.value=strings*mps;
     const note=a$(n,'system-kw-note');
     if(note) note.textContent=`${strings} strings × ${mps} mods = ${strings*mps} modules · ${actual} kW DC`;
+    autoFillCombV(n);
+    const totalAcKw=dcKw/(+agv(n,'dcAcRatio')||1.2);
+    autoFillInvV(n,totalAcKw); autoFillInvCount(n,totalAcKw); autoFillInvModel(n);
   }
   render();
 }
@@ -2135,9 +2139,11 @@ function arrModsChanged(n){
   const systemKw=+agv(n,'systemKw');
   const modW=+agv(n,'modW')||550;
   const mps=+agv(n,'mods');
+  let dcKw=0;
   if(systemKw>0&&mps>0){
     const totalMods=Math.round(systemKw*1000/modW);
     const{fullStrings,modsLast,totalStrings,actualKw}=calcStrings(totalMods,mps,modW);
+    dcKw=actualKw;
     const strEl=a$(n,'strings'); if(strEl) strEl.value=totalStrings;
     const numModsEl=a$(n,'numMods'); if(numModsEl) numModsEl.value=totalMods;
     const hasPartial=modsLast!==mps&&fullStrings>0;
@@ -2152,6 +2158,10 @@ function arrModsChanged(n){
     }
   }
   autoFillCombV(n);
+  if(dcKw>0){
+    const totalAcKw=dcKw/(+agv(n,'dcAcRatio')||1.2);
+    autoFillInvV(n,totalAcKw); autoFillInvCount(n,totalAcKw); autoFillInvModel(n);
+  }
   render();
 }
 function arrNumModsChanged(n){
