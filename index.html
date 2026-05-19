@@ -2107,7 +2107,7 @@ function arrNumModsChanged(n){
     const kwEl=a$(n,'systemKw');
     if(kwEl) kwEl.value=(numMods*modW/1000).toFixed(2);
   }
-  arrSystemKwChanged(n);
+  arrModsChanged(n); // uses calcStrings — allows partial last string unlike arrSystemKwChanged
 }
 function arrModWChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else if(+agv(n,'numMods')>0) arrNumModsChanged(n); else render(); }
 function arrVocChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else render(); }
