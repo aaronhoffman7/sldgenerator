@@ -3544,11 +3544,15 @@ function exportPDF(){
       const isLand=W>=H;
       const pdf=new jsPDF({orientation:isLand?'landscape':'portrait',unit:'in',format:'letter'});
       const pageW=isLand?11:8.5, pageH=isLand?8.5:11;
-      const margin=0.35;
+      const margin=0.15;
       const availW=pageW-margin*2, availH=pageH-margin*2;
       const aspect=W/H;
+      // Scale to fill whichever dimension is the binding constraint
       let imgW=availW, imgH=imgW/aspect;
       if(imgH>availH){imgH=availH;imgW=imgH*aspect;}
+      // If height-first gives a better fill (more area), use it instead
+      const hfW=availH*aspect, hfH=availH;
+      if(hfW<=availW && hfW*hfH>imgW*imgH){imgW=hfW;imgH=hfH;}
       const x=margin+(availW-imgW)/2, y=margin+(availH-imgH)/2;
       pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',x,y,imgW,imgH);
       pdf.save((v.projName||'sld').replace(/[^a-z0-9]/gi,'_')+'_SLD.pdf');
