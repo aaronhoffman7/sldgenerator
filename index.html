@@ -489,7 +489,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       </div>
     </div>
     <div class="row2" style="margin-top:8px">
-      <div><label>Export limit (kW)</label><input type="number" id="exportLimit" placeholder="None" min="0" step="1" oninput="exportLimitChanged()"></div>
+      <div><label>Export limit (kW) <span style="font-size:9px;color:var(--muted);font-weight:400">negative = import min</span></label><input type="number" id="exportLimit" placeholder="None" step="1" oninput="exportLimitChanged()"></div>
       <div><label>Type</label><select id="exportLimitType" onchange="render()"><option value="net">Net</option><option value="gross">Gross</option></select></div>
     </div>
     <label>Power factor requirement</label>
@@ -2364,6 +2364,13 @@ function gridNetworkChanged(){
       note.textContent='';
     }
   }
+  if(!isSanSsn){
+    // Reset everything that SAN/SSN auto-enables
+    const telCb=$('hasTelemetry');
+    if(telCb&&telCb.checked){ telCb.checked=false; const tf=$('telemetry-fields'); if(tf) tf.style.display='none'; }
+    const mvCb=$('hasMvXfmr');
+    if(mvCb&&mvCb.checked){ mvCb.checked=false; toggleMvFields(); }
+  }
   if(isSanSsn&&!gc('hasTelemetry')){
     const cb=$('hasTelemetry');
     if(cb){ cb.checked=true; telemetryToggled(); return; }
@@ -3269,7 +3276,7 @@ function render(){
   }
 
   // ── Grid & Telemetry notes box ───────────────────────────────────────────
-  const showGridBox = v.hasTelemetry || v.gridNetwork!=='radial' || v.exportLimit>0 || v.pfRequirement;
+  const showGridBox = v.hasTelemetry || v.gridNetwork!=='radial' || v.exportLimit!==0 || v.pfRequirement;
   let gridBoxH = 0;
   if(showGridBox){
     const GY = NY + necH + 10;
@@ -3286,7 +3293,13 @@ function render(){
       gLines.push({bold:false, text:stratNote});
       gLines.push({bold:false, text:'Anti-islanding relay required · Telemetry required'});
     }
-    if(v.exportLimit>0) gLines.push({bold:false, text:`Export limit: ${v.exportLimit} kW ${v.exportLimitType} · Do not exceed at POI`});
+    if(v.exportLimit>0){
+      gLines.push({bold:true,  text:`Export limit: ${v.exportLimit} kW ${v.exportLimitType}`});
+      gLines.push({bold:false, text:`Do not exceed ${v.exportLimit} kW ${v.exportLimitType} flow to grid at POI`});
+    } else if(v.exportLimit<0){
+      gLines.push({bold:true,  text:`Import minimum: ${-v.exportLimit} kW`});
+      gLines.push({bold:false, text:`Site must draw ≥ ${-v.exportLimit} kW from grid at all times — no zero-export`});
+    }
     if(v.pfRequirement) gLines.push({bold:false, text:`Power factor: ${v.pfRequirement}`});
     if(v.hasTelemetry){
       gLines.push({bold:true,  text:'TELEMETRY REQUIRED'});
@@ -3606,9 +3619,9 @@ function syncAnalysisFromSLD(){
 function anExportHint(){
   const v=parseFloat(gv('an-export'));
   const el=$('an-export-hint');
-  if(isNaN(v)||v===0) el.textContent='0 = no export (zero-export / network)';
-  else if(v>0) el.textContent=`Max ${v} kW allowed to flow to grid`;
-  else el.textContent=`Spot network: must import ≥ ${-v} kW at all times`;
+  if(isNaN(v)||v===0) el.textContent='0 = no export (zero-export)';
+  else if(v>0) el.textContent=`Max ${v} kW allowed to flow to grid at POI`;
+  else el.textContent=`Import minimum: site must draw ≥ ${-v} kW from grid at all times`;
 }
 function exportLimitChanged(){
   const val=parseFloat(gv('exportLimit'))||0;
@@ -3617,7 +3630,7 @@ function exportLimitChanged(){
 }
 function anExportChanged(){
   const val=parseFloat(gv('an-export'))||0;
-  const sldEl=$('exportLimit'); if(sldEl) sldEl.value=val>0?val:'';
+  const sldEl=$('exportLimit'); if(sldEl) sldEl.value=val!==0?val:'';
   anExportHint(); render();
 }
 
