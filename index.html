@@ -371,7 +371,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       </div>
     </div>
     <div class="row2">
-      <div><label>Make / model</label><input type="text" id="battModel" value="Tesla Powerwall 2" oninput="render()"></div>
+      <div><label>Make / model</label><input type="text" id="battModel" value="Tesla Powerwall 2" oninput="applyBattComms();render()"></div>
       <div><label>Container qty</label><input type="number" id="battQty" value="1" min="1" max="100" oninput="render()"></div>
     </div>
     <div class="row2">
@@ -386,7 +386,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     </div>
     <div id="batt-fuse-calc" class="cnote"></div>
     <label>Comms protocol</label>
-    <select id="battComms" onchange="render()">
+    <select id="battComms" onchange="_lastAutoComms='';render()">
       <option value="Modbus TCP">Modbus TCP</option>
       <option value="Modbus RTU">RS-485 / Modbus RTU</option>
       <option value="CANbus">CANbus</option>
@@ -2340,8 +2340,33 @@ function applyChemSoc(chem){
   if(minEl) minEl.value = s.min;
   if(maxEl) maxEl.value = s.max;
 }
+function detectBattComms(model, kw) {
+  const m = (model || '').toLowerCase();
+  if (/tesla megapack|powerpack|catl|fluence|nec esm|mitsubishi|hitachi|kokam/.test(m)) return 'DNP3';
+  if (/iec 61850|siemens siestorage|ge reservoir/.test(m)) return 'IEC 61850';
+  if (/enphase/.test(m)) return 'Proprietary';
+  if (/sunspec|sma sunny tripower storage|fronius symo hybrid/.test(m)) return 'SunSpec';
+  if (/tesla powerwall|powerwall/.test(m)) return 'Modbus TCP';
+  if (/sungrow|goodwe|byd|huawei luna|solaredge home|alpha|alphaess|sonnenbatterie|sonnen|lg resu|generac pwrcell/.test(m)) return 'Modbus TCP';
+  if (/franklin|schneider|eaton xstorage/.test(m)) return 'CANbus';
+  if ((kw || 0) >= 500) return 'DNP3';
+  return 'Modbus TCP';
+}
+let _lastAutoComms = null;
+function applyBattComms() {
+  const model = gv('battModel') || '';
+  const kw = parseFloat(gv('battKw')) || 0;
+  const rec = detectBattComms(model, kw);
+  const el = $('battComms');
+  if (!el) return;
+  if (_lastAutoComms !== '' && (_lastAutoComms === null || el.value === _lastAutoComms)) {
+    el.value = rec;
+    _lastAutoComms = rec;
+  }
+}
 function battChemChanged(){
   applyChemSoc(gv('battChem'));
+  applyBattComms();
   render();
 }
 function telemetryToggled(){
@@ -2411,7 +2436,9 @@ function battVChanged(){
     if(p.model) $('battModel').value = p.model;
     $('battChem').value = p.chem;
     applyChemSoc(p.chem);
+    _lastAutoComms = null; // preset change → allow comms re-detect
   }
+  applyBattComms();
   render();
 }
 // Draw a single inverter electrical symbol (IEC DC→AC) inside a w×h rect centered at (cx, cy).
@@ -2728,8 +2755,8 @@ function render(){
     const BW2=230, BX2=BATTCX-BW2/2;
     const divY1=64;  // PCS section (3 lines)
     const divY2=82;  // DC fuse row (18px)
-    const contH=160; // AC-coupled full container height
-    const dcContH=92; // DC-coupled battery-bank-only container height
+    const contH=150; // AC-coupled full container height
+    const dcContH=76; // DC-coupled battery-bank-only container height
 
     function renderBessContainer(contTop){
       const isDc = v.battCouple === 'dc';
@@ -2759,10 +2786,10 @@ function render(){
         el.push(`<text x="${BATTCX}" y="${bankY+54}" class="sld-sub" text-anchor="middle">${v.battChem}</text>`);
       }
       const commsY = isDc ? bankY+38 : bankY+27;
-      const commsX=BX2+BW2;
-      el.push(`<line x1="${commsX}" y1="${commsY}" x2="${commsX+48}" y2="${commsY}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="4 2"/>`);
-      el.push(`<text x="${commsX+51}" y="${commsY-3}" class="sld-note" text-anchor="start" style="fill:#7a84a0;font-style:italic">COMMS</text>`);
-      el.push(`<text x="${commsX+51}" y="${commsY+9}" class="sld-note" text-anchor="start" style="fill:#7a84a0">${v.battComms}</text>`);
+      const commsX=BX2;
+      el.push(`<line x1="${commsX}" y1="${commsY}" x2="${commsX-48}" y2="${commsY}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="4 2"/>`);
+      el.push(`<text x="${commsX-51}" y="${commsY-3}" class="sld-note" text-anchor="end" style="fill:#7a84a0;font-style:italic">COMMS</text>`);
+      el.push(`<text x="${commsX-51}" y="${commsY+9}" class="sld-note" text-anchor="end" style="fill:#7a84a0">${v.battComms}</text>`);
     }
 
   if(v.battCouple==='ac'){
@@ -2778,8 +2805,8 @@ function render(){
     const contTop=dcConnY-22;
     const BX2loc=BATTCX-BW2/2;
     el.push(`<line x1="${CX1}" y1="${dcConnY}" x2="${BX2loc}" y2="${dcConnY}" stroke="#c9a10a" stroke-width="2" stroke-dasharray="7 3"/>`);
-    // DC bus voltage on the wire — shows solar DC input to PCS
-    el.push(wlabel((CX1+BX2loc)/2, dcConnY-8, `DC · ${v.combV} VDC`, false));
+    // DC bus label near battery box to stay clear of the DC SPD symbol at the column side
+    el.push(wlabel(BX2loc-10, dcConnY-8, `DC · ${v.combV} VDC`, false, 'end'));
     renderBessContainer(contTop);
     battBotY=contTop+dcContH;
   }
@@ -4893,9 +4920,9 @@ setTimeout(function(){
   <div class="dp-title">Display</div>
   <div class="dp-row"><span>Show grounding</span><label class="tog"><input type="checkbox" id="hasGnd" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
   <div class="dp-row"><span>NEC section labels</span><label class="tog"><input type="checkbox" id="showNecLabels" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-  <div class="dp-row"><span>Wire sizing labels</span><label class="tog"><input type="checkbox" id="showWireLabels" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+  <div class="dp-row"><span>Wire sizing labels</span><label class="tog"><input type="checkbox" id="showWireLabels" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
   <div class="dp-row"><span>Conduit notes</span><label class="tog"><input type="checkbox" id="showConduitNotes" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-  <div class="dp-row"><span>NEC compliance notes</span><label class="tog"><input type="checkbox" id="showNecNotes" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+  <div class="dp-row"><span>NEC compliance notes</span><label class="tog"><input type="checkbox" id="showNecNotes" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
   <div class="dp-row"><span>Additional notes</span><label class="tog"><input type="checkbox" id="showCustomNotes" onchange="toggleCustomNotes(this.checked)"><div class="ttrack"><div class="tthumb"></div></div></label></div>
   <div id="customNotesWrap" style="display:none;margin-top:6px">
     <textarea id="customNotesText" placeholder="Notes to display on diagram (one per line)…" rows="3" oninput="render()"></textarea>
