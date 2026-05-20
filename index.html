@@ -111,6 +111,14 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .run-btn:hover{opacity:.85}
 .run-btn:disabled{opacity:.45;cursor:not-allowed}
 .no-data{display:flex;align-items:center;justify-content:center;flex:1;color:var(--muted);font-size:12px;font-family:var(--mono)}
+#display-panel{position:fixed;right:16px;top:110px;width:178px;background:#f0f2f8;border:1px solid #bfc6dc;border-radius:7px;padding:10px 12px 12px;z-index:50;box-shadow:0 2px 10px rgba(0,0,0,.13);display:none}
+#display-panel.visible{display:block}
+#display-panel .dp-title{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#5a6282;margin-bottom:6px}
+#display-panel .dp-row{display:flex;align-items:center;justify-content:space-between;margin-top:7px;gap:6px}
+#display-panel .dp-row span{font-size:11px;color:#3a4060;line-height:1.3}
+#display-panel .ttrack{background:#b8bfd4}
+#display-panel .tog input:checked~.ttrack{background:#3d8ef8}
+#display-panel textarea{width:100%;box-sizing:border-box;font-size:11px;resize:vertical;font-family:var(--font);margin-top:6px;border:1px solid #bfc6dc;border-radius:4px;padding:4px 6px;color:#2a3050;background:#fff}
 </style>
 </head>
 <body>
@@ -496,16 +504,6 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <div class="trow"><span>Remote curtailment</span><label class="tog"><input type="checkbox" id="telRemoteCurtail" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
       <label>Additional notes</label>
       <input type="text" id="telNotes" placeholder="Optional utility-specific requirement" oninput="render()">
-    </div>
-    <div class="sec-subtitle" style="margin:14px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Display</div>
-    <div class="trow"><span>Show grounding</span><label class="tog"><input type="checkbox" id="hasGnd" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    <div class="trow"><span>Show NEC section labels</span><label class="tog"><input type="checkbox" id="showNecLabels" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    <div class="trow"><span>Show wire sizing labels</span><label class="tog"><input type="checkbox" id="showWireLabels" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    <div class="trow"><span>Show conduit notes</span><label class="tog"><input type="checkbox" id="showConduitNotes" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    <div class="trow"><span>Show NEC compliance notes</span><label class="tog"><input type="checkbox" id="showNecNotes" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    <div class="trow"><span>Additional notes</span><label class="tog"><input type="checkbox" id="showCustomNotes" onchange="toggleCustomNotes(this.checked)"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    <div id="customNotesWrap" style="display:none;margin-top:6px">
-      <textarea id="customNotesText" placeholder="Notes to display on diagram (one per line)…" rows="3" style="width:100%;box-sizing:border-box;font-size:11px;resize:vertical;font-family:var(--font)" oninput="render()"></textarea>
     </div>
     </div>
   </div>
@@ -3503,6 +3501,8 @@ function switchTab(name){
     if(p) p.classList.toggle('active',t===name);
     if(b) b.classList.toggle('active',t===name);
   });
+  const dp=$('display-panel');
+  if(dp) dp.classList.toggle('visible', name==='sld');
   if(name==='analysis'){ syncAnalysisFromSLD(); renderLoadPreview(); }
   if(name==='debug'){ refreshDebugReport(); }
 }
@@ -4828,5 +4828,17 @@ setTimeout(function(){
   tryLoad('pvstring.svg', true).catch(() => tryLoad('pvstring.png', false).catch(() => {}));
 })();
 </script>
+<div id="display-panel" class="visible">
+  <div class="dp-title">Display</div>
+  <div class="dp-row"><span>Show grounding</span><label class="tog"><input type="checkbox" id="hasGnd" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+  <div class="dp-row"><span>NEC section labels</span><label class="tog"><input type="checkbox" id="showNecLabels" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+  <div class="dp-row"><span>Wire sizing labels</span><label class="tog"><input type="checkbox" id="showWireLabels" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+  <div class="dp-row"><span>Conduit notes</span><label class="tog"><input type="checkbox" id="showConduitNotes" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+  <div class="dp-row"><span>NEC compliance notes</span><label class="tog"><input type="checkbox" id="showNecNotes" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+  <div class="dp-row"><span>Additional notes</span><label class="tog"><input type="checkbox" id="showCustomNotes" onchange="toggleCustomNotes(this.checked)"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+  <div id="customNotesWrap" style="display:none;margin-top:6px">
+    <textarea id="customNotesText" placeholder="Notes to display on diagram (one per line)…" rows="3" oninput="render()"></textarea>
+  </div>
+</div>
 </body>
 </html>
