@@ -452,7 +452,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       </div>
     </div>
     <div class="row2">
-      <div><label>Solar breaker (A)</label><input type="number" id="solarBreaker" value="40" min="10" max="400" oninput="render()">
+      <div><label>Solar breaker (A) <span style="font-size:9px;color:var(--muted);font-weight:400">← auto</span></label><input type="number" id="solarBreaker" value="40" min="10" max="400" readonly style="opacity:0.7;cursor:default">
         <div id="breaker-check" class="cok"></div></div>
       <div style="padding-top:18px"><div id="breaker-math" class="cnote" style="margin-top:0;line-height:1.7;white-space:pre-line"></div></div>
     </div>
@@ -2596,18 +2596,20 @@ function render(){
     const a2AcKwEl=a$(2,'ac-system-kw');
     if(a2AcKwEl) a2AcKwEl.textContent=((v.a2.invKw*v.a2.invCount).toFixed(1)).replace(/\.0$/,'')+' kW';
   }
-  // Auto-fill solar breaker and panel size
+  // Auto-fill solar breaker and panel size (always override — both are fully calculated)
   const recBreakerMin=(v.hasArr2?totalInvAcA:parseFloat(invAC))*1.25;
   const recBreaker=nextStandardBreaker(Math.ceil(recBreakerMin));
   const bkrPoles=(v.invV||'').includes('1ph')?'2-P':'3-P';
-  if(+gv('solarBreaker')===_lastAutoBreaker||_lastAutoBreaker===null){$('solarBreaker').value=recBreaker;} _lastAutoBreaker=recBreaker;
+  $('solarBreaker').value=recBreaker; _lastAutoBreaker=recBreaker;
   $('breaker-math').textContent=v.hasArr2
     ?`Arr1: ${parseFloat(invAC).toFixed(1)} A\nArr2: ${a2InvAcA.toFixed(1)} A\nTotal: ${totalInvAcA.toFixed(1)} A\n× 1.25 = ${recBreakerMin.toFixed(1)} A\n→ ${recBreaker}A std.`
     :`${parseFloat(invAC).toFixed(1)} A\n× 1.25 = ${recBreakerMin.toFixed(1)} A\n→ ${recBreaker}A std.`;
-  const recPanel=nextPanelSize(Math.ceil(recBreaker*5));
-  if(+gv('panelA')===_lastAutoPanel||_lastAutoPanel===null){$('panelA').value=recPanel;} _lastAutoPanel=recPanel;
-  const activeBreaker=+gv('solarBreaker')||recBreaker;
-  const activePanel=+gv('panelA')||recPanel;
+  // Panel must satisfy NEC 705.12(D)(2): solar ≤ busbar×1.2 − main.
+  // Minimum panel = solar×5. Use next standard size above that for meaningful headroom.
+  const recPanel=nextPanelSize(Math.ceil(recBreaker*5)+1);
+  $('panelA').value=recPanel; _lastAutoPanel=recPanel;
+  const activeBreaker=recBreaker;
+  const activePanel=recPanel;
   const bkrLabel=`${activeBreaker}A ${bkrPoles}`;
   $('s-kw').textContent=(v.hasArr2?totalKwDc.toFixed(2):arrayKw)+' kW DC';
   $('s-voc').textContent=stringVoc+' V';
