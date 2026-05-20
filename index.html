@@ -467,25 +467,27 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <label>Platform</label>
     <input type="text" id="monitorPlatform" placeholder="Auto-detected from inverter model" oninput="render()">
     <div id="monitor-gateway-note" class="cnote"></div>
-    <label style="margin-top:8px">Interconnection mode</label>
-    <select id="interconnType" autocomplete="off" onchange="interconnTypeChanged()">
-      <option value="behind-meter">Behind-meter (service entrance)</option>
-      <option value="radial-feeder">Radial feeder injection (MV tap)</option>
-    </select>
-    <div id="feeder-fields" style="display:none;margin-top:8px">
-      <div class="row2">
-        <div><label>Feeder voltage (kV)</label><input type="number" id="feederKv" value="12.47" step="0.01" min="1" max="35" oninput="render()"></div>
-        <div><label>Feeder ID</label><input type="text" id="feederName" placeholder="e.g. Feeder F23" oninput="render()"></div>
-      </div>
-      <div class="trow" style="margin-top:6px"><span>Recloser at POI tap</span><label class="tog"><input type="checkbox" id="feederRecloser" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    </div>
     <label style="margin-top:8px">Grid network type</label>
     <select id="gridNetwork" onchange="gridNetworkChanged()">
       <option value="radial">Radial network</option>
       <option value="san">Secondary area network (SAN)</option>
       <option value="ssn">Secondary spot network (SSN)</option>
     </select>
-    <div id="grid-network-feeder-note" class="cnote" style="display:none;color:var(--accent2);margin-top:4px"></div>
+    <div id="san-strategy-wrap" style="display:none;margin-top:8px">
+      <div class="cnote" id="san-network-note" style="color:var(--accent2);margin-bottom:6px"></div>
+      <label style="margin-top:0">Interconnection strategy</label>
+      <select id="interconnType" autocomplete="off" onchange="interconnTypeChanged()">
+        <option value="radial-feeder">Radial feeder injection (front-of-meter)</option>
+        <option value="bess">Battery storage / BESS (behind-meter)</option>
+      </select>
+      <div id="feeder-fields" style="display:none;margin-top:8px">
+        <div class="row2">
+          <div><label>Feeder voltage (kV)</label><input type="number" id="feederKv" value="12.47" step="0.01" min="1" max="35" oninput="render()"></div>
+          <div><label>Feeder ID</label><input type="text" id="feederName" placeholder="e.g. Feeder F23" oninput="render()"></div>
+        </div>
+        <div class="trow" style="margin-top:6px"><span>Recloser at POI tap</span><label class="tog"><input type="checkbox" id="feederRecloser" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+      </div>
+    </div>
     <div class="row2" style="margin-top:8px">
       <div><label>Export limit (kW)</label><input type="number" id="exportLimit" placeholder="None" min="0" step="1" oninput="exportLimitChanged()"></div>
       <div><label>Type</label><select id="exportLimitType" onchange="render()"><option value="net">Net</option><option value="gross">Gross</option></select></div>
@@ -1419,6 +1421,11 @@ function battVMin(battV){const nums=(battV||'').match(/[\d.]+/g);return nums?Mat
 
 function vals(){
   const hasArr2 = gc('hasArr2');
+  const _gridNw=gv('gridNetwork')||'radial';
+  const _sanStrat=gv('interconnType')||'radial-feeder';
+  const _isSanSsn=_gridNw==='san'||_gridNw==='ssn';
+  const _bessMode=_isSanSsn&&_sanStrat==='bess';
+  const _effInterconn=(_isSanSsn&&_sanStrat==='radial-feeder')?'radial-feeder':'behind-meter';
   return{
     projName:gv('projName'),designer:gv('designer'),
     strings:Math.max(1,+gv('strings')||1),mods:Math.max(1,+gv('mods')||1),
@@ -1435,7 +1442,7 @@ function vals(){
       invType:gv('a2invType'),dcAcRatio:+gv('a2dcAcRatio')||1.2,invKw:+gv('a2invKw')||10,invCount:Math.max(1,+gv('a2invCount')||1),
       invV:gv('a2invV'),invModel:gv('a2invModel'),
     },
-    hasBatt:gc('hasBatt'),hasIslanding:gc('hasIslanding'),battCouple:gv('battCouple'),battKwh:+gv('battKwh')||13.5,
+    hasBatt:gc('hasBatt')||_bessMode,hasIslanding:gc('hasIslanding'),battCouple:gv('battCouple'),battKwh:+gv('battKwh')||13.5,
     battKw:+gv('battKw')||5,battQty:Math.max(1,+gv('battQty')||1),pcsKva:+gv('pcsKva')||5,
     battV:gv('battV'),battChem:gv('battChem'),battModel:gv('battModel'),
     battSocMin:+gv('battSocMin')||10,battSocMax:+gv('battSocMax')||90,
@@ -1448,11 +1455,12 @@ function vals(){
     hasRSD:gc('hasRSD'),rsdMethod:gv('rsdMethod')||'mlpe',hasMeter:gc('hasMeter'),hasGnd:gc('hasGnd'),
     hasSPD:gc('hasSPD'),hasUtilDisc:gc('hasUtilDisc')||gc('hasMvXfmr'),hasNetMeter:gc('hasNetMeter'),hasMonitoring:gc('hasMonitoring'),
     monitorPlatform:gv('monitorPlatform')||'',
-    interconnType:gv('interconnType')||'behind-meter',
+    interconnType:_effInterconn,
     feederKv:+gv('feederKv')||12.47,
     feederName:gv('feederName')||'',
     feederRecloser:gc('feederRecloser'),
-    gridNetwork:gv('gridNetwork')||'radial',
+    gridNetwork:_gridNw,
+    bessMode:_bessMode,
     exportLimit:+gv('exportLimit')||0,
     exportLimitType:gv('exportLimitType')||'net',
     pfRequirement:gv('pfRequirement')||'',
@@ -2079,6 +2087,8 @@ document.addEventListener('DOMContentLoaded',function(){
   if (pf && det && !pf.value) pf.value = det.platform;
   const gn = $('monitor-gateway-note');
   if (gn && det) gn.textContent = `Gateway: ${det.gateway}`;
+  // Initialize grid network dependent UI
+  gridNetworkChanged();
 });
 // ── Generalized per-array input calculations ──────────────────────────────────
 // Returns { fullStrings, modsLast, totalStrings, totalMods, actualKw }
@@ -2340,39 +2350,32 @@ function telemetryToggled(){
   if(f) f.style.display=on?'block':'none';
   render();
 }
-function updateGridNetworkNote(){
-  const gnEl=$('gridNetwork');
-  const gnNote=$('grid-network-feeder-note');
-  const isFeeder=gv('interconnType')==='radial-feeder';
-  if(gnEl) gnEl.disabled=isFeeder;
-  if(gnNote){
-    if(isFeeder){
-      const nw=gv('gridNetwork')||'radial';
-      if(nw==='san'){
-        gnNote.textContent='SAN prevents behind-meter backfeed through network protectors — radial feeder injection required';
-        gnNote.style.display='block';
-      } else if(nw==='ssn'){
-        gnNote.textContent='SSN prevents behind-meter backfeed through spot network protectors — radial feeder injection required';
-        gnNote.style.display='block';
-      } else {
-        gnNote.style.display='none';
-      }
+function gridNetworkChanged(){
+  const nw=gv('gridNetwork')||'radial';
+  const isSanSsn=nw==='san'||nw==='ssn';
+  const sanWrap=$('san-strategy-wrap');
+  const note=$('san-network-note');
+  if(sanWrap) sanWrap.style.display=isSanSsn?'block':'none';
+  if(note){
+    if(isSanSsn){
+      const typeName=nw==='san'?'Secondary Area Network (SAN)':'Secondary Spot Network (SSN)';
+      note.textContent=typeName+' — network protectors prevent behind-meter backfeed. Export control required; telemetry required.';
     } else {
-      gnNote.style.display='none';
+      note.textContent='';
     }
   }
-}
-function gridNetworkChanged(){
-  const nw=gv('gridNetwork');
-  if((nw==='san'||nw==='ssn')&&!gc('hasTelemetry')){
+  if(isSanSsn&&!gc('hasTelemetry')){
     const cb=$('hasTelemetry');
     if(cb){ cb.checked=true; telemetryToggled(); return; }
   }
-  updateGridNetworkNote();
-  render();
+  interconnTypeChanged();
 }
 function interconnTypeChanged(){
-  const isFeeder = gv('interconnType')==='radial-feeder';
+  const gridNw=gv('gridNetwork')||'radial';
+  const strat=gv('interconnType')||'radial-feeder';
+  const isSanSsn=gridNw==='san'||gridNw==='ssn';
+  const isFeeder=isSanSsn&&strat==='radial-feeder';
+  const isBess=isSanSsn&&strat==='bess';
   const ff=$('feeder-fields');
   if(ff) ff.style.display=isFeeder?'block':'none';
   if(isFeeder){
@@ -2382,13 +2385,16 @@ function interconnTypeChanged(){
     if(prCb&&!prCb.checked) prCb.checked=true;
     if(!gc('hasTelemetry')){
       const telCb=$('hasTelemetry');
-      if(telCb){ telCb.checked=true; telemetryToggled(); updateGridNetworkNote(); return; }
+      if(telCb){ telCb.checked=true; telemetryToggled(); return; }
     }
   } else {
     const mvCb=$('hasMvXfmr');
     if(mvCb&&mvCb.checked){ mvCb.checked=false; toggleMvFields(); }
+    if(isBess){
+      const battCb=$('hasBatt');
+      if(battCb&&!battCb.checked){ battCb.checked=true; toggleBattFields(); return; }
+    }
   }
-  updateGridNetworkNote();
   render();
 }
 function battVChanged(){
@@ -3269,8 +3275,15 @@ function render(){
     const networkLabels = {radial:'Radial network',san:'Secondary area network (SAN)',ssn:'Secondary spot network (SSN)'};
     const networkLabel = networkLabels[v.gridNetwork]||v.gridNetwork;
     gLines.push({bold:false, text:`Grid type: ${networkLabel}`});
-    if(v.gridNetwork==='san') gLines.push({bold:false, text:'Anti-islanding relay required · Network protectors on secondary bus'});
-    if(v.gridNetwork==='ssn') gLines.push({bold:false, text:'Anti-islanding relay required · Dedicated spot network transformers'});
+    if(v.gridNetwork==='san'||v.gridNetwork==='ssn'){
+      const nwName=v.gridNetwork==='san'?'Secondary Area Network (SAN)':'Secondary Spot Network (SSN)';
+      const protNote=v.gridNetwork==='san'?'Network protectors on secondary bus prevent behind-meter backfeed':'Spot network protectors prevent behind-meter backfeed';
+      const stratNote=v.interconnType==='radial-feeder'?'Strategy: Radial feeder injection (front-of-meter PV generation)':'Strategy: Battery storage / BESS (behind-meter export control)';
+      gLines.push({bold:true,  text:`${nwName} — Export Control Required`});
+      gLines.push({bold:false, text:protNote});
+      gLines.push({bold:false, text:stratNote});
+      gLines.push({bold:false, text:'Anti-islanding relay required · Telemetry required'});
+    }
     if(v.exportLimit>0) gLines.push({bold:false, text:`Export limit: ${v.exportLimit} kW ${v.exportLimitType} · Do not exceed at POI`});
     if(v.pfRequirement) gLines.push({bold:false, text:`Power factor: ${v.pfRequirement}`});
     if(v.hasTelemetry){
