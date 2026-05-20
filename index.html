@@ -3125,21 +3125,39 @@ function render(){
 
   // Legend + NEC box share the same column width
   const LX=SVG_W-445, LY=82, NW=430;
-  el.push(`<rect x="${LX}" y="${LY}" width="${NW}" height="122" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
-  el.push(`<text x="${LX+12}" y="${LY+16}" class="sld-head">LEGEND</text>`);
-  el.push(`<line x1="${LX+12}" y1="${LY+30}" x2="${LX+44}" y2="${LY+30}" stroke="#c9a10a" stroke-width="2" stroke-dasharray="7 3"/>`);
-  el.push(`<text x="${LX+50}" y="${LY+33}" class="sld-note">DC conductor</text>`);
-  el.push(`<line x1="${LX+12}" y1="${LY+48}" x2="${LX+44}" y2="${LY+48}" stroke="#3d8ef8" stroke-width="2.5"/>`);
-  el.push(`<text x="${LX+50}" y="${LY+51}" class="sld-note">AC conductor</text>`);
-  // PV string symbol in legend
-  el.push(`<rect x="${LX+11}" y="${LY+62}" width="24" height="14" rx="2" fill="#fef9d0" stroke="#a08800" stroke-width="1"/>`);
-  el.push(`<line x1="${LX+14}" y1="${LY+74}" x2="${LX+32}" y2="${LY+64}" stroke="#a08800" stroke-width="0.8"/>`);
-  el.push(`<text x="${LX+50}" y="${LY+73}" class="sld-note">PV string</text>`);
-  el.push(`<circle cx="${LX+23}" cy="${LY+91}" r="10" fill="#f5f7fc" stroke="#a0aac8" stroke-width="1"/>`);
-  el.push(`<text x="${LX+50}" y="${LY+94}" class="sld-note">Meter</text>`);
-  el.push(`<line x1="${LX+16}" y1="${LY+117}" x2="${LX+30}" y2="${LY+107}" stroke="#a0aac8" stroke-width="1.5"/>`);
-  el.push(`<circle cx="${LX+16}" cy="${LY+117}" r="2" fill="#a0aac8"/><circle cx="${LX+30}" cy="${LY+107}" r="2" fill="#a0aac8"/>`);
-  el.push(`<text x="${LX+50}" y="${LY+114}" class="sld-note">Disconnect switch</text>`);
+  // Legend — dynamic height based on rows
+  const legRows=[
+    {type:'line',stroke:'#c9a10a',sw:2,dash:'7 3',label:'DC conductor'},
+    {type:'line',stroke:'#3d8ef8',sw:2.5,dash:null,label:'AC conductor'},
+    {type:'line',stroke:'#4a88d4',sw:1,dash:'5 3',label:'Communications (Cat6)'},
+    {type:'pvstr',label:'PV string'},
+    {type:'circle',label:'Meter'},
+    {type:'disc',label:'Disconnect switch'},
+  ];
+  const legRowH=18, legTopPad=22, legBotPad=10;
+  const legH=legTopPad+legRows.length*legRowH+legBotPad;
+  el.push(`<rect x="${LX}" y="${LY}" width="${NW}" height="${legH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
+  el.push(`<text x="${LX+12}" y="${LY+14}" class="sld-head">LEGEND</text>`);
+  legRows.forEach((row,i)=>{
+    const ry=LY+legTopPad+i*legRowH;
+    const mid=Math.round(legRowH/2);
+    if(row.type==='line'){
+      el.push(`<line x1="${LX+12}" y1="${ry+mid}" x2="${LX+44}" y2="${ry+mid}" stroke="${row.stroke}" stroke-width="${row.sw}"${row.dash?` stroke-dasharray="${row.dash}"`:''}/>`);
+    } else if(row.type==='pvstr'){
+      if(PV_SYM_B64){
+        el.push(`<image href="${PV_SYM_B64}" x="${LX+11}" y="${ry+2}" width="32" height="${legRowH-4}" preserveAspectRatio="xMidYMid meet"/>`);
+      } else {
+        el.push(`<rect x="${LX+11}" y="${ry+3}" width="24" height="12" rx="2" fill="#fef9d0" stroke="#a08800" stroke-width="1"/>`);
+        el.push(`<line x1="${LX+14}" y1="${ry+14}" x2="${LX+32}" y2="${ry+4}" stroke="#a08800" stroke-width="0.8"/>`);
+      }
+    } else if(row.type==='circle'){
+      el.push(`<circle cx="${LX+23}" cy="${ry+mid}" r="8" fill="#f5f7fc" stroke="#a0aac8" stroke-width="1"/>`);
+    } else if(row.type==='disc'){
+      el.push(`<line x1="${LX+14}" y1="${ry+mid+4}" x2="${LX+32}" y2="${ry+mid-4}" stroke="#a0aac8" stroke-width="1.5"/>`);
+      el.push(`<circle cx="${LX+14}" cy="${ry+mid+4}" r="2" fill="#a0aac8"/><circle cx="${LX+32}" cy="${ry+mid-4}" r="2" fill="#a0aac8"/>`);
+    }
+    el.push(`<text x="${LX+50}" y="${ry+mid+4}" class="sld-note">${row.label}</text>`);
+  });
 
   // Pre-compute conduit data (needed for NEC box SVG and sidebar DOM)
   const CAT6_AREA = 0.0594;
@@ -3171,8 +3189,8 @@ function render(){
   }
   const totalAcKw = (v.invKw*v.invCount) + (v.hasArr2 ? v.a2.invKw*v.a2.invCount : 0);
 
-  // NEC calcs box
-  const NY=LY+134;
+  // NEC calcs box — starts just below legend with a small gap
+  const NY=LY+legH+12;
   const accentStyle = `fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600;letter-spacing:.06em`;
   const rsdCompNote = v.hasRSD ? (
     v.invType==='micro' ? 'RSD: Microinverters — inherent MLPE PVHCS · NEC 690.12(C)' :
@@ -3210,22 +3228,27 @@ function render(){
     necItems.push(necHead(41, 'SYSTEM INFORMATION'));
     necItems.push(necBold(55, `${totalKwDc.toFixed(2)} kW DC`));
     necItems.push(necBold(67, `${totalAcKw.toFixed(1)} kW AC`));
-    necItems.push(necLine(79, `PV breaker: ${bkrLabel}  ·  Panel: ${activePanel}A`));
-    necItems.push(necDiv(88));
-    necItems.push(necHead(99, 'ARRAY 1'));
-    necItems.push(necLine(111, `Array Voc: ${stringVoc} V  (max ${necVoc} V)  ·  Array Isc: ${arrayIsc} A`));
-    necItems.push(necDiv(119));
-    necItems.push(necHead(130, 'ARRAY 2'));
-    necItems.push(necLine(142, `Array Voc: ${a2StrVoc.toFixed(1)} V  (max ${(a2StrVoc*1.25).toFixed(0)} V)  ·  Array Isc: ${a2ArrIsc.toFixed(1)} A`));
-    necY = 142;
+    necItems.push(necLine(79, `PV breaker: ${bkrLabel}`));
+    necItems.push(necLine(91, `Panel: ${activePanel}A`));
+    necItems.push(necDiv(100));
+    necItems.push(necHead(111, 'ARRAY 1'));
+    necItems.push(necLine(123, `Array Voc: ${stringVoc} V  (max ${necVoc} V)`));
+    necItems.push(necLine(135, `Array Isc: ${arrayIsc} A`));
+    necItems.push(necDiv(143));
+    necItems.push(necHead(154, 'ARRAY 2'));
+    necItems.push(necLine(166, `Array Voc: ${a2StrVoc.toFixed(1)} V  (max ${(a2StrVoc*1.25).toFixed(0)} V)`));
+    necItems.push(necLine(178, `Array Isc: ${a2ArrIsc.toFixed(1)} A`));
+    necY = 178;
   } else {
     necItems.push(necDiv(30));
     necItems.push(necHead(41, 'SYSTEM INFORMATION'));
     necItems.push(necBold(55, `${arrayKw} kW DC`));
     necItems.push(necBold(67, `${totalAcKw.toFixed(1)} kW AC`));
-    necItems.push(necLine(79, `PV breaker: ${bkrLabel}  ·  Panel: ${activePanel}A`));
-    necItems.push(necLine(91, `Array Voc: ${stringVoc} V  (max ${necVoc} V)  ·  Array Isc: ${arrayIsc} A`));
-    necY = 91;
+    necItems.push(necLine(79, `PV breaker: ${bkrLabel}`));
+    necItems.push(necLine(91, `Panel: ${activePanel}A`));
+    necItems.push(necLine(103, `Array Voc: ${stringVoc} V  (max ${necVoc} V)`));
+    necItems.push(necLine(115, `Array Isc: ${arrayIsc} A`));
+    necY = 115;
   }
 
   if(_showConduitNotes){
@@ -3278,7 +3301,7 @@ function render(){
     necY = dY + 23 + (customNoteLines.length - 1) * 12;
   }
 
-  const necH = necY + 20;
+  const necH = necY + 14;
   el.push(`<rect x="${LX}" y="${NY}" width="${NW}" height="${necH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
   el.push(`<text x="${LX+NW/2}" y="${NY+13}" class="sld-head" text-anchor="middle">PV Electrical Notes (NEC 690)</text>`);
   el.push(`<text x="${LX+NW/2}" y="${NY+22}" style="${italicNote}" text-anchor="middle">Estimated · consult PV designer and site electrician for final calculations.</text>`);
@@ -3545,16 +3568,14 @@ function exportPDF(){
       const isLand=W>=H;
       const pdf=new jsPDF({orientation:isLand?'landscape':'portrait',unit:'in',format:'letter'});
       const pageW=isLand?11:8.5, pageH=isLand?8.5:11;
-      const margin=0.15;
-      const availW=pageW-margin*2, availH=pageH-margin*2;
+      const marginX=0.08, marginY=0.15;
+      const availW=pageW-marginX*2, availH=pageH-marginY*2;
       const aspect=W/H;
-      // Scale to fill whichever dimension is the binding constraint
       let imgW=availW, imgH=imgW/aspect;
       if(imgH>availH){imgH=availH;imgW=imgH*aspect;}
-      // If height-first gives a better fill (more area), use it instead
       const hfW=availH*aspect, hfH=availH;
       if(hfW<=availW && hfW*hfH>imgW*imgH){imgW=hfW;imgH=hfH;}
-      const x=margin+(availW-imgW)/2, y=margin+(availH-imgH)/2;
+      const x=marginX+(availW-imgW)/2, y=marginY+(availH-imgH)/2;
       pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',x,y,imgW,imgH);
       // Overlay a clickable link annotation over the logo position
       const logoSvgX=W-102, logoSvgY=20, logoSvgW=80, logoSvgH=32;
