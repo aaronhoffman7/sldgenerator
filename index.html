@@ -3555,6 +3555,10 @@ function exportPDF(){
       if(hfW<=availW && hfW*hfH>imgW*imgH){imgW=hfW;imgH=hfH;}
       const x=margin+(availW-imgW)/2, y=margin+(availH-imgH)/2;
       pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',x,y,imgW,imgH);
+      // Overlay a clickable link annotation over the logo position
+      const logoSvgX=W-102, logoSvgY=20, logoSvgW=80, logoSvgH=32;
+      const sx=imgW/W, sy=imgH/H;
+      pdf.link(x+logoSvgX*sx, y+logoSvgY*sy, logoSvgW*sx, logoSvgH*sy, {url:'https://lightboxenergy.com'});
       pdf.save((v.projName||'sld').replace(/[^a-z0-9]/gi,'_')+'_SLD.pdf');
     }
 
