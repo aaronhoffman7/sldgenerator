@@ -1454,7 +1454,7 @@ function vals(){
     mvPriKv:+gv('mvPriKv')||13.8,mvSecV:+gv('mvSecV')||480,
     panelA:+gv('panelA')||200,busbarA:+gv('busbarA')||(+gv('panelA')||200),solarBreaker:+gv('solarBreaker')||40,
     hasRSD:gc('hasRSD'),rsdMethod:gv('rsdMethod')||'mlpe',hasMeter:gc('hasMeter'),hasGnd:gc('hasGnd'),
-    hasSPD:gc('hasSPD'),hasUtilDisc:gc('hasUtilDisc')||gc('hasMvXfmr')||_totalAcKw>50,hasNetMeter:gc('hasNetMeter'),hasMonitoring:gc('hasMonitoring'),
+    hasSPD:gc('hasSPD'),hasUtilDisc:gc('hasUtilDisc'),hasNetMeter:gc('hasNetMeter'),hasMonitoring:gc('hasMonitoring'),
     monitorPlatform:gv('monitorPlatform')||'',
     interconnType:_effInterconn,
     feederKv:+gv('feederKv')||12.47,
@@ -2582,6 +2582,13 @@ function render(){
   _showConduitNotes = gc('showConduitNotes');
   _showNecNotes = gc('showNecNotes');
   if(gc('hasArr2') && gc('arr2-linked')) arr2Sync();
+  // Auto-check utility visible disconnect for large systems (NEC 705.22 required >50 kW AC or with MV transformer)
+  (function(){
+    const _invKw=(+gv('invKw')||10)*Math.max(1,+gv('invCount')||1);
+    const _a2Kw=gc('hasArr2')?((+gv('a2invKw')||10)*Math.max(1,+gv('a2invCount')||1)):0;
+    const udCb=$('hasUtilDisc');
+    if(udCb && (_invKw+_a2Kw>50 || gc('hasMvXfmr'))) udCb.checked=true;
+  })();
   const v=vals();
   $('rsd-method-row').style.display = (v.hasRSD && v.invType !== 'micro') ? 'flex' : 'none';
   $('rsdMethod').options[0].text = 'MLPE — DC Optimizers (integrated PVHCS)';
