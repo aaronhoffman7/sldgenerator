@@ -587,7 +587,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           <div class="stitle">PVWatts (TMY Data)</div>
           <label>Array type</label>
           <select id="an-array-type">
-            <option value="1">Fixed — Roof mount</option>
+            <option value="1" selected>Fixed — Roof mount</option>
             <option value="0">Fixed — Open rack</option>
             <option value="2">1-Axis tracking</option>
             <option value="4">2-Axis tracking</option>
@@ -3562,9 +3562,16 @@ function switchTab(name){
 }
 
 function syncAnalysisFromSLD(){
-  // PV
-  const pvKw=(parseFloat(gv('systemKw'))||0)+(gc('hasArr2')?(parseFloat(gv('a2systemKw'))||0):0);
-  const dcAcRatio=parseFloat(gv('dcAcRatio'))||1.20;
+  // PV — weighted DC/AC ratio across both arrays when Array 2 is present
+  const pvKw1=parseFloat(gv('systemKw'))||0;
+  const pvKw2=gc('hasArr2')?(parseFloat(gv('a2systemKw'))||0):0;
+  const pvKw=pvKw1+pvKw2;
+  const r1=parseFloat(gv('dcAcRatio'))||1.20;
+  const r2=parseFloat(gv('a2dcAcRatio'))||1.20;
+  const acKw1=r1>0?pvKw1/r1:0;
+  const acKw2=pvKw2>0&&r2>0?pvKw2/r2:0;
+  const totalAcKw=acKw1+acKw2;
+  const dcAcRatio=totalAcKw>0?Math.round(pvKw/totalAcKw*100)/100:r1;
 
   // Invalidate PVWatts cache if the system params it was fetched for have changed
   if(_anPvWattsData){
