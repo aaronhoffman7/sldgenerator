@@ -485,6 +485,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <option value="san">Secondary area network (SAN)</option>
       <option value="ssn">Secondary spot network (SSN)</option>
     </select>
+    <div id="grid-network-feeder-note" class="cnote" style="display:none;color:var(--accent2);margin-top:4px"></div>
     <div class="row2" style="margin-top:8px">
       <div><label>Export limit (kW)</label><input type="number" id="exportLimit" placeholder="None" min="0" step="1" oninput="exportLimitChanged()"></div>
       <div><label>Type</label><select id="exportLimitType" onchange="render()"><option value="net">Net</option><option value="gross">Gross</option></select></div>
@@ -2339,12 +2340,35 @@ function telemetryToggled(){
   if(f) f.style.display=on?'block':'none';
   render();
 }
+function updateGridNetworkNote(){
+  const gnEl=$('gridNetwork');
+  const gnNote=$('grid-network-feeder-note');
+  const isFeeder=gv('interconnType')==='radial-feeder';
+  if(gnEl) gnEl.disabled=isFeeder;
+  if(gnNote){
+    if(isFeeder){
+      const nw=gv('gridNetwork')||'radial';
+      if(nw==='san'){
+        gnNote.textContent='SAN prevents behind-meter backfeed through network protectors — radial feeder injection required';
+        gnNote.style.display='block';
+      } else if(nw==='ssn'){
+        gnNote.textContent='SSN prevents behind-meter backfeed through spot network protectors — radial feeder injection required';
+        gnNote.style.display='block';
+      } else {
+        gnNote.style.display='none';
+      }
+    } else {
+      gnNote.style.display='none';
+    }
+  }
+}
 function gridNetworkChanged(){
   const nw=gv('gridNetwork');
   if((nw==='san'||nw==='ssn')&&!gc('hasTelemetry')){
     const cb=$('hasTelemetry');
     if(cb){ cb.checked=true; telemetryToggled(); return; }
   }
+  updateGridNetworkNote();
   render();
 }
 function interconnTypeChanged(){
@@ -2358,13 +2382,13 @@ function interconnTypeChanged(){
     if(prCb&&!prCb.checked) prCb.checked=true;
     if(!gc('hasTelemetry')){
       const telCb=$('hasTelemetry');
-      if(telCb){ telCb.checked=true; telemetryToggled(); return; }
+      if(telCb){ telCb.checked=true; telemetryToggled(); updateGridNetworkNote(); return; }
     }
   } else {
-    // Uncheck components that feeder mode auto-enables but don't belong behind-the-meter
     const mvCb=$('hasMvXfmr');
     if(mvCb&&mvCb.checked){ mvCb.checked=false; toggleMvFields(); }
   }
+  updateGridNetworkNote();
   render();
 }
 function battVChanged(){
@@ -2808,7 +2832,7 @@ function render(){
     }
     // Protection relay — mandatory for feeder injection
     el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
-    el.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,'21/27/59/81/25/67/67N/32 · IEEE 1547'));
+    el.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,'27/59/81/25/67/67N/32/47 · IEEE 1547-2018'));
     y+=54;
     // Revenue metering package (LV side, before step-up)
     el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
@@ -2832,7 +2856,7 @@ function render(){
     const mvSecV=v.mvSecV||480;
     const mvPriKv=v.feederKv||v.mvPriKv||12.47;
     el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
-    el.push(compBox(MCX-100,y,200,54,'#fff8ec','#c07a00',mvLabel,`${mvSecV}V / ${mvPriKv} kV · 3Φ 60Hz`,'NEMA 3R · Oil-Cooled'));
+    el.push(compBox(MCX-100,y,200,54,'#fff8ec','#c07a00',mvLabel,`${mvSecV}V / ${mvPriKv} kV · 3Φ 60Hz`,'NEMA 3R · Outdoor pad-mount'));
     y+=54;
     // MV wire color (orange) from transformer down
     const mvC='#c07a00', mvW='stroke-width="2.5"';
@@ -2844,16 +2868,7 @@ function render(){
     el.push(`<text x="${MCX}" y="${y+26}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle">${mvPriKv} kV · ${esc(v.utilityName)}-grade</text>`);
     el.push(`<text x="${MCX}" y="${y+38}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle">Vacuum interrupter · Lockable · IEEE 1547</text>`);
     y+=44;
-    // Optional recloser
-    if(v.feederRecloser){
-      el.push(`<line x1="${MCX}" y1="${y}" x2="${MCX}" y2="${y+W}" stroke="${mvC}" ${mvW}/>`);
-      y+=W;
-      el.push(`<rect x="${MCX-65}" y="${y}" width="130" height="44" rx="6" fill="#fff3e0" stroke="${mvC}" stroke-width="1.5"/>`);
-      el.push(`<text x="${MCX}" y="${y+14}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:11px;font-weight:700" text-anchor="middle">Automatic Recloser</text>`);
-      el.push(`<text x="${MCX}" y="${y+26}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle">${mvPriKv} kV · Trip coordination</text>`);
-      el.push(`<text x="${MCX}" y="${y+38}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle">IEEE 1547-2018 · Anti-islanding</text>`);
-      y+=44;
-    }
+    // Recloser drawn as utility-owned symbol on the feeder line (added after feeder line is drawn below)
     // MV vertical wire to feeder tap
     el.push(`<line x1="${MCX}" y1="${y}" x2="${MCX}" y2="${y+W}" stroke="${mvC}" ${mvW}/>`);
     y+=W;
@@ -2868,13 +2883,24 @@ function render(){
     // Direction arrows
     el.push(`<polygon points="${feederExtL+2},${feederY} ${feederExtL+10},${feederY-5} ${feederExtL+10},${feederY+5}" fill="${mvC}"/>`);
     el.push(`<polygon points="${feederExtR-2},${feederY} ${feederExtR-10},${feederY-5} ${feederExtR-10},${feederY+5}" fill="${mvC}"/>`);
+    // Utility recloser symbol on source side of feeder line (utility-owned)
+    if(v.feederRecloser){
+      const recX=feederExtL+Math.round((MCX-feederExtL)*0.42);
+      const recW=24,recH=14;
+      el.push(`<rect x="${recX-recW/2}" y="${feederY-recH/2}" width="${recW}" height="${recH}" rx="2" fill="#fff8ee" stroke="${mvC}" stroke-width="1.5"/>`);
+      el.push(`<text x="${recX}" y="${feederY+3}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:7px;font-weight:700" text-anchor="middle">RC</text>`);
+      el.push(`<text x="${recX}" y="${feederY+14}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:8px" text-anchor="middle">Utility Recloser</text>`);
+      el.push(`<text x="${recX}" y="${feederY+24}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:7px;font-style:italic" text-anchor="middle">(utility-owned)</text>`);
+    }
     // Feeder labels
-    el.push(`<text x="${MCX}" y="${feederY-10}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:10px;font-weight:700" text-anchor="middle">POI</text>`);
-    el.push(`<text x="${MCX}" y="${feederY+18}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle">${esc(feederLabel)} · ${esc(v.utilityName)}</text>`);
-    // Source / load direction labels
-    el.push(`<text x="${feederExtL+14}" y="${feederY-6}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="start">← Source</text>`);
-    el.push(`<text x="${feederExtR-14}" y="${feederY-6}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="end">Load →</text>`);
-    y+=30;
+    el.push(`<text x="${MCX}" y="${feederY-15}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:10px;font-weight:700" text-anchor="middle">POI</text>`);
+    const feederMidX=Math.round((feederExtL+feederExtR)/2);
+    const feederLabelY=v.feederRecloser?feederY+32:feederY+22;
+    el.push(`<text x="${feederMidX}" y="${feederLabelY}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle">${esc(feederLabel)} · ${esc(v.utilityName)}</text>`);
+    // Source / load direction labels — above the feeder line, clear of arrows
+    el.push(`<text x="${feederExtL+16}" y="${feederY-12}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="start">← Source</text>`);
+    el.push(`<text x="${feederExtR-16}" y="${feederY-12}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="end">Load →</text>`);
+    y+=v.feederRecloser?52:42;
     // Feeder injection has no standard SAN/SSN grid box
   } else {
     // ── Standard behind-meter downstream path ──────────────────────────────
