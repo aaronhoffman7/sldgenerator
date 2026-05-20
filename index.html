@@ -228,7 +228,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     </div>
     <div id="inv-ac-calc" class="cnote" style="margin-top:6px"></div>
     <div class="row2">
-      <div><label>Qty (parallel)</label><input type="number" id="invCount" value="1" min="1" max="20" oninput="invCountChanged()"></div>
+      <div><label>Quantity</label><input type="number" id="invCount" value="1" min="1" max="20" oninput="invCountChanged()"></div>
     </div>
     <label>Make / model</label>
     <input type="text" id="invModel" value="SMA Sunny Boy 10.0" oninput="invModelChanged()">
@@ -299,7 +299,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     </div>
     <div id="a2inv-ac-calc" class="cnote" style="margin-top:6px"></div>
     <div class="row2">
-      <div><label>Qty (parallel)</label><input type="number" id="a2invCount" value="1" min="1" max="20" oninput="arrInvCountChanged(2)"></div>
+      <div><label>Quantity</label><input type="number" id="a2invCount" value="1" min="1" max="20" oninput="arrInvCountChanged(2)"></div>
     </div>
     <label>Make / model</label>
     <input type="text" id="a2invModel" value="SMA Sunny Boy 10.0" oninput="render()">
@@ -2604,7 +2604,7 @@ function render(){
   const is3ph=v.invV.includes('3ph');
   const invAC=((v.invKw*v.invCount*1000)/(invVolts*(is3ph?1.732:1))).toFixed(1);
   const perInvRaw=(v.invKw*1000)/(invVolts*(is3ph?1.732:1));
-  $('inv-ac-calc').textContent=`${v.invKw} kW @ ${v.invV} = ${perInvRaw.toFixed(1)} A · ×1.25 = ${(perInvRaw*1.25).toFixed(1)} A min.`;
+  $('inv-ac-calc').textContent=`${v.invKw} kW @ ${v.invV} = ${perInvRaw.toFixed(1)} A · ×1.25 = ${(perInvRaw*1.25).toFixed(1)} A min. per inverter`;
   // Array 2 electrical calcs
   let a2Kw=0,a2StrVoc=0,a2ArrIsc=0,a2InvAcA=0,a2perInvRaw=0,a2ModsLast=0;
   if(v.hasArr2){
@@ -2627,7 +2627,7 @@ function render(){
   $('ac-system-kw').textContent=((v.invKw*v.invCount).toFixed(1)).replace(/\.0$/,'')+' kW';
   if(v.hasArr2){
     const a2InvAcCalc=a$(2,'inv-ac-calc');
-    if(a2InvAcCalc) a2InvAcCalc.textContent=`${v.a2.invKw} kW @ ${v.a2.invV} = ${a2perInvRaw.toFixed(1)} A · ×1.25 = ${(a2perInvRaw*1.25).toFixed(1)} A min.`;
+    if(a2InvAcCalc) a2InvAcCalc.textContent=`${v.a2.invKw} kW @ ${v.a2.invV} = ${a2perInvRaw.toFixed(1)} A · ×1.25 = ${(a2perInvRaw*1.25).toFixed(1)} A min. per inverter`;
     const a2AcKwEl=a$(2,'ac-system-kw');
     if(a2AcKwEl) a2AcKwEl.textContent=((v.a2.invKw*v.a2.invCount).toFixed(1)).replace(/\.0$/,'')+' kW';
   }
@@ -3125,38 +3125,42 @@ function render(){
 
   // Legend + NEC box share the same column width
   const LX=SVG_W-445, LY=82, NW=430;
-  // Legend — dynamic height based on rows
+  // Legend — rows with per-row heights (pvstr is taller to show portrait symbol properly)
   const legRows=[
-    {type:'line',stroke:'#c9a10a',sw:2,dash:'7 3',label:'DC conductor'},
-    {type:'line',stroke:'#3d8ef8',sw:2.5,dash:null,label:'AC conductor'},
-    {type:'line',stroke:'#4a88d4',sw:1,dash:'5 3',label:'Communications (Cat6)'},
-    {type:'pvstr',label:'PV string'},
-    {type:'circle',label:'Meter'},
-    {type:'disc',label:'Disconnect switch'},
+    {type:'line', stroke:'#c9a10a', sw:2,   dash:'7 3', label:'DC conductor',            h:18},
+    {type:'line', stroke:'#3d8ef8', sw:2.5, dash:null,  label:'AC conductor',             h:18},
+    {type:'line', stroke:'#4a88d4', sw:1,   dash:'5 3', label:'Communications (Cat6)',    h:18},
+    {type:'pvstr',                                       label:'PV string',                h:34},
+    {type:'circle',                                      label:'Meter',                    h:22},
+    {type:'disc',                                        label:'Disconnect switch',         h:22},
   ];
-  const legRowH=18, legTopPad=22, legBotPad=10;
-  const legH=legTopPad+legRows.length*legRowH+legBotPad;
+  const legTopPad=22, legBotPad=10;
+  const legH=legTopPad+legRows.reduce((s,r)=>s+r.h,0)+legBotPad;
   el.push(`<rect x="${LX}" y="${LY}" width="${NW}" height="${legH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
   el.push(`<text x="${LX+12}" y="${LY+14}" class="sld-head">LEGEND</text>`);
-  legRows.forEach((row,i)=>{
-    const ry=LY+legTopPad+i*legRowH;
-    const mid=Math.round(legRowH/2);
+  let legCurY=LY+legTopPad;
+  legRows.forEach(row=>{
+    const mid=Math.round(row.h/2);
+    const ry=legCurY;
     if(row.type==='line'){
       el.push(`<line x1="${LX+12}" y1="${ry+mid}" x2="${LX+44}" y2="${ry+mid}" stroke="${row.stroke}" stroke-width="${row.sw}"${row.dash?` stroke-dasharray="${row.dash}"`:''}/>`);
     } else if(row.type==='pvstr'){
+      // pvstring.svg is portrait (142×199); fit to row height keeping aspect ratio, center in sym col
+      const symH=row.h-4, symW=Math.round(symH*(142/199));
+      const symX=LX+Math.round((44-symW)/2)+4; // center within 0-44 sym column
       if(PV_SYM_B64){
-        el.push(`<image href="${PV_SYM_B64}" x="${LX+11}" y="${ry+2}" width="32" height="${legRowH-4}" preserveAspectRatio="xMidYMid meet"/>`);
+        el.push(`<image href="${PV_SYM_B64}" x="${symX}" y="${ry+2}" width="${symW}" height="${symH}" preserveAspectRatio="xMidYMid meet"/>`);
       } else {
-        el.push(`<rect x="${LX+11}" y="${ry+3}" width="24" height="12" rx="2" fill="#fef9d0" stroke="#a08800" stroke-width="1"/>`);
-        el.push(`<line x1="${LX+14}" y1="${ry+14}" x2="${LX+32}" y2="${ry+4}" stroke="#a08800" stroke-width="0.8"/>`);
+        el.push(`<rect x="${symX}" y="${ry+4}" width="${symW}" height="${symH-4}" rx="2" fill="#fef9d0" stroke="#a08800" stroke-width="1"/>`);
       }
     } else if(row.type==='circle'){
-      el.push(`<circle cx="${LX+23}" cy="${ry+mid}" r="8" fill="#f5f7fc" stroke="#a0aac8" stroke-width="1"/>`);
+      el.push(`<circle cx="${LX+23}" cy="${ry+mid}" r="9" fill="#f5f7fc" stroke="#a0aac8" stroke-width="1"/>`);
     } else if(row.type==='disc'){
-      el.push(`<line x1="${LX+14}" y1="${ry+mid+4}" x2="${LX+32}" y2="${ry+mid-4}" stroke="#a0aac8" stroke-width="1.5"/>`);
-      el.push(`<circle cx="${LX+14}" cy="${ry+mid+4}" r="2" fill="#a0aac8"/><circle cx="${LX+32}" cy="${ry+mid-4}" r="2" fill="#a0aac8"/>`);
+      el.push(`<line x1="${LX+14}" y1="${ry+mid+5}" x2="${LX+32}" y2="${ry+mid-5}" stroke="#a0aac8" stroke-width="1.5"/>`);
+      el.push(`<circle cx="${LX+14}" cy="${ry+mid+5}" r="2.5" fill="#a0aac8"/><circle cx="${LX+32}" cy="${ry+mid-5}" r="2.5" fill="#a0aac8"/>`);
     }
     el.push(`<text x="${LX+50}" y="${ry+mid+4}" class="sld-note">${row.label}</text>`);
+    legCurY+=row.h;
   });
 
   // Pre-compute conduit data (needed for NEC box SVG and sidebar DOM)
