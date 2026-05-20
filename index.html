@@ -2356,17 +2356,18 @@ function interconnTypeChanged(){
   const ff=$('feeder-fields');
   if(ff) ff.style.display=isFeeder?'block':'none';
   if(isFeeder){
-    // MV transformer required for feeder injection
     const mvCb=$('hasMvXfmr');
     if(mvCb&&!mvCb.checked){ mvCb.checked=true; toggleMvFields(); }
-    // Protection relay mandatory
     const prCb=$('hasProtRelay');
     if(prCb&&!prCb.checked) prCb.checked=true;
-    // Telemetry typically required by utility
     if(!gc('hasTelemetry')){
       const telCb=$('hasTelemetry');
       if(telCb){ telCb.checked=true; telemetryToggled(); return; }
     }
+  } else {
+    // Uncheck components that feeder mode auto-enables but don't belong behind-the-meter
+    const mvCb=$('hasMvXfmr');
+    if(mvCb&&mvCb.checked){ mvCb.checked=false; toggleMvFields(); }
   }
   render();
 }
