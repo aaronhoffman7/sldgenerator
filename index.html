@@ -419,7 +419,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   </div>
   <div class="section">
     <div class="sec-toggle" onclick="toggleSec('util-body','util-arrow')">
-      <div class="stitle">Utility, POI &amp; Protection</div>
+      <div class="stitle">Utility &amp; Interconnection</div>
       <span class="sec-arrow open" id="util-arrow">&#9654;</span>
     </div>
     <div class="sec-body" id="util-body">
@@ -449,20 +449,17 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <div style="padding-top:18px"><div id="breaker-math" class="cnote" style="margin-top:0;line-height:1.7;white-space:pre-line"></div></div>
     </div>
     <div id="backfeed-check" class="cwarn" style="margin-top:6px"></div>
-    <div class="sec-subtitle" style="margin:14px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Components</div>
-    <div class="trow"><span>Rapid shutdown (RSD)</span><label class="tog"><input type="checkbox" id="hasRSD" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div class="trow" style="margin-top:8px"><span>Rapid shutdown (RSD)</span><label class="tog"><input type="checkbox" id="hasRSD" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow" id="rsd-method-row"><span>RSD method</span><select id="rsdMethod" onchange="render()"><option value="mlpe">MLPE — Microinverters or DC Optimizers (integrated PVHCS)</option><option value="pvhcs">Dedicated RSD Receivers — add-on PVHCS for string inverters</option></select></div>
     <div class="trow"><span>SPD (NEC 230.67 / 242)</span><label class="tog"><input type="checkbox" id="hasSPD" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Production meter</span><label class="tog"><input type="checkbox" id="hasMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    <div class="trow"><span>Show grounding</span><label class="tog"><input type="checkbox" id="hasGnd" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Utility visible disconnect (NEC 705.22)</span><label class="tog"><input type="checkbox" id="hasUtilDisc" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Bidirectional / net meter</span><label class="tog"><input type="checkbox" id="hasNetMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Monitoring / DAS</span><label class="tog"><input type="checkbox" id="hasMonitoring" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <label>Platform</label>
     <input type="text" id="monitorPlatform" placeholder="Auto-detected from inverter model" oninput="render()">
     <div id="monitor-gateway-note" class="cnote"></div>
-    <div class="sec-subtitle" style="margin:14px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Grid &amp; Telemetry</div>
-    <label>Interconnection mode</label>
+    <label style="margin-top:8px">Interconnection mode</label>
     <select id="interconnType" autocomplete="off" onchange="interconnTypeChanged()">
       <option value="behind-meter">Behind-meter (service entrance)</option>
       <option value="radial-feeder">Radial feeder injection (MV tap)</option>
@@ -501,6 +498,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <input type="text" id="telNotes" placeholder="Optional utility-specific requirement" oninput="render()">
     </div>
     <div class="sec-subtitle" style="margin:14px 0 4px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Display</div>
+    <div class="trow"><span>Show grounding</span><label class="tog"><input type="checkbox" id="hasGnd" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Show NEC section labels</span><label class="tog"><input type="checkbox" id="showNecLabels" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Show wire sizing labels</span><label class="tog"><input type="checkbox" id="showWireLabels" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Show conduit notes</span><label class="tog"><input type="checkbox" id="showConduitNotes" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
@@ -2759,7 +2757,7 @@ function render(){
 
   // ── Roof / Electrical Room boundary ─────────────────────────────────────────
   const isFeederMode = v.interconnType === 'radial-feeder';
-  let panelY=0, panelBot=0, acDiscY=0;
+  let panelY=0, panelBot=0, acDiscY=0, utilMeterCY=0;
   const breakY = y + Math.round(W/2);
   const zoneStyle = `font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600;letter-spacing:.1em;fill:#9aa0b8`;
   el.push(`<line x1="10" y1="${breakY}" x2="${SVG_W-10}" y2="${breakY}" stroke="#b8bfd4" stroke-width="1" stroke-dasharray="8 5"/>`);
@@ -2817,7 +2815,7 @@ function render(){
     // Revenue metering package (LV side, before step-up)
     el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
     el.push(compBox(BX,y,BW,54,'#fff8ec','#c07a00','Revenue Metering Package','CT/PT · Class 0.2S · Bidirectional','Utility-accessible · Revenue-grade'));
-    const utilMeterCY=y+27;
+    utilMeterCY=y+27;
     y+=54;
     // RTU / Telemetry gateway (feeder mode — anchored to metering package)
     if(v.hasTelemetry){
@@ -2947,7 +2945,7 @@ function render(){
     // Utility meter
     el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
     el.push(meterCircle(MCX,y+14));
-    const utilMeterCY = y+14;
+    utilMeterCY = y+14;
     const nemLabel = v.hasNetMeter ? 'Net Energy Meter (NEM)' : 'Utility Revenue Meter';
     const nemSub   = v.hasNetMeter ? 'Bidirectional · Utility-supplied' : 'Utility-supplied';
     const nemTelSub = v.hasTelemetry && v.telRevMeter ? 'Revenue-grade · Class 0.2S' : null;
@@ -3270,8 +3268,8 @@ function render(){
       else el.push(`<text x="${LX+10}" y="${ty}" class="sld-note">${esc(ln.text)}</text>`);
     });
   }
-  // ── Telemetry devices on diagram ─────────────────────────────────────────
-  if(v.hasTelemetry){
+  // ── Telemetry devices on diagram (behind-meter only; feeder mode renders its own RTU) ──
+  if(v.hasTelemetry && !isFeederMode){
     const telC='#2a6e8c', telF='#eef6fb';
     // CT (and PT if revenue metering) on AC conductor just below NEM
     const ctY = utilMeterCY + 22;
