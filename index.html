@@ -3591,17 +3591,20 @@ function exportPDF(){
     function finish(){
       const {jsPDF}=window.jspdf;
       const aspect=W/H;
+      const isLand=aspect>=1;
+      const pdf=new jsPDF({orientation:isLand?'landscape':'portrait',unit:'in',format:'letter'});
+      const pageW=isLand?11:8.5, pageH=isLand?8.5:11;
       const margin=0.1;
-      // Size page to exactly fit content: 8.5" wide max, 14" tall max (legal)
-      let imgW=8.5-margin*2, imgH=imgW/aspect;
-      if(imgH>14-margin*2){imgH=14-margin*2; imgW=imgH*aspect;}
-      const pageW=imgW+margin*2, pageH=imgH+margin*2;
-      const pdf=new jsPDF({unit:'in',format:[pageW,pageH]});
-      pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',margin,margin,imgW,imgH);
+      const availW=pageW-margin*2, availH=pageH-margin*2;
+      let imgW=availW, imgH=imgW/aspect;
+      if(imgH>availH){imgH=availH; imgW=imgH*aspect;}
+      const x=margin+(availW-imgW)/2; // center horizontally
+      const y=margin;                 // top-align; excess space goes to bottom
+      pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',x,y,imgW,imgH);
       // Overlay a clickable link annotation over the logo position
       const logoSvgX=W-102, logoSvgY=20, logoSvgW=80, logoSvgH=32;
       const sx=imgW/W, sy=imgH/H;
-      pdf.link(margin+logoSvgX*sx, margin+logoSvgY*sy, logoSvgW*sx, logoSvgH*sy, {url:'https://lightboxenergy.com'});
+      pdf.link(x+logoSvgX*sx, y+logoSvgY*sy, logoSvgW*sx, logoSvgH*sy, {url:'https://lightboxenergy.com'});
       pdf.save((v.projName||'sld').replace(/[^a-z0-9]/gi,'_')+'_SLD.pdf');
     }
 
