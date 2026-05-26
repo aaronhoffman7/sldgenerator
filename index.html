@@ -3591,16 +3591,20 @@ function exportPDF(){
     function finish(){
       const {jsPDF}=window.jspdf;
       const aspect=W/H;
-      const isLand=aspect>=1;
+      // Choose orientation that gives the largest image area on letter paper
+      const pW=8.5,pH=11; // portrait dims
+      const portImg=aspect>=pW/pH ? pW*pW/aspect : pH*aspect*pH; // portrait img area
+      const landImg=aspect<=pH/pW ? pH*pH/aspect : pW*aspect*pW; // landscape img area
+      const isLand=landImg>portImg;
       const pdf=new jsPDF({orientation:isLand?'landscape':'portrait',unit:'in',format:'letter'});
-      const pageW=isLand?11:8.5, pageH=isLand?8.5:11;
-      const margin=0.1;
+      const pageW=isLand?pH:pW, pageH=isLand?pW:pH;
+      const margin=0.25;
       const availW=pageW-margin*2, availH=pageH-margin*2;
       let imgW=availW, imgH=imgW/aspect;
       if(imgH>availH){imgH=availH; imgW=imgH*aspect;}
-      const x=margin+(availW-imgW)/2; // center horizontally
-      const y=margin;                 // top-align; excess space goes to bottom
-      pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',x,y,imgW,imgH);
+      const x=margin+(availW-imgW)/2;
+      const y=margin+(availH-imgH)/2;
+      pdf.addImage(canvas.toDataURL('image/jpeg',0.88),'JPEG',x,y,imgW,imgH);
       // Overlay a clickable link annotation over the logo position
       const logoSvgX=W-102, logoSvgY=20, logoSvgW=80, logoSvgH=32;
       const sx=imgW/W, sy=imgH/H;
