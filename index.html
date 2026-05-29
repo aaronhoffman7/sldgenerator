@@ -2715,7 +2715,8 @@ function render(){
   el.push(`<rect x="10" y="10" width="${SVG_W-20}" height="62" rx="5" fill="#f5f7fc" stroke="#d0d5e8" stroke-width="0.8"/>`);
   el.push(`<text x="22" y="28" style="fill:#3a6bc0;font-family:'Avenir Next','Avenir',sans-serif;font-size:15px;font-weight:700">Single Line Diagram — Solar PV${v.hasBatt?' + BESS':''}</text>`);
   el.push(`<text x="22" y="44" style="fill:#1a2040;font-family:'Avenir Next','Avenir',sans-serif;font-size:13px;font-weight:500">${esc(v.projName)}</text>`);
-  el.push(`<text x="22" y="58" style="fill:#707890;font-family:'Avenir Next','Avenir',sans-serif;font-size:11px">${esc(v.designer)} &bull; ${esc(v.utilityName)} &bull; POI: ${v.poiKv} kV</text>`);
+  const _poiLabel=v.poiKv>=1?`${v.poiKv} kV`:`${(v.poiKv*1000).toFixed(0)}V`;
+  el.push(`<text x="22" y="58" style="fill:#707890;font-family:'Avenir Next','Avenir',sans-serif;font-size:11px">${esc(v.designer)} &bull; ${esc(v.utilityName)} &bull; POI: ${_poiLabel}</text>`);
   el.push(`<a href="https://lightboxenergy.com" target="_blank"><image href="${LOGO_B64}" x="${LOGO_X}" y="${LOGO_Y}" width="${LOGO_W}" height="${LOGO_H}" preserveAspectRatio="xMidYMid meet"/></a>`);
   const battSummary=v.hasBatt?`${v.battKw} kW / ${v.battKwh} kWh BESS`:'';
   const kwSummary=`${v.hasArr2?totalKwDc.toFixed(2):arrayKw} kW PV`;
@@ -3063,7 +3064,7 @@ function render(){
       el.push(`<text x="16" y="${extBreakY-4}" style="${zoneStyle}">ELECTRICAL ROOM</text>`);
       el.push(`<text x="16" y="${extBreakY+11}" style="${zoneStyle}">EXTERIOR / METER BASE</text>`);
       el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
-      el.push(discBox(MCX-65,y,130,54,'#edf2ff','#3a6bc0','Utility Visible Disconnect',v.invV,'NEC 705.22 · Exterior · Lockable'));
+      el.push(discBox(MCX-65,y,130,54,'#edf2ff','#3a6bc0','Utility Visible Disconnect',`${v.invV} · ${bkrLabel}`,'NEC 705.22 · Exterior · Lockable'));
       y+=54;
     }
     el.push(wireAC(MCX,y,MCX,y+W));
