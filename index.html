@@ -459,9 +459,10 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div id="backfeed-check" class="cwarn" style="margin-top:6px"></div>
     <div class="trow" style="margin-top:8px"><span>Rapid shutdown (RSD)</span><label class="tog"><input type="checkbox" id="hasRSD" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow" id="rsd-method-row"><span>RSD method</span><select id="rsdMethod" onchange="render()"><option value="mlpe">MLPE — Microinverters or DC Optimizers (integrated PVHCS)</option><option value="pvhcs">Dedicated RSD Receivers — add-on PVHCS for string inverters</option></select></div>
+    <div class="trow" id="rsd-loc-row" style="display:none"><span>RSD init. device location</span><select id="rsdLocation" onchange="render()"><option value="svc-disc">At service disconnecting means — NEC 690.12(C)</option><option value="exterior">Outside building, exterior-accessible — NEC 690.12(C)</option></select></div>
     <div class="trow"><span>SPD (NEC 230.67 / 242)</span><label class="tog"><input type="checkbox" id="hasSPD" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Production meter</span><label class="tog"><input type="checkbox" id="hasMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    <div class="trow"><span>Utility visible disconnect (NEC 705.22)</span><label class="tog"><input type="checkbox" id="hasUtilDisc" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div class="trow"><span>Utility visible disconnect (NEC 705.22)</span><label class="tog"><input type="checkbox" id="hasUtilDisc" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Bidirectional / net meter</span><label class="tog"><input type="checkbox" id="hasNetMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Monitoring / DAS</span><label class="tog"><input type="checkbox" id="hasMonitoring" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <label>Platform</label>
@@ -1460,7 +1461,7 @@ function vals(){
     hasMvXfmr:gc('hasMvXfmr'),mvKva:+gv('mvKva')||1000,mvQty:Math.max(1,+gv('mvQty')||1),
     mvPriKv:+gv('mvPriKv')||13.8,mvSecV:+gv('mvSecV')||480,
     panelA:+gv('panelA')||200,busbarA:+gv('busbarA')||(+gv('panelA')||200),solarBreaker:+gv('solarBreaker')||40,
-    hasRSD:gc('hasRSD'),rsdMethod:gv('rsdMethod')||'mlpe',hasMeter:gc('hasMeter'),hasGnd:gc('hasGnd'),
+    hasRSD:gc('hasRSD'),rsdMethod:gv('rsdMethod')||'mlpe',rsdLocation:gv('rsdLocation')||'svc-disc',hasMeter:gc('hasMeter'),hasGnd:gc('hasGnd'),
     hasSPD:gc('hasSPD'),hasUtilDisc:gc('hasUtilDisc'),hasNetMeter:gc('hasNetMeter'),hasMonitoring:gc('hasMonitoring'),
     monitorPlatform:gv('monitorPlatform')||'',
     interconnType:_effInterconn,
@@ -2517,7 +2518,8 @@ function renderArrayColumn(cfg, cx, startY, compact=false) {
     if(_showWire) s.push(wlabel(cx-4, y+W/2, `#${dcRows.dcW.awg} THWN-2`, false, 'end'));
     y+=W;
   }
-  s.push(discBox(BX+15,y,BW-30,54,'#f5f7fc','#a0aac8','DC Disconnect',`${cfg.combV} VDC · ${Math.ceil(parseFloat(arrayIsc)*1.25)}A`,'NEC 690.13 / 690.15'));
+  const arrayPmax=(cfg.strings*cfg.mods*cfg.modW/1000).toFixed(1);
+  s.push(discBox(BX+15,y,BW-30,54,'#f5f7fc','#a0aac8','DC Disconnect',`${cfg.combV} VDC · ${Math.ceil(parseFloat(arrayIsc)*1.25)}A · ${arrayPmax} kW`,'NEC 690.13(E) / 690.15 / 690.53'));
   y+=54;
   if(cfg.hasSPD) s.push(spdSym(cx, y+Math.round(W/2), false, 'right', `${cfg.combV} VDC · Type 1`, 140));
   s.push(wireDC(cx,y,cx,y+W));
@@ -2580,7 +2582,7 @@ function renderArrayColumn(cfg, cx, startY, compact=false) {
   // NEC compliance note at bottom
   const afciLine=cfg.invType==='hybrid'&&cfg.hasIslanding
     ?'Int. AFCI · GFPD · Int. ATS · UL 1741 SA'
-    :_showNec?'Int. AFCI · NEC 690.11  ·  GFPD · NEC 690.5':'Int. AFCI · GFPD';
+    :_showNec?'Int. AFCI · NEC 690.11  ·  GFPD · NEC 690.5  ·  UL 1741-SA':'Int. AFCI · GFPD · UL 1741-SA';
   s.push(`<text x="${cx}" y="${y+invH-botPad}" style="fill:#8090a8;font-family:'Avenir Next','Avenir',sans-serif;font-size:7.5px;font-style:italic" text-anchor="middle">${afciLine}</text>`);
 
   const invBotY=y+invH;
@@ -2596,12 +2598,16 @@ function render(){
   _showConduitNotes = gc('showConduitNotes');
   _showNecNotes = gc('showNecNotes');
   if(gc('hasArr2') && gc('arr2-linked')) arr2Sync();
-  // Auto-check utility visible disconnect for large systems (NEC 705.22 required >50 kW AC or with MV transformer)
+  // Show RSD location row only for MLPE/micro paths (not PVHCS, which places its own dedicated device)
+  const _isMlpeRsdPath=gc('hasRSD')&&(gv('invType')==='micro'||(gv('rsdMethod')||'mlpe')==='mlpe');
+  $('rsd-loc-row').style.display=_isMlpeRsdPath?'flex':'none';
+  // Auto-force utility visible disconnect ON: MV transformer, >50 kW, or RSD init at service disconnecting means (utility can't reach it otherwise)
   (function(){
     const _invKw=(+gv('invKw')||10)*Math.max(1,+gv('invCount')||1);
     const _a2Kw=gc('hasArr2')?((+gv('a2invKw')||10)*Math.max(1,+gv('a2invCount')||1)):0;
+    const _rsdForcesDisc=_isMlpeRsdPath&&(gv('rsdLocation')||'svc-disc')==='svc-disc';
     const udCb=$('hasUtilDisc');
-    if(udCb && (_invKw+_a2Kw>50 || gc('hasMvXfmr'))) udCb.checked=true;
+    if(udCb && (gc('hasMvXfmr')||_invKw+_a2Kw>50||_rsdForcesDisc)) udCb.checked=true;
   })();
   const v=vals();
   $('rsd-method-row').style.display = (v.hasRSD && v.invType !== 'micro') ? 'flex' : 'none';
@@ -2872,7 +2878,7 @@ function render(){
       const detMon=detectMonitoring(v.invModel);
       const gwNote=$('monitor-gateway-note');
       if(gwNote) gwNote.textContent=detMon?`Gateway: ${detMon.gateway}`:'';
-      el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS',monPlatform||'In gen-tie room · at POI',monPlatform?'In gen-tie room · at POI':null));
+      el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS',monPlatform||'In gen-tie room · monitors POI',monPlatform?'In gen-tie room · monitors POI':null));
       const commStyle='stroke="#4a88d4" stroke-width="1" stroke-dasharray="5 3" fill="none"';
       const commLblStyle=`fill:#4a88d4;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px`;
       if(v.hasArr2){
@@ -2972,7 +2978,8 @@ function render(){
     acDiscY=y;
     const isMlpeRsd=v.hasRSD&&(v.invType==='micro'||v.rsdMethod==='mlpe');
     const acDiscLabel=isMlpeRsd?'AC Disconnect / RSD Init.':'AC Disconnect';
-    const acDiscNec=isMlpeRsd?'NEC 690.15 / 705.20 / 690.12':'NEC 690.15 / 705.20';
+    const _rsdLocTag=isMlpeRsd?(v.rsdLocation==='exterior'?'· Exterior-accessible · Emerg. accessible':'· At svc. disc. · Emerg. accessible'):'';
+    const acDiscNec=isMlpeRsd?`NEC 690.12(C) ${_rsdLocTag} / 690.15 / 705.20`:'NEC 690.15 / 705.20';
     const acDiscW=isMlpeRsd?190:BW-30;
     el.push(discBox(MCX-acDiscW/2,y,acDiscW,54,'#edf2ff','#3a6bc0',acDiscLabel,`${v.invV} · ${bkrLabel}`,acDiscNec));
     y+=54;
@@ -3005,8 +3012,8 @@ function render(){
       const gwNote = $('monitor-gateway-note');
       if (gwNote) gwNote.textContent = detMon ? `Gateway: ${detMon.gateway}` : '';
       el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS',
-        monPlatform || 'In elec. room · at POI',
-        monPlatform ? 'In elec. room · at POI' : null));
+        monPlatform || 'In elec. room · monitors MSP/POI',
+        monPlatform ? 'In elec. room · monitors MSP/POI' : null));
       const commStyle='stroke="#4a88d4" stroke-width="1" stroke-dasharray="5 3" fill="none"';
       const commLblStyle=`fill:#4a88d4;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px`;
       if(v.hasArr2){
@@ -3031,19 +3038,7 @@ function render(){
       el.push(spdSym(MCX, y+Math.round(W/2), true, 'right', `${v.invV} · Type 2`));
       y+=W;
     }
-    // Utility meter
-    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
-    el.push(meterCircle(MCX,y+14));
-    utilMeterCY = y+14;
-    const nemLabel = v.hasNetMeter ? 'Net Energy Meter (NEM)' : 'Utility Revenue Meter';
-    const nemSub   = v.hasNetMeter ? 'Bidirectional · Utility-supplied' : 'Utility-supplied';
-    const nemTelSub = v.hasTelemetry && v.telRevMeter ? 'Revenue-grade · Class 0.2S' : null;
-    const nemLX=v.hasTelemetry?MCX-28:MCX+22, nemAnc=v.hasTelemetry?'end':'start';
-    el.push(wlabel(nemLX,y+15,nemLabel,true,nemAnc));
-    el.push(wlabel(nemLX,y+27,nemSub,true,nemAnc));
-    if(nemTelSub) el.push(wlabel(nemLX,y+39,nemTelSub,true,nemAnc));
-    y+=28;
-    // ATS for islanding / backup — AC-coupled only
+    // ATS for islanding / backup — AC-coupled only; customer-side of utility meter
     if(v.hasIslanding && v.hasBatt && v.battCouple!=='dc'){
       el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
       const atsY=y;
@@ -3057,16 +3052,29 @@ function render(){
       el.push(`<text x="${BX-47}" y="${atsY+24}" class="sld-note" text-anchor="end" style="fill:#c07a00;font-style:italic">dry contact (24VDC)</text>`);
       el.push(`<text x="${BX-47}" y="${atsY+36}" class="sld-note" text-anchor="end" style="fill:#c07a00">← BESS inverter ctrl.</text>`);
     }
-    // Utility visible disconnect — on exterior wall, shown below an EXTERIOR zone separator
+    // Exterior zone boundary — always shown (physical transition exists regardless of disconnect device)
+    const extBreakY=y+Math.round(W/2);
+    el.push(`<line x1="10" y1="${extBreakY}" x2="${SVG_W-10}" y2="${extBreakY}" stroke="#b8bfd4" stroke-width="1" stroke-dasharray="8 5"/>`);
+    el.push(`<text x="16" y="${extBreakY-4}" style="${zoneStyle}">ELECTRICAL ROOM</text>`);
+    el.push(`<text x="16" y="${extBreakY+11}" style="${zoneStyle}">EXTERIOR / METER BASE</text>`);
+    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+    // Utility visible disconnect — exterior wall; shown before NEM meter (utility side of customer service)
     if(v.hasUtilDisc){
-      const extBreakY=y+Math.round(W/2);
-      el.push(`<line x1="10" y1="${extBreakY}" x2="${SVG_W-10}" y2="${extBreakY}" stroke="#b8bfd4" stroke-width="1" stroke-dasharray="8 5"/>`);
-      el.push(`<text x="16" y="${extBreakY-4}" style="${zoneStyle}">ELECTRICAL ROOM</text>`);
-      el.push(`<text x="16" y="${extBreakY+11}" style="${zoneStyle}">EXTERIOR / METER BASE</text>`);
-      el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
-      el.push(discBox(MCX-65,y,130,54,'#edf2ff','#3a6bc0','Utility Visible Disconnect',`${v.invV} · ${bkrLabel}`,'NEC 705.22 · Exterior · Lockable'));
+      el.push(discBox(MCX-65,y,130,54,'#edf2ff','#3a6bc0','Utility Visible Disconnect',`${v.invV} · ${bkrLabel}`,'NEC 705.22 · Lockable · SCCR req.'));
       y+=54;
     }
+    // Utility meter — after utility visible disconnect (at meter base, utility side)
+    el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+    el.push(meterCircle(MCX,y+14));
+    utilMeterCY = y+14;
+    const nemLabel = v.hasNetMeter ? 'Net Energy Meter (NEM)' : 'Utility Revenue Meter';
+    const nemSub   = v.hasNetMeter ? 'Bidirectional · Utility-supplied' : 'Utility-supplied';
+    const nemTelSub = v.hasTelemetry && v.telRevMeter ? 'Revenue-grade · Class 0.2S' : null;
+    const nemLX=v.hasTelemetry?MCX-28:MCX+22, nemAnc=v.hasTelemetry?'end':'start';
+    el.push(wlabel(nemLX,y+15,nemLabel,true,nemAnc));
+    el.push(wlabel(nemLX,y+27,nemSub,true,nemAnc));
+    if(nemTelSub) el.push(wlabel(nemLX,y+39,nemTelSub,true,nemAnc));
+    y+=28;
     el.push(wireAC(MCX,y,MCX,y+W));
     if(v.hasMvXfmr){
       const ctY=y+Math.round(W*0.35);
@@ -3284,19 +3292,30 @@ function render(){
     necItems.push(necLine(dY+23, `1.  ${acRoofNote()}`));
     necItems.push(necLine(dY+35, `2.  Provide 1× ${roofCommCond} EMT for PV inverter communications, roof → elec. room${_showNec?' · NEC Art. 800':''}`));
     necItems.push(necLine(dY+47, '3.  DC wiring &amp; conduit by PV installer', ' style="font-style:italic"'));
-    necY = dY + 47;
+    necItems.push(necLine(dY+59, `4.  DC conduit/raceway: label as PV power source${_showNec?' — NEC 690.56':''}`));
+    necY = dY + 59;
   }
 
   if(_showNecNotes){
     const dY = necY + 8;
     necItems.push(necDiv(dY));
     necItems.push(necHead(dY+11, 'NEC COMPLIANCE NOTES'));
-    necItems.push(necLine(dY+23, '1.  AFCI: Integral arc-fault protection per NEC 690.11'));
-    necItems.push(necLine(dY+35, '2.  GFPD: Ground-fault protection per NEC 690.5'));
-    necItems.push(necLine(dY+47, `3.  ${v.hasSPD?'SPD: Surge protection per NEC 230.67 (AC) · NEC 242 (DC)':'SPD not shown — verify AHJ requirements'}`));
-    necItems.push(necLine(dY+59, '4.  Grounding: Equipment grounded per NEC 690.43 · EGC per Table 250.122'));
-    if(v.hasRSD){ necItems.push(necLine(dY+71, `5.  ${rsdCompNote}`)); necY = dY+71; }
-    else necY = dY+59;
+    let nY = dY+11, nN = 0;
+    const nLine = txt => { nN++; nY+=12; necItems.push(necLine(nY, `${nN}.  ${txt}`)); };
+    nLine('AFCI: Integral arc-fault protection per NEC 690.11');
+    nLine('GFPD: Ground-fault protection per NEC 690.5');
+    nLine(`SPD: ${v.hasSPD?'Surge protection per NEC 230.67 (AC) · NEC 242 (DC)':'not shown — verify AHJ requirements'}`);
+    nLine('Grounding: Equipment grounded per NEC 690.43 · EGC per Table 250.122');
+    if(v.hasRSD) nLine(rsdCompNote);
+    nLine('DC disconnect required field label: "PHOTOVOLTAIC SYSTEM DISCONNECTING MEANS" — NEC 690.13(E)');
+    nLine('System Voc: NEC 690.7(A) ×1.25 method used — if module temp. coeff. (Ct) is marked, use 690.7(A)(2) or Table 690.7 with local min. ambient temp.');
+    nLine('Inverters: UL 1741-SA listing required for advanced grid support per IEEE 1547-2018 / utility SGIP');
+    nLine('Utility disconnect: SCCR must be ≥ available fault current at POI — confirm with utility');
+    nLine('Service entrance conductors: specify gauge, conduit size, and length on permit drawings per utility SGIP');
+    if(v.hasMeter) nLine('PV production meter: if required for incentive metering, specify ANSI C12.20 Class 0.5 (or Class 0.2 if revenue-grade required)');
+    if(v.hasArr2) nLine(`Dual-array: Combined backfeed via single ${bkrLabel} PV breaker — if separate breakers per array, each must independently satisfy NEC 705.12(D)(2)`);
+    if(v.hasArr2 && hasAcCombiner) nLine('Dual-array: AC Roof Combiner OCPD satisfies per-inverter AC disconnecting means — NEC 690.15');
+    necY = nY;
   }
 
   if(v.hasIslanding && v.hasBatt){
@@ -3345,11 +3364,11 @@ function render(){
     el.push(`<line x1="${MCX+BW/2-15}" y1="${acDiscY+27}" x2="${RSD_X}" y2="${ctrlY+Math.round(ctrlH/2)}" stroke="${pvC}" stroke-width="1" stroke-dasharray="5 3"/>`);
     // Vertical control wire: PVHCS Controller → RSD Initiation Device
     el.push(`<line x1="${ctrlCX}" y1="${ctrlY+ctrlH}" x2="${ctrlCX}" y2="${initY}" stroke="${pvC}" stroke-width="1" stroke-dasharray="5 3"/>`);
-    el.push(`<text x="${ctrlCX+4}" y="${Math.round((ctrlY+ctrlH+initY)/2)+4}" class="sld-note" style="fill:${pvC};font-style:italic">control wiring</text>`);
+    el.push(`<text x="${ctrlCX+4}" y="${Math.round((ctrlY+ctrlH+initY)/2)+4}" class="sld-note" style="fill:${pvC};font-style:italic">control/signal circuit</text>`);
     // PVHCS Controller box
     el.push(compBox(RSD_X,ctrlY,ctrlW,ctrlH,pvF,pvC,'RSD Transmitter','Signal to shutdown receivers','NEC 690.12(C)'));
     // RSD Initiating Device box
-    el.push(compBox(RSD_X,initY,initW,initH,pvF,pvC,'RSD Initiating Device','Listed · At service entrance','NEC 690.12(A)'));
+    el.push(compBox(RSD_X,initY,initW,initH,pvF,pvC,'RSD Initiating Device','Listed · At svc. entrance','Emerg. accessible · NEC 690.12(A)'));
   }
 
   // ── Grid & Telemetry notes box ───────────────────────────────────────────
