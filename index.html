@@ -459,7 +459,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div id="backfeed-check" class="cwarn" style="margin-top:6px"></div>
     <div class="trow" style="margin-top:8px"><span>Rapid shutdown (RSD)</span><label class="tog"><input type="checkbox" id="hasRSD" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow" id="rsd-method-row"><span>RSD method</span><select id="rsdMethod" onchange="render()"><option value="mlpe">MLPE — Microinverters or DC Optimizers (integrated PVHCS)</option><option value="pvhcs">Dedicated RSD Receivers — add-on PVHCS for string inverters</option></select></div>
-    <div class="trow" id="rsd-loc-row" style="display:none"><span>RSD init. device location</span><select id="rsdLocation" onchange="render()"><option value="svc-disc">At service disconnecting means — NEC 690.12(C)</option><option value="exterior">Outside building, exterior-accessible — NEC 690.12(C)</option></select></div>
+    <div class="trow" id="rsd-loc-row" style="display:none"><span>RSD init. device location</span><select id="rsdLocation" onchange="rsdLocationChanged()"><option value="svc-disc">At service disconnecting means — NEC 690.12(C)</option><option value="exterior">Outside building, exterior-accessible — NEC 690.12(C)</option></select></div>
     <div class="trow"><span>SPD (NEC 230.67 / 242)</span><label class="tog"><input type="checkbox" id="hasSPD" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Production meter</span><label class="tog"><input type="checkbox" id="hasMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <div class="trow"><span>Utility visible disconnect (NEC 705.22)</span><label class="tog"><input type="checkbox" id="hasUtilDisc" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
@@ -2048,6 +2048,17 @@ function arr2LinkChanged(){
   render();
 }
 
+function rsdLocationChanged(){
+  const udCb=$('hasUtilDisc');
+  if(udCb){
+    const isSvcDisc=(gv('rsdLocation')||'svc-disc')==='svc-disc';
+    const _invKw=(+gv('invKw')||10)*Math.max(1,+gv('invCount')||1);
+    const _a2Kw=gc('hasArr2')?((+gv('a2invKw')||10)*Math.max(1,+gv('a2invCount')||1)):0;
+    // Only set default when not already force-locked by >50kW or MV transformer
+    if(!gc('hasMvXfmr')&&_invKw+_a2Kw<=50) udCb.checked=isSvcDisc;
+  }
+  render();
+}
 function toggleMvFields(){
   const isMv=document.getElementById('hasMvXfmr').checked;
   const el=document.getElementById('mvxfmr-fields');
@@ -2601,13 +2612,12 @@ function render(){
   // Show RSD location row only for MLPE/micro paths (not PVHCS, which places its own dedicated device)
   const _isMlpeRsdPath=gc('hasRSD')&&(gv('invType')==='micro'||(gv('rsdMethod')||'mlpe')==='mlpe');
   $('rsd-loc-row').style.display=_isMlpeRsdPath?'flex':'none';
-  // Auto-force utility visible disconnect ON: MV transformer, >50 kW, or RSD init at service disconnecting means (utility can't reach it otherwise)
+  // Hard-force utility visible disconnect ON for >50 kW or MV transformer (non-negotiable code requirements)
   (function(){
     const _invKw=(+gv('invKw')||10)*Math.max(1,+gv('invCount')||1);
     const _a2Kw=gc('hasArr2')?((+gv('a2invKw')||10)*Math.max(1,+gv('a2invCount')||1)):0;
-    const _rsdForcesDisc=_isMlpeRsdPath&&(gv('rsdLocation')||'svc-disc')==='svc-disc';
     const udCb=$('hasUtilDisc');
-    if(udCb && (gc('hasMvXfmr')||_invKw+_a2Kw>50||_rsdForcesDisc)) udCb.checked=true;
+    if(udCb && (gc('hasMvXfmr')||_invKw+_a2Kw>50)) udCb.checked=true;
   })();
   const v=vals();
   $('rsd-method-row').style.display = (v.hasRSD && v.invType !== 'micro') ? 'flex' : 'none';
@@ -2978,8 +2988,7 @@ function render(){
     acDiscY=y;
     const isMlpeRsd=v.hasRSD&&(v.invType==='micro'||v.rsdMethod==='mlpe');
     const acDiscLabel=isMlpeRsd?'AC Disconnect / RSD Init.':'AC Disconnect';
-    const _rsdLocTag=isMlpeRsd?(v.rsdLocation==='exterior'?'· Exterior-accessible · Emerg. accessible':'· At svc. disc. · Emerg. accessible'):'';
-    const acDiscNec=isMlpeRsd?`NEC 690.12(C) ${_rsdLocTag} / 690.15 / 705.20`:'NEC 690.15 / 705.20';
+    const acDiscNec=isMlpeRsd?'NEC 690.12(C) / 690.15 / 705.20':'NEC 690.15 / 705.20';
     const acDiscW=isMlpeRsd?190:BW-30;
     el.push(discBox(MCX-acDiscW/2,y,acDiscW,54,'#edf2ff','#3a6bc0',acDiscLabel,`${v.invV} · ${bkrLabel}`,acDiscNec));
     y+=54;
@@ -3307,6 +3316,10 @@ function render(){
     nLine(`SPD: ${v.hasSPD?'Surge protection per NEC 230.67 (AC) · NEC 242 (DC)':'not shown — verify AHJ requirements'}`);
     nLine('Grounding: Equipment grounded per NEC 690.43 · EGC per Table 250.122');
     if(v.hasRSD) nLine(rsdCompNote);
+    if(v.hasRSD&&(v.invType==='micro'||v.rsdMethod==='mlpe')){
+      const _necRsdLoc=v.rsdLocation==='exterior'?'Exterior-accessible · Emerg. accessible':'At svc. disc. · Emerg. accessible';
+      nLine(`AC Disconnect / RSD Init. device: ${_necRsdLoc} — NEC 690.12(C)`);
+    }
     nLine('DC disconnect required field label: "PHOTOVOLTAIC SYSTEM DISCONNECTING MEANS" — NEC 690.13(E)');
     nLine('System Voc: NEC 690.7(A) ×1.25 method used — if module temp. coeff. (Ct) is marked, use 690.7(A)(2) or Table 690.7 with local min. ambient temp.');
     nLine('Inverters: UL 1741-SA listing required for advanced grid support per IEEE 1547-2018 / utility SGIP');
