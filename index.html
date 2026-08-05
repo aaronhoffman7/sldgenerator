@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lightbox Solar SLD Generator</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/ColladaLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -119,6 +120,36 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 #display-panel .ttrack{background:#b8bfd4}
 #display-panel .tog input:checked~.ttrack{background:#3d8ef8}
 #display-panel textarea{width:100%;box-sizing:border-box;font-size:11px;resize:vertical;font-family:var(--font);margin-top:6px;border:1px solid #bfc6dc;border-radius:4px;padding:4px 6px;color:#2a3050;background:#fff}
+/* ── Report tab ──────────────────────────────────────────────────────────── */
+#tab-report{background:#9aa0b4;overflow:hidden}
+.rpt-toolbar{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border)}
+.rpt-toolbar button{font-size:11px;font-family:var(--mono);padding:5px 14px;border-radius:4px;border:none;cursor:pointer;font-weight:600}
+.rpt-dl-btn{background:#3d8ef8;color:#fff}
+.rpt-dl-btn:hover{background:#2d7ee8}
+.rpt-dl-btn:disabled{background:#4a5070;color:#8890a8;cursor:not-allowed}
+.rpt-preview-wrap{flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:20px}
+/* The report "page" — 11×8.5 letter landscape at 96dpi → 1056×816 */
+.rpt-page{width:1056px;height:816px;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.4);display:flex;flex-direction:row;flex-shrink:0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;position:relative;overflow:hidden}
+.rpt-img-col{flex:0 0 672px;background:#e8eaef;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.rpt-img-col img{width:100%;height:100%;object-fit:cover}
+.rpt-img-placeholder{color:#9aa0b4;font-size:13px;text-align:center;line-height:2;user-select:none}
+.rpt-info-col{flex:1;display:flex;flex-direction:column;padding:28px 26px 20px 24px;border-left:1px solid #dde0ea;overflow:hidden}
+.rpt-logos-row{display:flex;align-items:center;gap:14px;margin-bottom:22px;flex-shrink:0}
+.rpt-logos-row img{max-height:38px;max-width:120px;object-fit:contain}
+.rpt-logo-divider{width:1px;height:30px;background:#c0c4d0;flex-shrink:0}
+.rpt-pv-label{color:#1a5fa8;font-size:13px;font-weight:700;line-height:1.35;margin-bottom:18px;flex-shrink:0}
+.rpt-proj-name{font-size:19px;font-weight:800;color:#111;margin-bottom:5px;line-height:1.2;flex-shrink:0}
+.rpt-proj-addr{font-size:11.5px;color:#444;line-height:1.65;margin-bottom:18px;flex-shrink:0}
+.rpt-divider{border:none;border-top:1px solid #d8dbe8;margin-bottom:14px;flex-shrink:0}
+.rpt-sys-head{font-size:12px;font-weight:700;color:#111;margin-bottom:10px;flex-shrink:0}
+.rpt-sys-body{font-size:11px;color:#333;line-height:1.85;flex-shrink:0}
+.rpt-spacer{flex:1}
+.rpt-date{font-size:10.5px;color:#777;text-align:right;flex-shrink:0}
+@media print{
+  body>*{display:none!important}
+  .rpt-page{display:flex!important;position:fixed;top:0;left:0;width:100vw;height:100vh;box-shadow:none;border:none}
+  .rpt-page *{display:inherit!important}
+}
 </style>
 </head>
 <body>
@@ -148,6 +179,25 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <input type="text" id="designer" value="Conceptual Drawing — Not for Construction" oninput="render()">
     </div>
   </div>
+  <!-- Report Settings -->
+  <div class="section">
+    <div class="sec-toggle" onclick="toggleSec('rpt-settings-body','rpt-settings-arrow')">
+      <div class="stitle">Report Settings</div>
+      <span class="sec-arrow" id="rpt-settings-arrow">&#9654;</span>
+    </div>
+    <div class="sec-body" id="rpt-settings-body" style="display:none">
+      <label>Project address</label>
+      <textarea id="rptAddress" rows="2" placeholder="1001 G Street SE&#10;Washington, DC 20003" oninput="renderReport()" style="width:100%;box-sizing:border-box;font-size:11px;resize:vertical;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-family:var(--font)"></textarea>
+      <label style="margin-top:6px">Array 1 label (e.g. Roof)</label>
+      <input type="text" id="rptArr1Name" value="Roof" oninput="renderReport()">
+      <div id="rpt-arr2-name-row" style="display:none">
+        <label style="margin-top:6px">Array 2 label (e.g. Parking Canopy)</label>
+        <input type="text" id="rptArr2Name" value="Parking Canopy" oninput="renderReport()">
+      </div>
+      <label style="margin-top:6px">NZE target (kWh/year, optional)</label>
+      <input type="number" id="rptNzeTarget" placeholder="e.g. 530000" step="1000" min="0" oninput="renderReport()">
+    </div>
+  </div>
   <!-- SketchUp Import -->
   <div class="section">
     <div class="sec-toggle" onclick="toggleSec('skp-body','skp-arrow')">
@@ -164,6 +214,17 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       </div>
       <input type="file" id="skp-file-input" accept=".dae" style="display:none" onchange="skpFileSelected(this.files[0])">
       <div id="skp-results" style="margin-top:8px"></div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px">PV Layout Image (for Report)</label>
+        <div id="pvlayout-drop-zone" onclick="$('pvlayout-file-input').click()"
+             ondragover="event.preventDefault();this.style.borderColor='var(--accent2)'"
+             ondragleave="this.style.borderColor='var(--border)'"
+             ondrop="pvLayoutFileDrop(event);this.style.borderColor='var(--border)'"
+             style="border:1px dashed var(--border);border-radius:4px;padding:10px;text-align:center;cursor:pointer;font-size:11px;color:var(--muted);transition:border-color .15s">
+          <span id="pvlayout-drop-label">Drop .png/.jpg here<br><span style="font-size:9px">or click to browse</span></span>
+        </div>
+        <input type="file" id="pvlayout-file-input" accept=".png,.jpg,.jpeg" style="display:none" onchange="pvLayoutFileSelected(this.files[0])">
+      </div>
       <div id="skp-preview-toggle-row" class="trow" style="display:none;margin-top:8px">
         <span>Array layout preview</span>
         <label class="tog"><input type="checkbox" id="skp-preview-toggle" checked onchange="toggleDaePreview(this.checked)"><div class="ttrack"><div class="tthumb"></div></div></label>
@@ -495,8 +556,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     </div>
     <label>Power factor requirement</label>
     <input type="text" id="pfRequirement" placeholder="e.g. 0.85 lag to 0.85 lead" oninput="render()">
-    <div class="trow" style="margin-top:8px"><span>Telemetry required</span><label class="tog"><input type="checkbox" id="hasTelemetry" onchange="telemetryToggled()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    <div id="telemetry-fields" style="display:none">
+    <div class="trow" style="margin-top:8px"><span>Telemetry required</span><label class="tog"><input type="checkbox" id="hasTelemetry" checked onchange="telemetryToggled()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <div id="telemetry-fields" style="display:block">
       <label>Protocol</label>
       <select id="telemetryProtocol" onchange="render()">
         <option value="DNP3">DNP3</option>
@@ -506,6 +567,13 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       </select>
       <div class="trow"><span>Revenue-grade metering</span><label class="tog"><input type="checkbox" id="telRevMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
       <div class="trow"><span>Remote curtailment</span><label class="tog"><input type="checkbox" id="telRemoteCurtail" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+      <div class="trow"><span>UPS / battery backup</span><label class="tog"><input type="checkbox" id="telUPS" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+      <label>Alt. comm. path (Internet SCADA)</label>
+      <select id="telCommPath" onchange="render()">
+        <option value="cellular">Cellular LTE (wireless)</option>
+        <option value="broadband">Broadband / Ethernet (wired)</option>
+        <option value="none">None — direct fiber only</option>
+      </select>
       <label>Additional notes</label>
       <input type="text" id="telNotes" placeholder="Optional utility-specific requirement" oninput="render()">
     </div>
@@ -534,6 +602,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   <div class="tab-bar">
     <button class="tab-btn active" id="tab-btn-sld" onclick="switchTab('sld')">Single Line Diagram</button>
     <button class="tab-btn" id="tab-btn-analysis" onclick="switchTab('analysis')">Curtailment Analysis</button>
+    <button class="tab-btn" id="tab-btn-report" onclick="switchTab('report')">Project Report</button>
     <button class="tab-btn" id="tab-btn-sizing" onclick="switchTab('sizing')">Wire Schedule</button>
     <button class="tab-btn" id="tab-btn-debug" onclick="switchTab('debug')">Debug / Export</button>
   </div>
@@ -556,6 +625,40 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <span class="stat">Array Isc: <b id="s-isc">--</b></span>
       <span class="stat w">Battery: <b id="s-batt">--</b></span>
       <span class="stat">NEC 690 max Voc: <b id="s-nec">--</b></span>
+    </div>
+  </div>
+  <!-- ── Project Report Tab ─────────────────────────────────────────────── -->
+  <div id="tab-report" class="tab-panel">
+    <div class="rpt-toolbar">
+      <button class="rpt-dl-btn" id="rpt-dl-btn" onclick="downloadRptPDF()">&#8595; Download PDF</button>
+      <span style="font-size:10px;color:var(--muted)">Letter · Landscape</span>
+    </div>
+    <div class="rpt-preview-wrap">
+      <div class="rpt-page" id="rpt-page">
+        <!-- Left column: PV layout image -->
+        <div class="rpt-img-col" id="rpt-img-col">
+          <img id="rpt-layout-img" style="display:none;width:100%;height:100%;object-fit:cover">
+          <div class="rpt-img-placeholder" id="rpt-img-placeholder">
+            &#128247;<br>Upload PV layout image<br>in the File Import section
+          </div>
+        </div>
+        <!-- Right column: info panel -->
+        <div class="rpt-info-col">
+          <div class="rpt-logos-row" id="rpt-logos-row">
+            <img id="rpt-logo1" src="logo.png" alt="Lightbox" onerror="this.style.display='none'">
+            <div class="rpt-logo-divider" id="rpt-logo-div"></div>
+            <img id="rpt-logo2" src="dgs_logo.png" alt="DGS" onerror="this.style.display='none'">
+          </div>
+          <div class="rpt-pv-label">Solar PV<br>Preliminary Design &amp; Analysis</div>
+          <div class="rpt-proj-name" id="rpt-proj-name"></div>
+          <div class="rpt-proj-addr" id="rpt-proj-addr"></div>
+          <hr class="rpt-divider">
+          <div class="rpt-sys-head">PV System Information:</div>
+          <div class="rpt-sys-body" id="rpt-sys-body"></div>
+          <div class="rpt-spacer"></div>
+          <div class="rpt-date" id="rpt-date"></div>
+        </div>
+      </div>
     </div>
   </div>
   <div id="tab-debug" class="tab-panel">
@@ -1477,6 +1580,8 @@ function vals(){
     telemetryProtocol:gv('telemetryProtocol')||'DNP3',
     telRevMeter:gc('telRevMeter'),
     telRemoteCurtail:gc('telRemoteCurtail'),
+    telCommPath:gv('telCommPath')||'cellular',
+    telUPS:gc('telUPS'),
     telNotes:gv('telNotes')||''
   };
 }
@@ -2417,9 +2522,7 @@ function gridNetworkChanged(){
     }
   }
   if(!isSanSsn){
-    // Reset everything that SAN/SSN auto-enables
-    const telCb=$('hasTelemetry');
-    if(telCb&&telCb.checked){ telCb.checked=false; const tf=$('telemetry-fields'); if(tf) tf.style.display='none'; }
+    // Only reset MV transformer (SAN/SSN-specific); leave telemetry as-is since it's on by default
     const mvCb=$('hasMvXfmr');
     if(mvCb&&mvCb.checked){ mvCb.checked=false; toggleMvFields(); }
   }
@@ -2923,14 +3026,33 @@ function render(){
     // RTU / Telemetry gateway (feeder mode — anchored to metering package)
     if(v.hasTelemetry){
       const telC='#2a6e8c', telF='#eef6fb';
-      const rtuX=BX+BW+14, rtuY=utilMeterCY-20, rtuW=170, rtuH=v.telRemoteCurtail?56:44;
-      el.push(compBox(rtuX,rtuY,rtuW,rtuH,telF,telC,'RTU / Telemetry Gateway',v.telemetryProtocol+' · Utility SCADA',v.telRemoteCurtail?'Remote curtailment enabled':null));
+      const rtuX=BX+BW+14, rtuY=utilMeterCY-20, rtuW=170, rtuH=56;
+      el.push(compBox(rtuX,rtuY,rtuW,rtuH,telF,telC,'RTU / Telemetry Gateway',v.telemetryProtocol+' · Utility SCADA',v.telRemoteCurtail?'Remote curtailment enabled':'Near metering pkg. · Utility-accessible'));
       const rtuLY=rtuY+Math.round(rtuH/2);
       el.push(`<line x1="${BX+BW}" y1="${utilMeterCY}" x2="${rtuX}" y2="${rtuLY}" stroke="${telC}" stroke-width="0.8" stroke-dasharray="4 2"/>`);
       const scadaX=rtuX+rtuW, scadaEndX=Math.min(SVG_W-30,scadaX+70);
       el.push(`<line x1="${scadaX}" y1="${rtuLY}" x2="${scadaEndX}" y2="${rtuLY}" stroke="${telC}" stroke-width="1" stroke-dasharray="5 3"/>`);
       el.push(`<polygon points="${scadaEndX},${rtuLY} ${scadaEndX-6},${rtuLY-4} ${scadaEndX-6},${rtuLY+4}" fill="${telC}"/>`);
       el.push(`<text x="${scadaEndX+4}" y="${rtuLY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px">To Utility SCADA</text>`);
+      // Modem / Router for Internet SCADA alternate path
+      const _fModShown=v.telCommPath&&v.telCommPath!=='none';
+      const _fModH=44, _fModY=rtuY+rtuH+8;
+      if(_fModShown){
+        const modLabel=v.telCommPath==='cellular'?'Cellular LTE (wireless)':'Broadband / Ethernet (wired)';
+        el.push(compBox(rtuX,_fModY,rtuW,_fModH,telF,telC,'Modem / Router',modLabel,null));
+        el.push(`<line x1="${rtuX+Math.round(rtuW/2)}" y1="${rtuY+rtuH}" x2="${rtuX+Math.round(rtuW/2)}" y2="${_fModY}" stroke="${telC}" stroke-width="0.8" stroke-dasharray="4 2"/>`);
+        const modLY=_fModY+Math.round(_fModH/2);
+        el.push(`<line x1="${scadaX}" y1="${modLY}" x2="${scadaEndX}" y2="${modLY}" stroke="${telC}" stroke-width="1" stroke-dasharray="5 3"/>`);
+        el.push(`<polygon points="${scadaEndX},${modLY} ${scadaEndX-6},${modLY-4} ${scadaEndX-6},${modLY+4}" fill="${telC}"/>`);
+        el.push(`<text x="${scadaEndX+4}" y="${modLY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px">Internet SCADA (alt.)</text>`);
+      }
+      // UPS / Battery Backup — below telemetry stack, solid power line going up to RTU
+      if(v.telUPS){
+        const upsH=44, upsTopY=_fModShown?_fModY+_fModH+8:rtuY+rtuH+8;
+        const connTopY=_fModShown?_fModY+_fModH:rtuY+rtuH;
+        el.push(compBox(rtuX,upsTopY,rtuW,upsH,'#f0f4f8','#6b7fa3','UPS / Battery Backup','120V · Utility-independent',null));
+        el.push(`<line x1="${rtuX+Math.round(rtuW/2)}" y1="${upsTopY}" x2="${rtuX+Math.round(rtuW/2)}" y2="${connTopY}" stroke="#6b7fa3" stroke-width="1.5"/>`);
+      }
     }
     // MV step-up transformer
     const mvLabel=`${v.mvQty>1?v.mvQty+'× ':''}${v.mvKva} kVA Pad-Mount Transformer`;
@@ -3216,7 +3338,7 @@ function render(){
   const hasAcCombiner = gc('hasAcCombiner');
   const c2roof = v.hasArr2 ? conduitRows(v.a2) : null;
   const roofTotalAcA = v.hasArr2 ? (c1.perInvAcA*c1.invCount + c2roof.perInvAcA*c2roof.invCount) : totalAcA;
-  const roofTotalAcW = v.hasArr2 ? wireFor(roofTotalAcA) : totalAcW;
+  const roofTotalAcW = v.hasArr2 ? wireForParallel(roofTotalAcA) : totalAcW;
   const roofCommRuns = v.hasArr2 ? c1.invCount + c2roof.invCount : commRuns;
   const roofCommCond = conduitFor(roofCommRuns, CAT6_AREA);
   // Compact roof conduit line for the NEC SVG box
@@ -3414,6 +3536,11 @@ function render(){
       gLines.push({bold:true,  text:'TELEMETRY REQUIRED'});
       gLines.push({bold:false, text:`Protocol: ${v.telemetryProtocol} to utility SCADA`});
       gLines.push({bold:false, text:'Monitoring: Real-time kW, kVAR, V, I, PF'});
+      if(v.telCommPath && v.telCommPath!=='none'){
+        const pathLabel=v.telCommPath==='cellular'?'Cellular LTE':'Broadband / Ethernet';
+        gLines.push({bold:false, text:`Alt. comm. path: ${pathLabel} → Internet SCADA`});
+      }
+      if(v.telUPS) gLines.push({bold:false, text:'UPS: Battery backup for RTU/modem — maintains telemetry during grid events'});
       if(v.telRevMeter) gLines.push({bold:false, text:'Metering: Revenue-grade (Class 0.2S) · Utility-accessible'});
       if(v.telRemoteCurtail) gLines.push({bold:false, text:'Remote curtailment: Required — utility dispatch interface'});
       if(v.telNotes) gLines.push({bold:false, text:v.telNotes});
@@ -3438,10 +3565,10 @@ function render(){
     el.push(`<text x="${MCX}" y="${ctY+3}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:6px;font-weight:700" text-anchor="middle">CT</text>`);
     el.push(`<text x="${MCX+12}" y="${ctY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="start">3Ø CT${v.telRevMeter?' / PT':''}</text>`);
     // RTU / Telemetry Gateway box to the right of the main column
-    const rtuX=BX+BW+14, rtuY=utilMeterCY-20, rtuW=170, rtuH=v.telRemoteCurtail?56:44;
+    const rtuX=BX+BW+14, rtuY=utilMeterCY-20, rtuW=170, rtuH=56;
     el.push(compBox(rtuX,rtuY,rtuW,rtuH,telF,telC,'RTU / Telemetry Gateway',
       v.telemetryProtocol+' · Utility SCADA',
-      v.telRemoteCurtail?'Remote curtailment enabled':null));
+      v.telRemoteCurtail?'Remote curtailment enabled':'Near revenue meter · Utility-accessible'));
     // Dashed connection from CT to RTU
     const rtuLY=rtuY+Math.round(rtuH/2);
     el.push(`<line x1="${MCX+8}" y1="${ctY}" x2="${rtuX}" y2="${rtuLY}" stroke="${telC}" stroke-width="0.8" stroke-dasharray="4 2"/>`);
@@ -3450,10 +3577,30 @@ function render(){
     el.push(`<line x1="${scadaX}" y1="${rtuLY}" x2="${scadaEndX}" y2="${rtuLY}" stroke="${telC}" stroke-width="1" stroke-dasharray="5 3"/>`);
     el.push(`<polygon points="${scadaEndX},${rtuLY} ${scadaEndX-6},${rtuLY-4} ${scadaEndX-6},${rtuLY+4}" fill="${telC}"/>`);
     el.push(`<text x="${scadaEndX+4}" y="${rtuLY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px">To Utility SCADA</text>`);
+    // Modem / Router for Internet SCADA alternate path
+    const _modShown=v.telCommPath&&v.telCommPath!=='none';
+    const _modH=44, _modY=rtuY+rtuH+8;
+    if(_modShown){
+      const modLabel=v.telCommPath==='cellular'?'Cellular LTE (wireless)':'Broadband / Ethernet (wired)';
+      el.push(compBox(rtuX,_modY,rtuW,_modH,telF,telC,'Modem / Router',modLabel,null));
+      el.push(`<line x1="${rtuX+Math.round(rtuW/2)}" y1="${rtuY+rtuH}" x2="${rtuX+Math.round(rtuW/2)}" y2="${_modY}" stroke="${telC}" stroke-width="0.8" stroke-dasharray="4 2"/>`);
+      const modLY=_modY+Math.round(_modH/2);
+      el.push(`<line x1="${scadaX}" y1="${modLY}" x2="${scadaEndX}" y2="${modLY}" stroke="${telC}" stroke-width="1" stroke-dasharray="5 3"/>`);
+      el.push(`<polygon points="${scadaEndX},${modLY} ${scadaEndX-6},${modLY-4} ${scadaEndX-6},${modLY+4}" fill="${telC}"/>`);
+      el.push(`<text x="${scadaEndX+4}" y="${modLY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px">Internet SCADA (alt.)</text>`);
+    }
+    // UPS / Battery Backup — below telemetry stack, solid power line going up to RTU
+    if(v.telUPS){
+      const upsH=44, upsTopY=_modShown?_modY+_modH+8:rtuY+rtuH+8;
+      const connTopY=_modShown?_modY+_modH:rtuY+rtuH;
+      el.push(compBox(rtuX,upsTopY,rtuW,upsH,'#f0f4f8','#6b7fa3','UPS / Battery Backup','120V · Utility-independent',null));
+      el.push(`<line x1="${rtuX+Math.round(rtuW/2)}" y1="${upsTopY}" x2="${rtuX+Math.round(rtuW/2)}" y2="${connTopY}" stroke="#6b7fa3" stroke-width="1.5"/>`);
+    }
   }
 
   const overlayBottom=NY+necH+(showGridBox?gridBoxH+18:8)+210;
-  const totalH=Math.max(y+30, battBotY+30, 620, overlayBottom+20);
+  const telStackBot=v.hasTelemetry?(utilMeterCY-20+56+(v.telCommPath&&v.telCommPath!=='none'?52:0)+(v.telUPS?52:0)):0;
+  const totalH=Math.max(y+30, battBotY+30, 620, overlayBottom+20, telStackBot+30);
   const svg=$('sld-svg');
   svg.setAttribute('width',SVG_W);
   svg.setAttribute('height',totalH);
@@ -3482,7 +3629,7 @@ function render(){
       ch += `<div class="stitle" style="${SH};color:var(--accent2)">ARRAY 2</div>`;
       ch += arrBlock(c2);
       const totAcA=c1.perInvAcA*c1.invCount+c2.perInvAcA*c2.invCount;
-      const totAcW=wireFor(totAcA);
+      const totAcW=wireForParallel(totAcA);
       const totComm=c1.invCount+c2.invCount;
       ch += `<div class="stitle" style="${SH};color:var(--green)">TOTALS</div>`;
       ch += crow('Combined AC to panel',`#${totAcW.awg} AWG · ${conduitFor(c1.acConds,totAcW.area)} EMT  (${totAcA.toFixed(1)} A req.)`);
@@ -3541,6 +3688,8 @@ function render(){
     fuseEl.style.color='#1e8a60';
     fuseEl.textContent=`NEC 690.8: ${v.isc}A × 1.25 × 1.25 = ${minFuseRaw}A → ${recFuse1}A std. ✓`;
   } else { fuseEl.textContent=''; }
+  // Keep report tab live when inputs change
+  if($('tab-report')&&$('tab-report').classList.contains('active')) renderReport();
   saveState();
 }
 
@@ -3660,6 +3809,143 @@ function exportPDF(){
   img.src=url;
 }
 
+// ── Project Report Tab ───────────────────────────────────────────────────────
+let _rptLayoutImg=null; // data URL of uploaded PV layout image
+
+function pvLayoutFileDrop(e){
+  e.preventDefault();
+  const f=e.dataTransfer.files[0];
+  if(f) pvLayoutFileSelected(f);
+}
+function pvLayoutFileSelected(f){
+  if(!f||!f.type.startsWith('image/')) return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    _rptLayoutImg=ev.target.result;
+    const lbl=$('pvlayout-drop-label');
+    if(lbl) lbl.innerHTML=`<span style="color:var(--accent2)">&#10003; ${f.name}</span><br><span style="font-size:9px">click to replace</span>`;
+    renderReport();
+  };
+  reader.readAsDataURL(f);
+}
+
+function renderReport(){
+  if(!$('tab-report')) return;
+
+  // Project info
+  const projName=gv('projName')||'Project Name';
+  const projAddr=(gv('rptAddress')||'').trim();
+
+  // Array 1
+  const a1Strings=Math.max(1,+gv('strings')||1);
+  const a1ModsPerStr=Math.max(1,+gv('mods')||1);
+  const a1ModW=+gv('modW')||550;
+  const a1InvKw=+gv('invKw')||10;
+  const a1InvCount=Math.max(1,+gv('invCount')||1);
+  const a1Panels=a1Strings*a1ModsPerStr;
+  const a1DcKw=a1Panels*a1ModW/1000;
+  const a1AcKw=a1InvKw*a1InvCount;
+  const a1ModModel=gv('modModel')||'';
+  const a1Name=gv('rptArr1Name')||'Roof';
+
+  // Array 2
+  const hasArr2=gc('hasArr2');
+  let totalPanels=a1Panels, totalDcKw=a1DcKw, totalAcKw=a1AcKw;
+  let a2Lines='';
+  if(hasArr2){
+    const a2Strings=Math.max(1,+gv('a2strings')||1);
+    const a2ModsPerStr=Math.max(1,+gv('a2mods')||1);
+    const a2ModW=+gv('a2modW')||550;
+    const a2InvKw=+gv('a2invKw')||10;
+    const a2InvCount=Math.max(1,+gv('a2invCount')||1);
+    const a2Panels=a2Strings*a2ModsPerStr;
+    const a2DcKw=a2Panels*a2ModW/1000;
+    const a2AcKw=a2InvKw*a2InvCount;
+    const a2ModModel=gv('a2modModel')||'';
+    const a2Name=gv('rptArr2Name')||'Parking Canopy';
+    totalPanels+=a2Panels; totalDcKw+=a2DcKw; totalAcKw+=a2AcKw;
+    a2Lines=`<div>${a2Name}: ${a2Panels.toLocaleString()}&#215; panels, ${a2DcKw.toFixed(1)} kW DC</div>`;
+    // Show array 2 label field
+    const r=$('rpt-arr2-name-row'); if(r) r.style.display='';
+  } else {
+    const r=$('rpt-arr2-name-row'); if(r) r.style.display='none';
+  }
+
+  // Annual production from PVWatts hourly data
+  let annProdKwh=null;
+  if(_anPvHourly&&_anPvHourly.length>0) annProdKwh=_anPvHourly.reduce((a,b)=>a+b,0);
+  const nze=+gv('rptNzeTarget')||0;
+
+  // Build system info block
+  const modLabel=a1ModModel||'—';
+  let info=`<div style="margin-bottom:6px">Basis of Design Module: ${modLabel}</div>`;
+  if(hasArr2){
+    info+=`<div>${a1Name}: ${a1Panels.toLocaleString()}&#215; panels, ${a1DcKw.toFixed(1)} kW DC</div>`;
+    info+=a2Lines;
+    info+=`<div style="margin-top:6px"><b>Total System Size: ${totalDcKw.toFixed(1)} kW DC</b></div>`;
+    info+=`<div>AC Output: ${totalAcKw.toFixed(1)} kW AC</div>`;
+  } else {
+    info+=`<div>Module count: ${totalPanels.toLocaleString()}&#215; panels</div>`;
+    info+=`<div style="margin-top:6px"><b>Total System Size: ${totalDcKw.toFixed(1)} kW DC</b></div>`;
+    info+=`<div>AC Output: ${totalAcKw.toFixed(1)} kW AC</div>`;
+  }
+  if(annProdKwh!==null){
+    info+=`<div>Est. Annual Production: ${Math.round(annProdKwh).toLocaleString()} kWh/year</div>`;
+  } else {
+    info+=`<div style="color:#aaa;font-style:italic">Est. Annual Production: run analysis to calculate</div>`;
+  }
+  if(nze>0) info+=`<div>NZE Target: ${nze.toLocaleString()} kWh/year</div>`;
+
+  // Date M/D/YY
+  const now=new Date();
+  const dateStr=`${now.getMonth()+1}/${now.getDate()}/${String(now.getFullYear()).slice(-2)}`;
+
+  // Update DOM
+  const pn=$('rpt-proj-name'); if(pn) pn.textContent=projName;
+  const pa=$('rpt-proj-addr'); if(pa) pa.innerHTML=projAddr.replace(/\n/g,'<br>');
+  const sb=$('rpt-sys-body'); if(sb) sb.innerHTML=info;
+  const dt=$('rpt-date'); if(dt) dt.textContent=dateStr;
+
+  // PV layout image
+  const img=$('rpt-layout-img'), ph=$('rpt-img-placeholder');
+  if(_rptLayoutImg){
+    if(img){img.src=_rptLayoutImg;img.style.display='';}
+    if(ph) ph.style.display='none';
+  } else {
+    if(img) img.style.display='none';
+    if(ph) ph.style.display='';
+  }
+}
+
+async function downloadRptPDF(){
+  const btn=$('rpt-dl-btn');
+  if(btn){btn.disabled=true;btn.textContent='Generating…';}
+  try{
+    const page=$('rpt-page');
+    const canvas=await html2canvas(page,{
+      scale:2,useCORS:true,allowTaint:true,
+      backgroundColor:'#ffffff',
+      width:page.offsetWidth,height:page.offsetHeight
+    });
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({orientation:'landscape',unit:'in',format:'letter'});
+    // Letter landscape: 11 × 8.5
+    const margin=0.25,pW=11,pH=8.5;
+    const availW=pW-margin*2,availH=pH-margin*2;
+    const aspect=canvas.width/canvas.height;
+    let imgW=availW,imgH=imgW/aspect;
+    if(imgH>availH){imgH=availH;imgW=imgH*aspect;}
+    const x=margin+(availW-imgW)/2,y=margin+(availH-imgH)/2;
+    pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',x,y,imgW,imgH);
+    const fname=(gv('projName')||'project').replace(/[^a-z0-9]/gi,'_')+'_Report.pdf';
+    pdf.save(fname);
+  } catch(err){
+    alert('PDF generation failed: '+err.message);
+  } finally {
+    if(btn){btn.disabled=false;btn.textContent='↓ Download PDF';}
+  }
+}
+
 // ── Curtailment Analysis Tab ─────────────────────────────────────────────────
 let _anPvHourly=null,_anLoadHourly=null,_anCurtHourly=null,_anGridHourly=null;
 let _anHeatmapView='year';
@@ -3668,7 +3954,7 @@ let _chartMonthly=null,_chartSizing=null,_chartDispatch=null;
 let _anPvWattsData=null; // hourly kW array fetched from NREL PVWatts API
 
 function switchTab(name){
-  ['sld','analysis','sizing','debug'].forEach(t=>{
+  ['sld','analysis','report','sizing','debug'].forEach(t=>{
     const p=$('tab-'+t),b=$('tab-btn-'+t);
     if(p) p.classList.toggle('active',t===name);
     if(b) b.classList.toggle('active',t===name);
@@ -3677,6 +3963,7 @@ function switchTab(name){
   if(dp) dp.classList.toggle('visible', name==='sld');
   if(name==='analysis'){ syncAnalysisFromSLD(); renderLoadPreview(); scheduleAnalysis(300); }
   if(name==='debug'){ refreshDebugReport(); }
+  if(name==='report'){ renderReport(); }
 }
 
 function syncAnalysisFromSLD(){
@@ -4285,6 +4572,8 @@ async function runAnalysis(){
     console.error(e);
   }finally{
     _anRunning=false;
+    // Update report tab if it's active (annual production just changed)
+    if($('tab-report')&&$('tab-report').classList.contains('active')) renderReport();
   }
 }
 
