@@ -1184,30 +1184,33 @@ function renderProjectsList(){
 }
 
 async function loadProject(key){
-  const data = JSON.parse(localStorage.getItem(key) || 'null');
-  if(!data) return;
-  _currentProjectKey = key;
-  restoreInputState(data.inputs);
-  toggleBattFields(true);
-  toggleMvFields();
-  toggleProtRelayFields();
-  if(data.hasDae){
-    const xml = await idbGet(key);
-    if(xml){
-      _lastDaeXml = xml;
-      buildDaeInstanceMap(xml);
-      renderDaePreview(xml);
+  try {
+    const data = JSON.parse(localStorage.getItem(key) || 'null');
+    if(!data || !data.inputs) return;
+    _currentProjectKey = key;
+    restoreInputState(data.inputs);
+    toggleBattFields(true);
+    toggleMvFields();
+    toggleProtRelayFields();
+    if(data.hasDae){
+      try {
+        const xml = await idbGet(key);
+        if(xml){ _lastDaeXml = xml; buildDaeInstanceMap(xml); renderDaePreview(xml); }
+      } catch(e){ console.warn('loadProject: could not load 3D model', e); }
     }
+    if(data.inputs.__pvWattsFetched && parseFloat(gv('an-lat')) && parseFloat(gv('an-lon'))){
+      fetchPVWatts();
+    } else {
+      _anCanAutoRun=true;
+      scheduleAnalysis(400);
+    }
+    render();
+  } catch(e){
+    console.error('loadProject error', e);
+  } finally {
+    closeProjectsModal();
+    $('startup-modal').classList.remove('open');
   }
-  if(data.inputs && data.inputs.__pvWattsFetched && parseFloat(gv('an-lat')) && parseFloat(gv('an-lon'))){
-    fetchPVWatts(); // auto-refetch PVWatts data for this project
-  } else {
-    _anCanAutoRun=true;
-    scheduleAnalysis(400);
-  }
-  render();
-  closeProjectsModal();
-  $('startup-modal').classList.remove('open');
 }
 
 function _renderStartupModal(){
@@ -4142,22 +4145,19 @@ function renderReport(){
 
   // Build system info block
   const modLabel=a1ModModel||'—';
-  let info=`<div style="margin-bottom:6px">Basis of Design Module: ${modLabel}</div>`;
+  let info=`<div>Basis of Design Module: ${modLabel}</div>`;
   if(hasArr2){
     info+=`<div>Array 1: ${a1Panels.toLocaleString()}&#215; panels, ${a1DcKw.toFixed(1)} kW DC</div>`;
     info+=a2Lines;
   } else {
     info+=`<div>Module count: ${totalPanels.toLocaleString()}&#215; panels</div>`;
   }
-  // Mount type breakdown (only if any non-roof type is active)
   if(canopyChk||biChk){
-    info+=`<div style="margin-top:4px">`;
     if(roofChk&&roofKw>0) info+=`<div>Roof: ${roofKw.toFixed(1)} kW DC</div>`;
     if(canopyChk&&canopyKw>0) info+=`<div>Canopy: ${canopyKw.toFixed(1)} kW DC</div>`;
     if(biChk&&biKw>0) info+=`<div>Building-Integrated: ${biKw.toFixed(1)} kW DC</div>`;
-    info+=`</div>`;
   }
-  info+=`<div style="margin-top:6px">Total System Size: ${totalDcKw.toFixed(1)} kW DC</div>`;
+  info+=`<div>Total System Size: ${totalDcKw.toFixed(1)} kW DC</div>`;
   info+=`<div>Est. AC output: ${totalDispA.toFixed(1)} A total (${phaseLabel}), ${Math.round(totalAcKw)} kW</div>`;
   if(annProdKwh!==null){
     info+=`<div>Est. Annual Production: ${Math.round(annProdKwh).toLocaleString()} kWh/year</div>`;
@@ -4242,26 +4242,29 @@ function renderReport(){
 async function downloadRptPDF(){
   const btn=$('rpt-dl-btn');
   if(btn){btn.disabled=true;btn.textContent='Generating…';}
+  const ic=$('rpt-img-canvas'), hc=$('rpt-handles-canvas');
   try{
     const page=$('rpt-page');
-    const SC=2; // html2canvas scale
-    const hc=$('rpt-handles-canvas');
-    if(hc) hc.style.display='none'; // hide handles during capture
+    const SC=2;
+    // Hide both image canvases so html2canvas gets a clean white image col
+    if(ic) ic.style.display='none';
+    if(hc) hc.style.display='none';
 
-    // 1. Capture layout (text, borders, etc.) — image col will be white or low-res
+    // 1. Capture layout (text, borders, info panel) — image col is white
     const layoutCanvas=await html2canvas(page,{
       scale:SC,useCORS:true,allowTaint:true,
       backgroundColor:'#ffffff',
       width:page.offsetWidth,height:page.offsetHeight
     });
 
-    // 2. Build composite: draw high-quality source image, then overlay layout
+    // 2. Composite: layout first, then raw source image on top at exact same position
     const out=document.createElement('canvas');
     out.width=layoutCanvas.width; out.height=layoutCanvas.height;
     const ctx=out.getContext('2d');
+    ctx.drawImage(layoutCanvas,0,0);
 
     if(_rptCropImg){
-      // Locate image col in page-relative coords at SC scale
+      // Compute image display bounds at SC scale — mirrors _rptImgBounds exactly
       const pageRect=page.getBoundingClientRect();
       const colEl=$('rpt-img-col');
       const colRect=colEl.getBoundingClientRect();
@@ -4269,25 +4272,16 @@ async function downloadRptPDF(){
       const colY=Math.round((colRect.top-pageRect.top)*SC);
       const colW=Math.round(colRect.width*SC);
       const colH=Math.round(colRect.height*SC);
-      // White fill for image col
-      ctx.fillStyle='#fff'; ctx.fillRect(colX,colY,colW,colH);
-      // Compute image display bounds at SC scale
       const pad={t:_rptPad.t*SC,r:_rptPad.r*SC,b:_rptPad.b*SC,l:_rptPad.l*SC};
       const dW=colW-pad.l-pad.r, dH=colH-pad.t-pad.b;
       const r=_cropRect||{x:0,y:0,w:_rptCropImg.naturalWidth,h:_rptCropImg.naturalHeight};
       const ia=r.w/r.h, da=dW/dH;
       let iw,ih; if(ia>da){iw=dW;ih=dW/ia;}else{ih=dH;iw=dH*ia;}
       const ix=colX+pad.l+(dW-iw)/2, iy=colY+pad.t+(dH-ih)/2;
-      // Draw source image at full quality (no intermediate JPEG re-compression)
       ctx.drawImage(_rptCropImg,r.x,r.y,r.w,r.h,ix,iy,iw,ih);
     }
 
-    // 3. Overlay the layout (text, borders) on top — image col area is transparent in the composite op
-    // since we drew white first, just draw layout on top (it has white bg in img col area which we want to keep transparent-ish)
-    // Use 'source-over' but the layout canvas's image-col area is already just the background color
-    ctx.drawImage(layoutCanvas,0,0);
-
-    // 4. Save to PDF
+    // 3. Save to PDF
     const {jsPDF}=window.jspdf;
     const pdf=new jsPDF({orientation:'landscape',unit:'in',format:'letter'});
     const margin=0.25,pW=11,pH=8.5;
@@ -4296,14 +4290,14 @@ async function downloadRptPDF(){
     let imgW=availW,imgH=imgW/aspect;
     if(imgH>availH){imgH=availH;imgW=imgH*aspect;}
     const x=margin+(availW-imgW)/2,y=margin+(availH-imgH)/2;
-    pdf.addImage(out.toDataURL('image/jpeg',0.95),'JPEG',x,y,imgW,imgH);
+    pdf.addImage(out.toDataURL('image/jpeg',0.92),'JPEG',x,y,imgW,imgH);
     const fname=(gv('projName')||'project').replace(/[^a-z0-9]/gi,'_')+'_Report.pdf';
     pdf.save(fname);
   } catch(err){
     alert('PDF generation failed: '+err.message);
   } finally {
-    _drawRptImage(); // restore image canvas
-    const hcr=$('rpt-handles-canvas'); if(hcr&&_rptCropImg) hcr.style.display='';
+    if(ic){ic.style.display='';_drawRptImage();}
+    if(hc&&_rptCropImg) hc.style.display='';
     if(btn){btn.disabled=false;btn.textContent='↓ Download PDF';}
   }
 }
