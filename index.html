@@ -129,15 +129,15 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-dl-btn:disabled{background:#4a5070;color:#8890a8;cursor:not-allowed}
 .rpt-preview-wrap{flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:20px}
 /* ── Portrait layout (default): image left 64%, info panel right ── */
-.rpt-page{width:1056px;height:816px;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.4);display:flex;flex-direction:row;flex-shrink:0;font-family:'Avenir Next','Avenir',sans-serif;overflow:hidden}
-.rpt-img-col{flex:0 0 672px;background:#e8eaef center/cover no-repeat;position:relative;display:flex;align-items:center;justify-content:center}
+.rpt-page{width:1056px;height:816px;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.4);display:flex;flex-direction:row;flex-shrink:0;font-family:'Avenir Next','Avenir',sans-serif;overflow:hidden;position:relative}
+.rpt-img-col{flex:0 0 672px;background:#fff center/contain no-repeat;position:relative;display:flex;align-items:center;justify-content:center}
 .rpt-img-placeholder{color:#9aa0b4;font-size:13px;text-align:center;line-height:2;user-select:none}
-.rpt-info-col{flex:1;display:flex;flex-direction:column;padding:28px 26px 20px 24px;border-left:1px solid #dde0ea;overflow:hidden}
+.rpt-info-col{flex:1;display:flex;flex-direction:column;padding:18px 18px 20px 24px;border-left:1px solid #dde0ea;overflow:hidden}
 /* info groups — used for both portrait and landscape reflow */
 .rpt-grp-brand{flex-shrink:0}
 .rpt-grp-project{flex-shrink:0}
 .rpt-grp-sys{flex-shrink:0}
-.rpt-logos-row{display:flex;align-items:center;gap:14px;margin-bottom:20px}
+.rpt-logos-row{display:flex;align-items:center;justify-content:flex-end;gap:14px;margin-bottom:20px}
 .rpt-logos-row img{max-height:38px;max-width:120px;object-fit:contain}
 .rpt-logo-divider{width:1px;height:30px;background:#c0c4d0;flex-shrink:0}
 .rpt-pv-label{color:#1a5fa8;font-size:13px;font-weight:700;line-height:1.35;margin-bottom:18px}
@@ -147,24 +147,22 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-sys-head{font-size:12px;font-weight:700;color:#111;margin-bottom:8px}
 .rpt-sys-body{font-size:11px;color:#333;line-height:1.85}
 .rpt-spacer{flex:1}
-.rpt-date{font-size:10.5px;color:#777;text-align:right;flex-shrink:0}
+.rpt-date{position:absolute;bottom:14px;right:16px;font-size:10.5px;color:#777;text-align:right;background:rgba(255,255,255,0.88);padding:2px 5px;border-radius:2px}
 /* ── Landscape layout: full-width image below, compact info bar at top ── */
 .rpt-page.rpt-land{flex-direction:column}
-.rpt-page.rpt-land .rpt-img-col{order:1;flex:1;width:100%}
+.rpt-page.rpt-land .rpt-img-col{order:1;flex:1;width:100%;background-color:#fff}
 .rpt-page.rpt-land .rpt-info-col{order:0;flex:0 0 auto;width:100%;flex-direction:row;align-items:center;gap:0;border-left:none;border-bottom:1px solid #dde0ea;padding:14px 24px;overflow:visible}
-.rpt-page.rpt-land .rpt-grp-brand{flex-shrink:0;padding-right:20px;margin-right:20px;border-right:1px solid #d8dbe8}
+.rpt-page.rpt-land .rpt-grp-brand{order:5;flex-shrink:0;margin-left:auto;border-left:1px solid #d8dbe8;border-right:none;padding-left:20px;padding-right:0;margin-right:0}
 .rpt-page.rpt-land .rpt-grp-project{flex-shrink:0;padding-right:20px;margin-right:20px;border-right:1px solid #d8dbe8}
 .rpt-page.rpt-land .rpt-grp-sys{flex-shrink:0}
-.rpt-page.rpt-land .rpt-logos-row{margin-bottom:8px}
-.rpt-page.rpt-land .rpt-logos-row img{max-height:28px}
-.rpt-page.rpt-land .rpt-logo-divider{height:22px}
+.rpt-page.rpt-land .rpt-logos-row{margin-bottom:8px;justify-content:flex-end}
 .rpt-page.rpt-land .rpt-pv-label{font-size:10px;margin-bottom:0}
 .rpt-page.rpt-land .rpt-proj-name{font-size:14px;margin-bottom:3px}
 .rpt-page.rpt-land .rpt-proj-addr{font-size:10px;line-height:1.5;margin-bottom:0}
 .rpt-page.rpt-land .rpt-divider{display:none}
 .rpt-page.rpt-land .rpt-sys-head{font-size:10.5px;margin-bottom:5px}
 .rpt-page.rpt-land .rpt-sys-body{font-size:9.5px;line-height:1.7}
-.rpt-page.rpt-land .rpt-date{margin-left:auto;flex-shrink:0}
+.rpt-page.rpt-land .rpt-spacer{display:none}
 @media print{
   body>*{display:none!important}
   .rpt-page{display:flex!important;position:fixed;top:0;left:0;width:100vw;height:100vh;box-shadow:none;border:none}
@@ -193,8 +191,10 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <span class="sec-arrow open" id="proj-arrow">&#9654;</span>
     </div>
     <div class="sec-body" id="proj-body">
-    <label>Project name / address</label>
-    <input type="text" id="projName" value="123 Main Street" oninput="render()">
+    <label>Project name</label>
+    <input type="text" id="projName" value="My Project" oninput="render();renderReport()">
+    <label>Site address</label>
+    <textarea id="projAddr" rows="2" placeholder="1001 G Street SE&#10;Washington, DC 20003" oninput="renderReport()" style="width:100%;box-sizing:border-box;font-size:11px;resize:vertical;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-family:var(--font)"></textarea>
     <label>AHJ / designer note</label>
     <input type="text" id="designer" value="Conceptual Drawing — Not for Construction" oninput="render()">
     </div>
@@ -206,9 +206,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <span class="sec-arrow" id="rpt-settings-arrow">&#9654;</span>
     </div>
     <div class="sec-body" id="rpt-settings-body" style="display:none">
-      <label>Project address</label>
-      <textarea id="rptAddress" rows="2" placeholder="1001 G Street SE&#10;Washington, DC 20003" oninput="renderReport()" style="width:100%;box-sizing:border-box;font-size:11px;resize:vertical;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-family:var(--font)"></textarea>
-      <label style="margin-top:6px">Array 1 label (e.g. Roof)</label>
+      <label>Array 1 label (e.g. Roof)</label>
       <input type="text" id="rptArr1Name" value="Roof" oninput="renderReport()">
       <div id="rpt-arr2-name-row" style="display:none">
         <label style="margin-top:6px">Array 2 label (e.g. Parking Canopy)</label>
@@ -652,8 +650,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="rpt-toolbar">
       <button class="rpt-dl-btn" id="rpt-dl-btn" onclick="downloadRptPDF()">&#8595; Download PDF</button>
       <select id="rptOrientation" onchange="renderReport()" style="font-size:11px;padding:4px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;font-family:var(--mono)">
-        <option value="portrait">Portrait layout (image left · info right)</option>
-        <option value="landscape">Landscape layout (image full-width · info bar top)</option>
+        <option value="portrait">Portrait layout</option>
+        <option value="landscape">Landscape layout</option>
       </select>
     </div>
     <div class="rpt-preview-wrap">
@@ -684,8 +682,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             <div class="rpt-sys-body" id="rpt-sys-body"></div>
           </div>
           <div class="rpt-spacer"></div>
-          <div class="rpt-date" id="rpt-date"></div>
         </div>
+        <div class="rpt-date" id="rpt-date"></div>
       </div>
     </div>
   </div>
@@ -1018,7 +1016,7 @@ function idbDel(key){ return _idbOpen().then(db=>new Promise((res,rej)=>{ const 
 
 function collectInputState(){
   const state = {};
-  document.querySelectorAll('input[id],select[id]').forEach(el => {
+  document.querySelectorAll('input[id],select[id],textarea[id]').forEach(el => {
     state[el.id] = el.type === 'checkbox' ? el.checked : el.value;
   });
   // Persist the component list from the .dae upload
@@ -3397,6 +3395,27 @@ function render(){
   function necHead(y, label){ return `<text x="${LX+10}" y="${NY+y}" style="${accentStyle}">${label}</text>`; }
   function necLine(y, txt, extra=''){ return `<text x="${LX+10}" y="${NY+y}" class="sld-note"${extra}>${txt}</text>`; }
   function necBold(y, txt){ return `<text x="${LX+10}" y="${NY+y}" style="${boldStyle}">${txt}</text>`; }
+  // SVG <text> has no native wrapping — split at word boundaries.
+  // Avenir Next 10px ≈ 6px avg char width; NW-20 = 410px available → ~68 chars/line.
+  function wrapNecText(line, maxPx) {
+    const maxCh = Math.floor(maxPx / 6);
+    if (line.length <= maxCh) return [line];
+    const m = line.match(/^(\d+\.\s+|\s+)/);
+    const indent = m ? ' '.repeat(m[0].length) : '    ';
+    const out = [];
+    let rem = line;
+    while (rem.length > 0) {
+      const pfx = out.length ? indent : '';
+      const avail = maxCh - pfx.length;
+      if (rem.length <= avail) { out.push(pfx + rem); break; }
+      let bp = rem.lastIndexOf(' ', avail);
+      if (bp <= 0) bp = avail;
+      out.push(pfx + rem.slice(0, bp).trimEnd());
+      rem = rem.slice(bp).trimStart();
+    }
+    return out;
+  }
+  const _nwAvail = NW - 20;
 
   const necItems = [];
   let necY = 0;
@@ -3433,11 +3452,13 @@ function render(){
     const dY = necY + 8;
     necItems.push(necDiv(dY));
     necItems.push(necHead(dY+11, 'CONDUIT NOTES'));
-    necItems.push(necLine(dY+23, `1.  ${acRoofNote()}`));
-    necItems.push(necLine(dY+35, `2.  Provide 1× ${roofCommCond} EMT for PV inverter communications, roof → elec. room${_showNec?' · NEC Art. 800':''}`));
-    necItems.push(necLine(dY+47, '3.  DC wiring &amp; conduit by PV installer', ' style="font-style:italic"'));
-    necItems.push(necLine(dY+59, `4.  DC conduit/raceway: label as PV power source${_showNec?' — NEC 690.56':''}`));
-    necY = dY + 59;
+    let cY = dY+11;
+    const cLine = (txt, extra='') => wrapNecText(txt, _nwAvail).forEach((l,i) => { cY+=12; necItems.push(necLine(cY, l, i===0?extra:'')); });
+    cLine(`1.  ${acRoofNote()}`);
+    cLine(`2.  Provide 1× ${roofCommCond} EMT for PV inverter communications, roof → elec. room${_showNec?' · NEC Art. 800':''}`);
+    cLine('3.  DC wiring &amp; conduit by PV installer', ' style="font-style:italic"');
+    cLine(`4.  DC conduit/raceway: label as PV power source${_showNec?' — NEC 690.56':''}`);
+    necY = cY;
   }
 
   if(_showNecNotes){
@@ -3445,7 +3466,7 @@ function render(){
     necItems.push(necDiv(dY));
     necItems.push(necHead(dY+11, 'NEC COMPLIANCE NOTES'));
     let nY = dY+11, nN = 0;
-    const nLine = txt => { nN++; nY+=12; necItems.push(necLine(nY, `${nN}.  ${txt}`)); };
+    const nLine = txt => { nN++; wrapNecText(`${nN}.  ${txt}`, _nwAvail).forEach(l => { nY+=12; necItems.push(necLine(nY, l)); }); };
     nLine('AFCI: Integral arc-fault protection per NEC 690.11');
     nLine('GFPD: Ground-fault protection per NEC 690.5');
     nLine(`SPD: ${v.hasSPD?'Surge protection per NEC 230.67 (AC) · NEC 242 (DC)':'not shown — verify AHJ requirements'}`);
@@ -3558,12 +3579,17 @@ function render(){
       if(v.telRemoteCurtail) gLines.push({bold:false, text:'Remote curtailment: Required — utility dispatch interface'});
       if(v.telNotes) gLines.push({bold:false, text:v.telNotes});
     }
+    // Expand any long grid-note lines with word wrapping
+    const gLinesExp=[];
+    gLines.forEach(ln=>{
+      wrapNecText(ln.text, _nwAvail).forEach((l,i)=>gLinesExp.push({bold:i===0&&ln.bold,text:l}));
+    });
     const hdrH=28, lineH=12, pad=8;
-    gridBoxH = hdrH + gLines.length*lineH + pad;
+    gridBoxH = hdrH + gLinesExp.length*lineH + pad;
     el.push(`<rect x="${LX}" y="${GY}" width="${NW}" height="${gridBoxH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
     el.push(`<text x="${LX+NW/2}" y="${GY+13}" class="sld-head" text-anchor="middle">Grid &amp; Interconnection Notes</text>`);
     el.push(`<line x1="${LX+6}" y1="${GY+18}" x2="${LX+NW-6}" y2="${GY+18}" stroke="#d0d5e8" stroke-width="0.7"/>`);
-    gLines.forEach((ln,i)=>{
+    gLinesExp.forEach((ln,i)=>{
       const ty=GY+hdrH+i*lineH;
       if(ln.bold) el.push(`<text x="${LX+10}" y="${ty}" style="${boldStyle}">${esc(ln.text)}</text>`);
       else el.push(`<text x="${LX+10}" y="${ty}" class="sld-note">${esc(ln.text)}</text>`);
@@ -3847,7 +3873,7 @@ function renderReport(){
 
   // Project info
   const projName=gv('projName')||'Project Name';
-  const projAddr=(gv('rptAddress')||'').trim();
+  const projAddr=(gv('projAddr')||gv('rptAddress')||'').trim();
 
   // Array 1
   const a1Strings=Math.max(1,+gv('strings')||1);
@@ -3895,11 +3921,11 @@ function renderReport(){
   if(hasArr2){
     info+=`<div>${a1Name}: ${a1Panels.toLocaleString()}&#215; panels, ${a1DcKw.toFixed(1)} kW DC</div>`;
     info+=a2Lines;
-    info+=`<div style="margin-top:6px"><b>Total System Size: ${totalDcKw.toFixed(1)} kW DC</b></div>`;
+    info+=`<div style="margin-top:6px">Total System Size: ${totalDcKw.toFixed(1)} kW DC</div>`;
     info+=`<div>AC Output: ${totalAcKw.toFixed(1)} kW AC</div>`;
   } else {
     info+=`<div>Module count: ${totalPanels.toLocaleString()}&#215; panels</div>`;
-    info+=`<div style="margin-top:6px"><b>Total System Size: ${totalDcKw.toFixed(1)} kW DC</b></div>`;
+    info+=`<div style="margin-top:6px">Total System Size: ${totalDcKw.toFixed(1)} kW DC</div>`;
     info+=`<div>AC Output: ${totalAcKw.toFixed(1)} kW AC</div>`;
   }
   if(annProdKwh!==null){
