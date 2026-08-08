@@ -130,7 +130,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-preview-wrap{flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:20px}
 /* ── Portrait layout (default): image left 64%, info panel right ── */
 .rpt-page{width:1056px;height:816px;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.4);display:flex;flex-direction:row;flex-shrink:0;font-family:'Avenir Next','Avenir',sans-serif;overflow:hidden;position:relative}
-.rpt-img-col{flex:0 0 672px;background:#fff center/contain no-repeat content-box content-box;position:relative;display:flex;align-items:center;justify-content:center;padding:20px 28px}
+.rpt-img-col{flex:0 0 672px;background:#fff;position:relative;overflow:hidden}
 .rpt-img-placeholder{color:#9aa0b4;font-size:13px;text-align:center;line-height:2;user-select:none}
 .rpt-info-col{flex:1;display:flex;flex-direction:column;padding:18px 18px 20px 24px;border-left:1px solid #dde0ea;overflow:hidden}
 /* info groups — used for both portrait and landscape reflow */
@@ -150,7 +150,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-date{position:absolute;bottom:14px;right:16px;font-size:10.5px;color:#777;text-align:right;background:rgba(255,255,255,0.88);padding:2px 5px;border-radius:2px}
 /* ── Landscape layout: full-width image below, compact info bar at top ── */
 .rpt-page.rpt-land{flex-direction:column}
-.rpt-page.rpt-land .rpt-img-col{order:1;flex:1;width:100%;padding:16px 40px;background-origin:content-box;background-clip:content-box}
+.rpt-page.rpt-land .rpt-img-col{order:1;flex:1;width:100%}
 .rpt-page.rpt-land .rpt-info-col{order:0;flex:0 0 auto;width:100%;flex-direction:row;align-items:center;gap:0;border-left:none;border-bottom:1px solid #dde0ea;padding:14px 24px;overflow:visible}
 .rpt-page.rpt-land .rpt-grp-brand{order:5;flex-shrink:0;margin-left:auto;border-left:1px solid #d8dbe8;border-right:none;padding-left:20px;padding-right:0;margin-right:0}
 .rpt-page.rpt-land .rpt-grp-project{flex-shrink:0;padding-right:20px;margin-right:20px;border-right:1px solid #d8dbe8}
@@ -267,7 +267,6 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           <span id="pvlayout-drop-label">Drop .png/.jpg here<br><span style="font-size:9px">or click to browse</span></span>
         </div>
         <input type="file" id="pvlayout-file-input" accept=".png,.jpg,.jpeg" style="display:none" onchange="pvLayoutFileSelected(this.files[0])">
-        <button id="pvlayout-crop-btn" onclick="openCropModal()" style="display:none;margin-top:5px;width:100%;font-size:10px;padding:4px 0;border:1px solid var(--border);border-radius:3px;background:var(--surface2);color:var(--text);cursor:pointer">&#9986; Edit Crop</button>
       </div>
       <div id="skp-preview-toggle-row" class="trow" style="display:none;margin-top:8px">
         <span>Array layout preview</span>
@@ -684,7 +683,9 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <div class="rpt-page" id="rpt-page">
         <!-- Image column — background-image preserves aspect ratio (no object-fit stretch) -->
         <div class="rpt-img-col" id="rpt-img-col">
-          <div class="rpt-img-placeholder" id="rpt-img-placeholder">
+          <canvas id="rpt-img-canvas" style="position:absolute;inset:0;width:100%;height:100%;display:none"></canvas>
+          <canvas id="rpt-handles-canvas" style="position:absolute;inset:0;width:100%;height:100%;display:none"></canvas>
+          <div class="rpt-img-placeholder" id="rpt-img-placeholder" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#9aa0b4;font-size:13px;text-align:center;line-height:2;user-select:none">
             &#128247;<br>Upload PV layout image<br>in the File Import section
           </div>
         </div>
@@ -1014,15 +1015,6 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   </div>
 </div>
 
-<!-- Crop modal -->
-<div id="crop-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9000;align-items:center;justify-content:center;flex-direction:column;gap:12px">
-  <div style="color:#fff;font-size:13px;font-weight:600;font-family:'Avenir Next','Avenir',sans-serif">Crop PV Layout Image — drag corners to resize</div>
-  <canvas id="crop-canvas" style="display:block;cursor:crosshair;touch-action:none"></canvas>
-  <div style="display:flex;gap:10px">
-    <button onclick="cropApply()" style="padding:7px 20px;background:#3d8ef8;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">Apply Crop</button>
-    <button onclick="cropCancel()" style="padding:7px 16px;background:#444;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;font-family:inherit">Cancel</button>
-  </div>
-</div>
 
 <script>
 const $=id=>document.getElementById(id);
@@ -3893,156 +3885,183 @@ function exportPDF(){
 }
 
 // ── Project Report Tab ───────────────────────────────────────────────────────
-let _rptLayoutImg=null; // data URL of uploaded PV layout image
+let _rptLayoutImgOrig=null; // original data URL from upload
+let _rptCropImg=null;        // HTMLImageElement (kept alive for drawing)
+let _cropRect=null;          // {x,y,w,h} in source image coords; null = full image
+let _rptPad={t:20,r:28,b:20,l:28}; // adjustable margin around image display area
+let _rptHandlesDrag=null;
+let _rptLastOrient=null;
 
-function pvLayoutFileDrop(e){
-  e.preventDefault();
-  const f=e.dataTransfer.files[0];
-  if(f) pvLayoutFileSelected(f);
-}
+function pvLayoutFileDrop(e){ e.preventDefault(); const f=e.dataTransfer.files[0]; if(f) pvLayoutFileSelected(f); }
+
 function pvLayoutFileSelected(f){
   if(!f||!f.type.startsWith('image/')) return;
   const reader=new FileReader();
   reader.onload=function(ev){
-    _rptLayoutImg=ev.target.result;
     _rptLayoutImgOrig=ev.target.result;
+    _cropRect=null;
     const lbl=$('pvlayout-drop-label');
     if(lbl) lbl.innerHTML=`<span style="color:var(--accent2)">&#10003; ${f.name}</span><br><span style="font-size:9px">click to replace</span>`;
-    const cb=$('pvlayout-crop-btn'); if(cb) cb.style.display='';
+    const img=new Image();
+    img.onload=function(){
+      _rptCropImg=img;
+      const ic=$('rpt-img-canvas'),hc=$('rpt-handles-canvas'),ph=$('rpt-img-placeholder');
+      if(ic) ic.style.display=''; if(hc) hc.style.display=''; if(ph) ph.style.display='none';
+      _drawRptImage(); _drawRptHandles();
+    };
+    img.src=_rptLayoutImgOrig;
     renderReport();
   };
   reader.readAsDataURL(f);
 }
 
-// ── PV layout image crop tool ────────────────────────────────────────────────
-let _rptLayoutImgOrig=null; // full original before any crop
-let _cropImg=null, _cropScale=1, _cropRect=null, _cropDrag=null;
+// ── Inline image handles (crop + margin) ─────────────────────────────────────
+const _CH=5, _MH=7, _TOL=9;
 
-function openCropModal(){
-  if(!_rptLayoutImgOrig) return;
-  const img=new Image();
-  img.onload=function(){
-    _cropImg=img;
-    const canvas=$('crop-canvas');
-    const maxW=Math.min(window.innerWidth*0.88,1000);
-    const maxH=Math.min(window.innerHeight*0.72,680);
-    _cropScale=Math.min(maxW/img.width, maxH/img.height, 1);
-    canvas.width=Math.round(img.width*_cropScale);
-    canvas.height=Math.round(img.height*_cropScale);
-    canvas.style.maxWidth='90vw';
-    _cropRect={x:0,y:0,w:img.width,h:img.height};
-    _drawCrop();
-    const m=$('crop-modal'); m.style.display='flex';
-  };
-  img.src=_rptLayoutImgOrig;
+function _rptColDims(){
+  const col=$('rpt-img-col');
+  return col?{w:col.offsetWidth||672,h:col.offsetHeight||816}:{w:672,h:816};
 }
-function _drawCrop(){
-  const canvas=$('crop-canvas'), ctx=canvas.getContext('2d');
-  const s=_cropScale, r=_cropRect;
-  const rx=r.x*s, ry=r.y*s, rw=r.w*s, rh=r.h*s;
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.drawImage(_cropImg,0,0,canvas.width,canvas.height);
-  // Dark mask outside crop
-  ctx.fillStyle='rgba(0,0,0,0.52)';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-  // Reveal crop area
-  ctx.save();
-  ctx.globalCompositeOperation='destination-out';
-  ctx.fillRect(rx,ry,rw,rh);
-  ctx.restore();
-  // Redraw image in crop area (bright)
-  ctx.save();
-  ctx.beginPath(); ctx.rect(rx,ry,rw,rh); ctx.clip();
-  ctx.drawImage(_cropImg,0,0,canvas.width,canvas.height);
-  ctx.restore();
-  // Border + rule-of-thirds guides
-  ctx.strokeStyle='#fff'; ctx.lineWidth=1.5;
-  ctx.strokeRect(rx,ry,rw,rh);
-  ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=0.8;
-  [1/3,2/3].forEach(t=>{
-    ctx.beginPath(); ctx.moveTo(rx+rw*t,ry); ctx.lineTo(rx+rw*t,ry+rh); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(rx,ry+rh*t); ctx.lineTo(rx+rw,ry+rh*t); ctx.stroke();
-  });
-  // Corner handles
-  const hs=7;
-  [[rx,ry],[rx+rw,ry],[rx,ry+rh],[rx+rw,ry+rh]].forEach(([cx,cy])=>{
-    ctx.fillStyle='#fff'; ctx.fillRect(cx-hs/2,cy-hs/2,hs,hs);
-    ctx.strokeStyle='#3d8ef8'; ctx.lineWidth=1; ctx.strokeRect(cx-hs/2,cy-hs/2,hs,hs);
-  });
+function _rptImgBounds(W,H){
+  if(!_rptCropImg) return null;
+  const r=_cropRect||{x:0,y:0,w:_rptCropImg.naturalWidth,h:_rptCropImg.naturalHeight};
+  const dW=W-_rptPad.l-_rptPad.r, dH=H-_rptPad.t-_rptPad.b;
+  if(dW<=0||dH<=0) return null;
+  const ia=r.w/r.h, da=dW/dH;
+  let iw,ih; if(ia>da){iw=dW;ih=dW/ia;}else{ih=dH;iw=dH*ia;}
+  return {x:_rptPad.l+(dW-iw)/2, y:_rptPad.t+(dH-ih)/2, w:iw, h:ih};
 }
-(function(){
-  function onDown(e){
-    const canvas=$('crop-canvas');
-    const rect=canvas.getBoundingClientRect();
-    const s=_cropScale;
-    const ex=e.type.startsWith('touch')?e.touches[0].clientX:e.clientX;
-    const ey=e.type.startsWith('touch')?e.touches[0].clientY:e.clientY;
-    const mx=(ex-rect.left)*(canvas.width/rect.width)/s;
-    const my=(ey-rect.top)*(canvas.height/rect.height)/s;
-    const r=_cropRect;
-    const corners=[[r.x,r.y],[r.x+r.w,r.y],[r.x,r.y+r.h],[r.x+r.w,r.y+r.h]];
-    const tol=12/s;
-    for(let i=0;i<4;i++){
-      if(Math.abs(mx-corners[i][0])<tol&&Math.abs(my-corners[i][1])<tol){
-        _cropDrag={type:'corner',idx:i,sx:mx,sy:my,orig:{...r}};
-        e.preventDefault(); return;
-      }
-    }
-    if(mx>=r.x&&mx<=r.x+r.w&&my>=r.y&&my<=r.y+r.h){
-      _cropDrag={type:'move',sx:mx,sy:my,orig:{...r}};
-      e.preventDefault();
-    }
-  }
-  function onMove(e){
-    if(!_cropDrag||!_cropImg) return;
-    const canvas=$('crop-canvas');
-    const rect=canvas.getBoundingClientRect();
-    const s=_cropScale;
-    const ex=e.type.startsWith('touch')?e.touches[0].clientX:e.clientX;
-    const ey=e.type.startsWith('touch')?e.touches[0].clientY:e.clientY;
-    const mx=(ex-rect.left)*(canvas.width/rect.width)/s;
-    const my=(ey-rect.top)*(canvas.height/rect.height)/s;
-    const dx=mx-_cropDrag.sx, dy=my-_cropDrag.sy;
-    const o=_cropDrag.orig, W=_cropImg.width, H=_cropImg.height, MIN=20;
-    if(_cropDrag.type==='move'){
-      _cropRect.x=Math.max(0,Math.min(W-o.w,o.x+dx));
-      _cropRect.y=Math.max(0,Math.min(H-o.h,o.y+dy));
+function _drawRptImage(){
+  const canvas=$('rpt-img-canvas'); if(!canvas||!_rptCropImg) return;
+  const {w:W,h:H}=_rptColDims();
+  canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+  const r=_cropRect||{x:0,y:0,w:_rptCropImg.naturalWidth,h:_rptCropImg.naturalHeight};
+  const b=_rptImgBounds(W,H); if(!b) return;
+  ctx.drawImage(_rptCropImg,r.x,r.y,r.w,r.h,b.x,b.y,b.w,b.h);
+}
+function _drawRptHandles(){
+  const canvas=$('rpt-handles-canvas'); if(!canvas||!_rptCropImg) return;
+  const {w:W,h:H}=_rptColDims();
+  canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  const b=_rptImgBounds(W,H); if(!b) return;
+  // Dashed border around image display area
+  ctx.setLineDash([4,3]); ctx.strokeStyle='rgba(61,142,248,0.45)'; ctx.lineWidth=1;
+  ctx.strokeRect(b.x,b.y,b.w,b.h); ctx.setLineDash([]);
+  // 8 crop handles on image boundary
+  const hs=_CH;
+  [[b.x,b.y],[b.x+b.w/2,b.y],[b.x+b.w,b.y],
+   [b.x,b.y+b.h/2],[b.x+b.w,b.y+b.h/2],
+   [b.x,b.y+b.h],[b.x+b.w/2,b.y+b.h],[b.x+b.w,b.y+b.h]
+  ].forEach(([cx,cy])=>{
+    ctx.fillStyle='#fff'; ctx.fillRect(cx-hs,cy-hs,hs*2,hs*2);
+    ctx.strokeStyle='#3d8ef8'; ctx.lineWidth=1.2; ctx.strokeRect(cx-hs,cy-hs,hs*2,hs*2);
+  });
+  // 4 margin handles (circles) positioned in each margin area
+  const ms=_MH;
+  [{x:W/2,y:Math.max(ms+1,_rptPad.t/2),v:true},
+   {x:W/2,y:H-Math.max(ms+1,_rptPad.b/2),v:true},
+   {x:Math.max(ms+1,_rptPad.l/2),y:H/2,v:false},
+   {x:W-Math.max(ms+1,_rptPad.r/2),y:H/2,v:false}
+  ].forEach(h=>{
+    ctx.beginPath(); ctx.arc(h.x,h.y,ms,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,0.92)'; ctx.fill();
+    ctx.strokeStyle='#999'; ctx.lineWidth=1.2; ctx.stroke();
+    ctx.strokeStyle='#555'; ctx.lineWidth=1.3;
+    const a=3;
+    if(h.v){
+      ctx.beginPath();ctx.moveTo(h.x,h.y-a);ctx.lineTo(h.x,h.y+a);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(h.x-2,h.y-a+2);ctx.lineTo(h.x,h.y-a);ctx.lineTo(h.x+2,h.y-a+2);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(h.x-2,h.y+a-2);ctx.lineTo(h.x,h.y+a);ctx.lineTo(h.x+2,h.y+a-2);ctx.stroke();
     } else {
-      let {x,y,w,h}=o;
-      const i=_cropDrag.idx;
-      if(i===0){x=Math.min(o.x+o.w-MIN,o.x+dx);y=Math.min(o.y+o.h-MIN,o.y+dy);w=o.x+o.w-x;h=o.y+o.h-y;}
-      else if(i===1){w=Math.max(MIN,o.w+dx);y=Math.min(o.y+o.h-MIN,o.y+dy);h=o.y+o.h-y;}
-      else if(i===2){x=Math.min(o.x+o.w-MIN,o.x+dx);w=o.x+o.w-x;h=Math.max(MIN,o.h+dy);}
-      else{w=Math.max(MIN,o.w+dx);h=Math.max(MIN,o.h+dy);}
-      x=Math.max(0,x); y=Math.max(0,y);
-      w=Math.min(W-x,w); h=Math.min(H-y,h);
-      if(w>0&&h>0) _cropRect={x,y,w,h};
+      ctx.beginPath();ctx.moveTo(h.x-a,h.y);ctx.lineTo(h.x+a,h.y);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(h.x-a+2,h.y-2);ctx.lineTo(h.x-a,h.y);ctx.lineTo(h.x-a+2,h.y+2);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(h.x+a-2,h.y-2);ctx.lineTo(h.x+a,h.y);ctx.lineTo(h.x+a-2,h.y+2);ctx.stroke();
     }
-    _drawCrop();
+  });
+}
+// Which crop-rect edges each handle ID adjusts
+const _CROP_FLAGS={tl:{l:1,t:1},tc:{t:1},tr:{r:1,t:1},ml:{l:1},mr:{r:1},bl:{l:1,b:1},bc:{b:1},br:{r:1,b:1}};
+const _CROP_CUR={tl:'nwse-resize',tc:'ns-resize',tr:'nesw-resize',ml:'ew-resize',mr:'ew-resize',bl:'nesw-resize',bc:'ns-resize',br:'nwse-resize'};
+
+function _rptHitTest(mx,my,W,H,b){
+  if(!b) return null;
+  // Crop handles first (image boundary — more frequently used)
+  const ch=[{id:'tl',x:b.x,y:b.y},{id:'tc',x:b.x+b.w/2,y:b.y},{id:'tr',x:b.x+b.w,y:b.y},
+            {id:'ml',x:b.x,y:b.y+b.h/2},{id:'mr',x:b.x+b.w,y:b.y+b.h/2},
+            {id:'bl',x:b.x,y:b.y+b.h},{id:'bc',x:b.x+b.w/2,y:b.y+b.h},{id:'br',x:b.x+b.w,y:b.y+b.h}];
+  for(const h of ch) if(Math.abs(mx-h.x)<_TOL&&Math.abs(my-h.y)<_TOL) return {type:'crop',id:h.id};
+  // Margin handles (in the white space between image and col edge)
+  const mh=[{id:'t',x:W/2,y:Math.max(_MH+1,_rptPad.t/2)},
+            {id:'b',x:W/2,y:H-Math.max(_MH+1,_rptPad.b/2)},
+            {id:'l',x:Math.max(_MH+1,_rptPad.l/2),y:H/2},
+            {id:'r',x:W-Math.max(_MH+1,_rptPad.r/2),y:H/2}];
+  for(const h of mh) if(Math.abs(mx-h.x)<_TOL+3&&Math.abs(my-h.y)<_TOL+3) return {type:'margin',id:h.id};
+  return null;
+}
+
+(function(){
+  function coords(e,canvas){
+    const rect=canvas.getBoundingClientRect();
+    const {w:W,h:H}=_rptColDims();
+    return {mx:(e.clientX-rect.left)*(W/rect.width), my:(e.clientY-rect.top)*(H/rect.height)};
+  }
+  function onDown(e){
+    if(!_rptCropImg) return;
+    const canvas=$('rpt-handles-canvas'); if(!canvas) return;
+    const {mx,my}=coords(e,canvas);
+    const {w:W,h:H}=_rptColDims();
+    const b=_rptImgBounds(W,H);
+    const hit=_rptHitTest(mx,my,W,H,b);
+    if(!hit) return;
+    const r=_cropRect||{x:0,y:0,w:_rptCropImg.naturalWidth,h:_rptCropImg.naturalHeight};
+    _rptHandlesDrag={...hit,sx:mx,sy:my,origPad:{..._rptPad},origCrop:{...r},origB:b?{...b}:null};
     e.preventDefault();
   }
-  function onUp(){ _cropDrag=null; }
+  function onMove(e){
+    if(!_rptCropImg) return;
+    const canvas=$('rpt-handles-canvas'); if(!canvas) return;
+    const {mx,my}=coords(e,canvas);
+    const {w:W,h:H}=_rptColDims();
+    if(!_rptHandlesDrag){
+      const b=_rptImgBounds(W,H);
+      const hit=_rptHitTest(mx,my,W,H,b);
+      canvas.style.cursor=hit?(_CROP_CUR[hit.id]||(hit.id==='l'||hit.id==='r'?'ew-resize':'ns-resize')):'default';
+      return;
+    }
+    const dx=mx-_rptHandlesDrag.sx, dy=my-_rptHandlesDrag.sy;
+    if(_rptHandlesDrag.type==='margin'){
+      const {id,origPad}=_rptHandlesDrag; const p={...origPad};
+      const mxH=H/2-20, mxW=W/2-20;
+      // Drag handle TOWARD image = less margin; AWAY from image = more margin
+      if(id==='t')  p.t=Math.max(0,Math.min(mxH,origPad.t-dy));
+      if(id==='b')  p.b=Math.max(0,Math.min(mxH,origPad.b+dy));
+      if(id==='l')  p.l=Math.max(0,Math.min(mxW,origPad.l-dx));
+      if(id==='r')  p.r=Math.max(0,Math.min(mxW,origPad.r+dx));
+      _rptPad=p;
+    } else {
+      const {id,origCrop,origB}=_rptHandlesDrag; if(!origB) return;
+      const scX=origCrop.w/origB.w, scY=origCrop.h/origB.h, MIN=30;
+      let {x,y,w,h}=origCrop; const fl=_CROP_FLAGS[id]||{};
+      const iW=_rptCropImg.naturalWidth, iH=_rptCropImg.naturalHeight;
+      if(fl.t){const ny=Math.max(0,Math.min(y+h-MIN,y+dy*scY));h=y+h-ny;y=ny;}
+      if(fl.b){h=Math.max(MIN,Math.min(iH-y,h+dy*scY));}
+      if(fl.l){const nx=Math.max(0,Math.min(x+w-MIN,x+dx*scX));w=x+w-nx;x=nx;}
+      if(fl.r){w=Math.max(MIN,Math.min(iW-x,w+dx*scX));}
+      if(w>0&&h>0) _cropRect={x,y,w,h};
+    }
+    _drawRptImage(); _drawRptHandles(); e.preventDefault();
+  }
+  function onUp(){ _rptHandlesDrag=null; }
   document.addEventListener('DOMContentLoaded',function(){
-    const c=$('crop-canvas');
+    const c=$('rpt-handles-canvas'); if(!c) return;
     c.addEventListener('mousedown',onDown); c.addEventListener('mousemove',onMove);
     c.addEventListener('mouseup',onUp); c.addEventListener('mouseleave',onUp);
-    c.addEventListener('touchstart',onDown,{passive:false});
-    c.addEventListener('touchmove',onMove,{passive:false});
-    c.addEventListener('touchend',onUp);
   });
 })();
-
-function cropApply(){
-  if(!_cropImg||!_cropRect) return;
-  const r=_cropRect;
-  const out=document.createElement('canvas');
-  out.width=Math.round(r.w); out.height=Math.round(r.h);
-  out.getContext('2d').drawImage(_cropImg,r.x,r.y,r.w,r.h,0,0,out.width,out.height);
-  _rptLayoutImg=out.toDataURL('image/jpeg',0.92);
-  $('crop-modal').style.display='none';
-  renderReport();
-}
-function cropCancel(){ $('crop-modal').style.display='none'; }
 
 function renderReport(){
   if(!$('tab-report')) return;
@@ -4191,21 +4210,25 @@ function renderReport(){
   const sb=$('rpt-sys-body'); if(sb) sb.innerHTML=info;
   const dt=$('rpt-date'); if(dt) dt.textContent=dateStr;
 
-  // PV layout image — use background-image so aspect ratio is preserved by the browser
-  const col=$('rpt-img-col'), ph=$('rpt-img-placeholder');
-  if(_rptLayoutImg){
-    if(col) col.style.backgroundImage=`url('${_rptLayoutImg}')`;
-    if(ph) ph.style.display='none';
-  } else {
-    if(col) col.style.backgroundImage='none';
-    if(ph) ph.style.display='';
-  }
-
-  // Orientation class
+  // Orientation class + reset padding defaults when orientation switches
   const page=$('rpt-page');
-  if(page){
-    const isLand=(gv('rptOrientation')||'portrait')==='landscape';
-    page.classList.toggle('rpt-land', isLand);
+  const isLand=(gv('rptOrientation')||'portrait')==='landscape';
+  if(page) page.classList.toggle('rpt-land', isLand);
+  if(_rptLastOrient!==null&&_rptLastOrient!==isLand&&!_rptHandlesDrag){
+    _rptPad=isLand?{t:16,r:40,b:16,l:40}:{t:20,r:28,b:20,l:28};
+  }
+  _rptLastOrient=isLand;
+
+  // PV layout image via canvas (supports inline crop + margin handles)
+  const ph=$('rpt-img-placeholder');
+  const ic=$('rpt-img-canvas'), hc=$('rpt-handles-canvas');
+  if(_rptCropImg){
+    if(ph) ph.style.display='none';
+    if(ic) ic.style.display=''; if(hc) hc.style.display='';
+    _drawRptImage(); _drawRptHandles();
+  } else {
+    if(ic) ic.style.display='none'; if(hc) hc.style.display='none';
+    if(ph) ph.style.display='';
   }
 }
 
@@ -4214,26 +4237,66 @@ async function downloadRptPDF(){
   if(btn){btn.disabled=true;btn.textContent='Generating…';}
   try{
     const page=$('rpt-page');
-    const canvas=await html2canvas(page,{
-      scale:2,useCORS:true,allowTaint:true,
+    const SC=2; // html2canvas scale
+    const hc=$('rpt-handles-canvas');
+    if(hc) hc.style.display='none'; // hide handles during capture
+
+    // 1. Capture layout (text, borders, etc.) — image col will be white or low-res
+    const layoutCanvas=await html2canvas(page,{
+      scale:SC,useCORS:true,allowTaint:true,
       backgroundColor:'#ffffff',
       width:page.offsetWidth,height:page.offsetHeight
     });
+
+    // 2. Build composite: draw high-quality source image, then overlay layout
+    const out=document.createElement('canvas');
+    out.width=layoutCanvas.width; out.height=layoutCanvas.height;
+    const ctx=out.getContext('2d');
+
+    if(_rptCropImg){
+      // Locate image col in page-relative coords at SC scale
+      const pageRect=page.getBoundingClientRect();
+      const colEl=$('rpt-img-col');
+      const colRect=colEl.getBoundingClientRect();
+      const colX=Math.round((colRect.left-pageRect.left)*SC);
+      const colY=Math.round((colRect.top-pageRect.top)*SC);
+      const colW=Math.round(colRect.width*SC);
+      const colH=Math.round(colRect.height*SC);
+      // White fill for image col
+      ctx.fillStyle='#fff'; ctx.fillRect(colX,colY,colW,colH);
+      // Compute image display bounds at SC scale
+      const pad={t:_rptPad.t*SC,r:_rptPad.r*SC,b:_rptPad.b*SC,l:_rptPad.l*SC};
+      const dW=colW-pad.l-pad.r, dH=colH-pad.t-pad.b;
+      const r=_cropRect||{x:0,y:0,w:_rptCropImg.naturalWidth,h:_rptCropImg.naturalHeight};
+      const ia=r.w/r.h, da=dW/dH;
+      let iw,ih; if(ia>da){iw=dW;ih=dW/ia;}else{ih=dH;iw=dH*ia;}
+      const ix=colX+pad.l+(dW-iw)/2, iy=colY+pad.t+(dH-ih)/2;
+      // Draw source image at full quality (no intermediate JPEG re-compression)
+      ctx.drawImage(_rptCropImg,r.x,r.y,r.w,r.h,ix,iy,iw,ih);
+    }
+
+    // 3. Overlay the layout (text, borders) on top — image col area is transparent in the composite op
+    // since we drew white first, just draw layout on top (it has white bg in img col area which we want to keep transparent-ish)
+    // Use 'source-over' but the layout canvas's image-col area is already just the background color
+    ctx.drawImage(layoutCanvas,0,0);
+
+    // 4. Save to PDF
     const {jsPDF}=window.jspdf;
     const pdf=new jsPDF({orientation:'landscape',unit:'in',format:'letter'});
-    // Letter landscape: 11 × 8.5
     const margin=0.25,pW=11,pH=8.5;
     const availW=pW-margin*2,availH=pH-margin*2;
-    const aspect=canvas.width/canvas.height;
+    const aspect=out.width/out.height;
     let imgW=availW,imgH=imgW/aspect;
     if(imgH>availH){imgH=availH;imgW=imgH*aspect;}
     const x=margin+(availW-imgW)/2,y=margin+(availH-imgH)/2;
-    pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',x,y,imgW,imgH);
+    pdf.addImage(out.toDataURL('image/jpeg',0.95),'JPEG',x,y,imgW,imgH);
     const fname=(gv('projName')||'project').replace(/[^a-z0-9]/gi,'_')+'_Report.pdf';
     pdf.save(fname);
   } catch(err){
     alert('PDF generation failed: '+err.message);
   } finally {
+    _drawRptImage(); // restore image canvas
+    const hcr=$('rpt-handles-canvas'); if(hcr&&_rptCropImg) hcr.style.display='';
     if(btn){btn.disabled=false;btn.textContent='↓ Download PDF';}
   }
 }
