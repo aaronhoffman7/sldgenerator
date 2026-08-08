@@ -211,7 +211,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <label>Mounting types (kW DC)</label>
       <div style="margin-top:4px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
-          <span style="font-size:11px;min-width:90px;color:var(--text)">Roof</span>
+          <input type="checkbox" id="rptMtRoofChk" checked onchange="renderReport()" style="margin:0;flex-shrink:0">
+          <span style="font-size:11px;min-width:84px;color:var(--text)">Roof</span>
           <input type="number" id="rptMtRoof" readonly tabindex="-1" style="flex:1;font-size:10px;padding:2px 5px;background:var(--bg-sec);border:1px solid var(--border);border-radius:3px;color:var(--muted)">
           <span style="font-size:10px;color:var(--muted)">kW</span>
         </div>
@@ -4080,6 +4081,7 @@ function renderReport(){
   }
 
   // Mount type breakdown (Roof auto-computed; Canopy/BI optional)
+  const roofChk=gc('rptMtRoofChk');
   const canopyChk=gc('rptMtCanopyChk');
   const biChk=gc('rptMtBiChk');
   const canopyEl=$('rptMtCanopy'), biEl=$('rptMtBi');
@@ -4104,12 +4106,12 @@ function renderReport(){
   } else {
     info+=`<div>Module count: ${totalPanels.toLocaleString()}&#215; panels</div>`;
   }
-  // Mount type breakdown (only if split across types)
-  if(canopyKw>0||biKw>0){
+  // Mount type breakdown (only if any non-roof type is active)
+  if(canopyChk||biChk){
     info+=`<div style="margin-top:4px">`;
-    if(roofKw>0) info+=`<div>Roof: ${roofKw.toFixed(1)} kW DC</div>`;
-    if(canopyKw>0) info+=`<div>Canopy: ${canopyKw.toFixed(1)} kW DC</div>`;
-    if(biKw>0) info+=`<div>Building-Integrated: ${biKw.toFixed(1)} kW DC</div>`;
+    if(roofChk&&roofKw>0) info+=`<div>Roof: ${roofKw.toFixed(1)} kW DC</div>`;
+    if(canopyChk&&canopyKw>0) info+=`<div>Canopy: ${canopyKw.toFixed(1)} kW DC</div>`;
+    if(biChk&&biKw>0) info+=`<div>Building-Integrated: ${biKw.toFixed(1)} kW DC</div>`;
     info+=`</div>`;
   }
   info+=`<div style="margin-top:6px">Total System Size: ${totalDcKw.toFixed(1)} kW DC</div>`;
