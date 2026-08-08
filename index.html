@@ -1060,6 +1060,10 @@ function collectInputState(){
   // Persist curtailment analysis state
   state.__pvWattsFetched = !!_anPvWattsData;
   state.__anCsvData      = _anCsvData ? Array.from(_anCsvData) : null;
+  // Persist report image crop/pad state (image data itself stored in IDB)
+  state.__hasPvLayout = !!_rptLayoutImgOrig;
+  state.__cropRect    = _cropRect || null;
+  state.__rptPad      = {..._rptPad};
   return state;
 }
 
@@ -1110,6 +1114,10 @@ function restoreInputState(state){
     if(csvStatus) csvStatus.textContent = `✓ ${state.__anCsvData.length} hours restored`;
   }
 
+  // Restore report image crop/pad state
+  _cropRect = state.__cropRect || null;
+  if(state.__rptPad) _rptPad = {...state.__rptPad};
+
   render();
 }
 
@@ -1147,9 +1155,10 @@ async function saveProject(asNew){
     key = SLD_KEY_PREFIX + ts;
     _currentProjectKey = key;
   }
-  const record = { name, savedBy, date, timestamp: ts, hasDae: !!_lastDaeXml, inputs: collectInputState() };
+  const record = { name, savedBy, date, timestamp: ts, hasDae: !!_lastDaeXml, hasPvLayout: !!_rptLayoutImgOrig, inputs: collectInputState() };
   localStorage.setItem(key, JSON.stringify(record));
   if(_lastDaeXml) await idbPut(key, _lastDaeXml);
+  if(_rptLayoutImgOrig) await idbPut(key + '_pvlayout', _rptLayoutImgOrig);
   closeSaveModal();
   renderProjectsList();
 }
@@ -1198,6 +1207,22 @@ async function loadProject(key){
         const xml = await idbGet(key);
         if(xml){ _lastDaeXml = xml; buildDaeInstanceMap(xml); renderDaePreview(xml); }
       } catch(e){ console.warn('loadProject: could not load 3D model', e); }
+    }
+    if(data.inputs.__hasPvLayout){
+      try {
+        const dataUrl = await idbGet(key + '_pvlayout');
+        if(dataUrl){
+          _rptLayoutImgOrig = dataUrl;
+          const img = new Image();
+          img.onload = function(){
+            _rptCropImg = img;
+            const ic=$('rpt-img-canvas'),hc=$('rpt-handles-canvas'),ph=$('rpt-img-placeholder');
+            if(ic) ic.style.display=''; if(hc) hc.style.display=''; if(ph) ph.style.display='none';
+            _drawRptImage(); _drawRptHandles();
+          };
+          img.src = dataUrl;
+        }
+      } catch(e){ console.warn('loadProject: could not load PV layout image', e); }
     }
     if(data.inputs.__pvWattsFetched && parseFloat(gv('an-lat')) && parseFloat(gv('an-lon'))){
       fetchPVWatts();
@@ -1252,6 +1277,12 @@ function startupNewProject(fromHeader){
   _daeArrayAssign = {};
   _anPvWattsData = null;
   _anCsvData = null;
+  _rptCropImg = null;
+  _rptLayoutImgOrig = null;
+  _cropRect = null;
+  _rptPad = {t:20,r:28,b:20,l:28};
+  const _ic=$('rpt-img-canvas'),_hc=$('rpt-handles-canvas'),_ph=$('rpt-img-placeholder');
+  if(_ic) _ic.style.display='none'; if(_hc) _hc.style.display='none'; if(_ph) _ph.style.display='';
   toggleBattFields(true);
   toggleMvFields();
   toggleProtRelayFields();
@@ -1263,6 +1294,7 @@ async function deleteProject(key){
   if(!confirm('Delete this saved project?')) return;
   localStorage.removeItem(key);
   await idbDel(key);
+  idbDel(key + '_pvlayout').catch(()=>{});
   if(_currentProjectKey === key) _currentProjectKey = null;
   renderProjectsList();
 }
