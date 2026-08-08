@@ -1491,7 +1491,10 @@ function autoFillInvCount(n, totalAcKw){
   const pool = INV_BOD.filter(e => e.ph === ph);
   if(!pool.length) return;
   let bestCount = 1, bestUnitKw = Math.round(totalAcKw*10)/10, bestErr = Infinity;
-  for(const inv of pool){
+  // Require qty ≤ kW rating (e.g. no 84× 6 kW); fall back to full pool if nothing qualifies
+  const realistic = pool.filter(inv => Math.max(1, Math.round(totalAcKw / inv.kw)) <= inv.kw);
+  const candidates = realistic.length ? realistic : pool;
+  for(const inv of candidates){
     const count = Math.max(1, Math.round(totalAcKw / inv.kw));
     const err = Math.abs(count * inv.kw - totalAcKw) / totalAcKw;
     if(err < bestErr){ bestErr = err; bestCount = count; bestUnitKw = inv.kw; }
@@ -4092,6 +4095,20 @@ function renderReport(){
   const roofKw=Math.max(0,totalDcKw-canopyKw-biKw);
   const roofEl=$('rptMtRoof'); if(roofEl) roofEl.value=roofKw.toFixed(2);
 
+  // AC amps for output line
+  const _pv=v=>v.startsWith('120')?120:v.startsWith('240')?240:v.startsWith('208')?208:v.startsWith('600')?600:480;
+  const a1VStr=gv('invV')||'480VAC 3ph';
+  const a1Volts=_pv(a1VStr);
+  const a1is3ph=a1VStr.includes('3ph');
+  let totalDispA=(a1InvKw*1000)/(a1Volts*(a1is3ph?1.732:1))*a1InvCount;
+  if(hasArr2){
+    const a2VStr=gv('a2invV')||'480VAC 3ph';
+    const a2Volts=_pv(a2VStr); const a2is3ph=a2VStr.includes('3ph');
+    const a2IKw=+gv('a2invKw')||10, a2ICnt=Math.max(1,+gv('a2invCount')||1);
+    totalDispA+=(a2IKw*1000)/(a2Volts*(a2is3ph?1.732:1))*a2ICnt;
+  }
+  const phaseLabel=a1is3ph?`3-phase ${a1Volts}V`:`1-phase ${a1Volts}V`;
+
   // Annual production from PVWatts hourly data
   let annProdKwh=null;
   if(_anPvHourly&&_anPvHourly.length>0) annProdKwh=_anPvHourly.reduce((a,b)=>a+b,0);
@@ -4115,7 +4132,7 @@ function renderReport(){
     info+=`</div>`;
   }
   info+=`<div style="margin-top:6px">Total System Size: ${totalDcKw.toFixed(1)} kW DC</div>`;
-  info+=`<div>AC Output: ${totalAcKw.toFixed(1)} kW AC</div>`;
+  info+=`<div>Est. AC output: ${totalDispA.toFixed(1)} A total (${phaseLabel}), ${Math.round(totalAcKw)} kW</div>`;
   if(annProdKwh!==null){
     info+=`<div>Est. Annual Production: ${Math.round(annProdKwh).toLocaleString()} kWh/year</div>`;
   } else {
@@ -4152,12 +4169,13 @@ function renderReport(){
     const acWire=hasArr2?wireForParallel(totalNecA):wireFor(totalNecA);
     const acConds=a1is3ph?4:3;
     const acConduit=conduitFor(acConds,acWire.area);
+    const acMult=Math.max(1,+gv('acConduitMult')||1);
     const totalInvQty=a1InvCount+(hasArr2?(Math.max(1,+gv('a2invCount')||1)):0);
     const commConduit=conduitFor(totalInvQty,0.0594);
     let elecHtml='';
     elecHtml+=`<div>Est. AC output: ${totalDispA.toFixed(1)} A total (${a1PhaseLabel})</div>`;
     elecHtml+=`<div>Inverters: ${invLine}</div>`;
-    elecHtml+=`<div>AC power conduit: #${acWire.awg} AWG · ${acConduit} EMT, roof → elec. room</div>`;
+    elecHtml+=`<div>AC power conduit: ${acMult>1?`×${acMult} `:''}${acConduit} EMT, roof → elec. room</div>`;
     elecHtml+=`<div>Comm. conduit: ${commConduit} EMT (CAT6), roof → elec. room</div>`;
     elecHtml+=`<div style="color:#888;font-style:italic">DC wiring &amp; conduit by PV installer</div>`;
     const eb=$('rpt-elec-body'); if(eb) eb.innerHTML=elecHtml;
