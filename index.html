@@ -128,23 +128,43 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-dl-btn:hover{background:#2d7ee8}
 .rpt-dl-btn:disabled{background:#4a5070;color:#8890a8;cursor:not-allowed}
 .rpt-preview-wrap{flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:20px}
-/* The report "page" — 11×8.5 letter landscape at 96dpi → 1056×816 */
-.rpt-page{width:1056px;height:816px;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.4);display:flex;flex-direction:row;flex-shrink:0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;position:relative;overflow:hidden}
-.rpt-img-col{flex:0 0 672px;background:#e8eaef;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
-.rpt-img-col img{width:100%;height:100%;object-fit:cover}
+/* ── Portrait layout (default): image left 64%, info panel right ── */
+.rpt-page{width:1056px;height:816px;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.4);display:flex;flex-direction:row;flex-shrink:0;font-family:'Avenir Next','Avenir',sans-serif;overflow:hidden}
+.rpt-img-col{flex:0 0 672px;background:#e8eaef center/cover no-repeat;position:relative;display:flex;align-items:center;justify-content:center}
 .rpt-img-placeholder{color:#9aa0b4;font-size:13px;text-align:center;line-height:2;user-select:none}
 .rpt-info-col{flex:1;display:flex;flex-direction:column;padding:28px 26px 20px 24px;border-left:1px solid #dde0ea;overflow:hidden}
-.rpt-logos-row{display:flex;align-items:center;gap:14px;margin-bottom:22px;flex-shrink:0}
+/* info groups — used for both portrait and landscape reflow */
+.rpt-grp-brand{flex-shrink:0}
+.rpt-grp-project{flex-shrink:0}
+.rpt-grp-sys{flex-shrink:0}
+.rpt-logos-row{display:flex;align-items:center;gap:14px;margin-bottom:20px}
 .rpt-logos-row img{max-height:38px;max-width:120px;object-fit:contain}
 .rpt-logo-divider{width:1px;height:30px;background:#c0c4d0;flex-shrink:0}
-.rpt-pv-label{color:#1a5fa8;font-size:13px;font-weight:700;line-height:1.35;margin-bottom:18px;flex-shrink:0}
-.rpt-proj-name{font-size:19px;font-weight:800;color:#111;margin-bottom:5px;line-height:1.2;flex-shrink:0}
-.rpt-proj-addr{font-size:11.5px;color:#444;line-height:1.65;margin-bottom:18px;flex-shrink:0}
+.rpt-pv-label{color:#1a5fa8;font-size:13px;font-weight:700;line-height:1.35;margin-bottom:18px}
+.rpt-proj-name{font-size:19px;font-weight:800;color:#111;margin-bottom:5px;line-height:1.2}
+.rpt-proj-addr{font-size:11.5px;color:#444;line-height:1.65;margin-bottom:18px}
 .rpt-divider{border:none;border-top:1px solid #d8dbe8;margin-bottom:14px;flex-shrink:0}
-.rpt-sys-head{font-size:12px;font-weight:700;color:#111;margin-bottom:10px;flex-shrink:0}
-.rpt-sys-body{font-size:11px;color:#333;line-height:1.85;flex-shrink:0}
+.rpt-sys-head{font-size:12px;font-weight:700;color:#111;margin-bottom:8px}
+.rpt-sys-body{font-size:11px;color:#333;line-height:1.85}
 .rpt-spacer{flex:1}
 .rpt-date{font-size:10.5px;color:#777;text-align:right;flex-shrink:0}
+/* ── Landscape layout: full-width image below, compact info bar at top ── */
+.rpt-page.rpt-land{flex-direction:column}
+.rpt-page.rpt-land .rpt-img-col{order:1;flex:1;width:100%}
+.rpt-page.rpt-land .rpt-info-col{order:0;flex:0 0 auto;width:100%;flex-direction:row;align-items:center;gap:0;border-left:none;border-bottom:1px solid #dde0ea;padding:14px 24px;overflow:visible}
+.rpt-page.rpt-land .rpt-grp-brand{flex-shrink:0;padding-right:20px;margin-right:20px;border-right:1px solid #d8dbe8}
+.rpt-page.rpt-land .rpt-grp-project{flex-shrink:0;padding-right:20px;margin-right:20px;border-right:1px solid #d8dbe8}
+.rpt-page.rpt-land .rpt-grp-sys{flex-shrink:0}
+.rpt-page.rpt-land .rpt-logos-row{margin-bottom:8px}
+.rpt-page.rpt-land .rpt-logos-row img{max-height:28px}
+.rpt-page.rpt-land .rpt-logo-divider{height:22px}
+.rpt-page.rpt-land .rpt-pv-label{font-size:10px;margin-bottom:0}
+.rpt-page.rpt-land .rpt-proj-name{font-size:14px;margin-bottom:3px}
+.rpt-page.rpt-land .rpt-proj-addr{font-size:10px;line-height:1.5;margin-bottom:0}
+.rpt-page.rpt-land .rpt-divider{display:none}
+.rpt-page.rpt-land .rpt-sys-head{font-size:10.5px;margin-bottom:5px}
+.rpt-page.rpt-land .rpt-sys-body{font-size:9.5px;line-height:1.7}
+.rpt-page.rpt-land .rpt-date{margin-left:auto;flex-shrink:0}
 @media print{
   body>*{display:none!important}
   .rpt-page{display:flex!important;position:fixed;top:0;left:0;width:100vw;height:100vh;box-shadow:none;border:none}
@@ -631,30 +651,38 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   <div id="tab-report" class="tab-panel">
     <div class="rpt-toolbar">
       <button class="rpt-dl-btn" id="rpt-dl-btn" onclick="downloadRptPDF()">&#8595; Download PDF</button>
-      <span style="font-size:10px;color:var(--muted)">Letter · Landscape</span>
+      <select id="rptOrientation" onchange="renderReport()" style="font-size:11px;padding:4px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;font-family:var(--mono)">
+        <option value="portrait">Portrait layout (image left · info right)</option>
+        <option value="landscape">Landscape layout (image full-width · info bar top)</option>
+      </select>
     </div>
     <div class="rpt-preview-wrap">
       <div class="rpt-page" id="rpt-page">
-        <!-- Left column: PV layout image -->
+        <!-- Image column — background-image preserves aspect ratio (no object-fit stretch) -->
         <div class="rpt-img-col" id="rpt-img-col">
-          <img id="rpt-layout-img" style="display:none;width:100%;height:100%;object-fit:cover">
           <div class="rpt-img-placeholder" id="rpt-img-placeholder">
             &#128247;<br>Upload PV layout image<br>in the File Import section
           </div>
         </div>
-        <!-- Right column: info panel -->
+        <!-- Info panel -->
         <div class="rpt-info-col">
-          <div class="rpt-logos-row" id="rpt-logos-row">
-            <img id="rpt-logo1" src="logo.png" alt="Lightbox" onerror="this.style.display='none'">
-            <div class="rpt-logo-divider" id="rpt-logo-div"></div>
-            <img id="rpt-logo2" src="dgs_logo.png" alt="DGS" onerror="this.style.display='none'">
+          <div class="rpt-grp-brand">
+            <div class="rpt-logos-row">
+              <img id="rpt-logo1" src="logo.png" alt="Lightbox" onerror="this.style.display='none'">
+              <div class="rpt-logo-divider"></div>
+              <img id="rpt-logo2" src="dgs_logo.png" alt="DGS" onerror="this.style.display='none'">
+            </div>
+            <div class="rpt-pv-label">Solar PV<br>Preliminary Design &amp; Analysis</div>
           </div>
-          <div class="rpt-pv-label">Solar PV<br>Preliminary Design &amp; Analysis</div>
-          <div class="rpt-proj-name" id="rpt-proj-name"></div>
-          <div class="rpt-proj-addr" id="rpt-proj-addr"></div>
+          <div class="rpt-grp-project">
+            <div class="rpt-proj-name" id="rpt-proj-name"></div>
+            <div class="rpt-proj-addr" id="rpt-proj-addr"></div>
+          </div>
           <hr class="rpt-divider">
-          <div class="rpt-sys-head">PV System Information:</div>
-          <div class="rpt-sys-body" id="rpt-sys-body"></div>
+          <div class="rpt-grp-sys">
+            <div class="rpt-sys-head">PV System Information:</div>
+            <div class="rpt-sys-body" id="rpt-sys-body"></div>
+          </div>
           <div class="rpt-spacer"></div>
           <div class="rpt-date" id="rpt-date"></div>
         </div>
@@ -965,7 +993,6 @@ const gc=id=>$(id)?$(id).checked:false;
 // ── Project save / load ──────────────────────────────────────────────────────
 const SLD_KEY_PREFIX = 'sld_proj_';
 let _currentProjectKey = null; // tracks the active save slot for overwrite
-let _lastAutoBreaker = null, _lastAutoPanel = null;
 let _showNec = true;
 let _showWire = true;
 let _showConduitNotes = true;
@@ -1056,7 +1083,8 @@ function restoreInputState(state){
 
 function openSaveModal(){
   const proj = gv('projName') || 'Untitled';
-  $('save-file-name').value = proj;
+  const nameEl = $('save-file-name');
+  nameEl.value = proj;
   $('save-date-display').textContent = new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
   const hasExisting = !!_currentProjectKey;
   if(hasExisting){
@@ -1071,7 +1099,7 @@ function openSaveModal(){
     $('save-modal-title').textContent = 'Save Project';
   }
   $('save-modal').classList.add('open');
-  $('save-file-name').focus();
+  nameEl.focus();
 }
 function closeSaveModal(){ $('save-modal').classList.remove('open'); }
 
@@ -1213,8 +1241,7 @@ function closeProjectsModal(){ $('projects-modal').classList.remove('open'); }
 function closeMonthlyModal(){ $('monthly-modal').classList.remove('open'); }
 function showMonthlyModal(type){
   if(!_anPvHourly) return;
-  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const DAYS=[31,28,31,30,31,30,31,31,30,31,30,31];
+  const MONTHS=AN_MONTHS, DAYS=AN_MDAYS;
   // hourly arrays
   const pvH=_anPvHourly||[];
   const loadH=_anLoadHourly||[];
@@ -1260,19 +1287,8 @@ function showMonthlyModal(type){
     bars+=`<text x="${x+barW/2}" y="${y-3}" text-anchor="middle" font-size="7.5" fill="${barColor}">${barLabel}</text>`;
   });
   const svg=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;margin-bottom:12px">${bars}</svg>`;
-  // table
-  let rows='';
-  MONTHS.forEach((mn,i)=>{
-    rows+=`<tr>
-      <td style="padding:3px 8px;font-weight:600">${mn}</td>
-      <td style="padding:3px 8px;text-align:right">${pvM[i].toFixed(2)}</td>
-      <td style="padding:3px 8px;text-align:right">${loadM[i].toFixed(2)}</td>
-      <td style="padding:3px 8px;text-align:right;color:#f07050">${curtM[i].toFixed(2)}</td>
-    </tr>`;
-  });
   const totPv=pvM.reduce((a,b)=>a+b,0),totLd=loadM.reduce((a,b)=>a+b,0),totCu=curtM.reduce((a,b)=>a+b,0)||1;
-  // rebuild rows with % column
-  rows='';
+  let rows='';
   MONTHS.forEach((mn,i)=>{
     const pctOfCu=(curtM[i]/totCu*100).toFixed(1);
     rows+=`<tr>
@@ -1331,7 +1347,7 @@ const MONITORING_DB = [
     platform:'Yaskawa Solrenview', gateway:'Solrenview Cloud (built-in)' },
   { keys:['abb','fimer','react2','trio ','uno ','pvi-'],
     platform:'ABB Ability', gateway:'ABB Data Manager M2M' },
-  { keys:['solis','ginlong'],
+  { keys:['solis','ginlong solis','ginlong'],
     platform:'Solis SolisCloud', gateway:'Solis S3 WiFi/LAN Stick' },
   { keys:['delta inverter','delta pv','h5a','h6a','rpi '],
     platform:'Delta Solar Monitor', gateway:'Delta Data Logger' },
@@ -1355,8 +1371,6 @@ const MONITORING_DB = [
     platform:'ChintPower Cloud', gateway:'Chint Data Logger' },
   { keys:['deye','saj-'],
     platform:'Deye / SAJ Cloud', gateway:'WiFi/LAN Module' },
-  { keys:['ginlong solis'],
-    platform:'Solis SolisCloud', gateway:'Solis Data Logger' },
 ];
 
 function detectMonitoring(model) {
@@ -1563,7 +1577,7 @@ function vals(){
     utilityName:gv('utilityName')||'Utility',poiKv:+gv('poiKv')||0.48,
     hasMvXfmr:gc('hasMvXfmr'),mvKva:+gv('mvKva')||1000,mvQty:Math.max(1,+gv('mvQty')||1),
     mvPriKv:+gv('mvPriKv')||13.8,mvSecV:+gv('mvSecV')||480,
-    panelA:+gv('panelA')||200,busbarA:+gv('busbarA')||(+gv('panelA')||200),solarBreaker:+gv('solarBreaker')||40,
+    panelA:+gv('panelA')||200,busbarA:(+gv('panelA')||200),solarBreaker:+gv('solarBreaker')||40,
     hasRSD:gc('hasRSD'),rsdMethod:gv('rsdMethod')||'mlpe',rsdLocation:gv('rsdLocation')||'svc-disc',hasMeter:gc('hasMeter'),hasGnd:gc('hasGnd'),
     hasSPD:gc('hasSPD'),hasUtilDisc:gc('hasUtilDisc'),hasNetMeter:gc('hasNetMeter'),hasMonitoring:gc('hasMonitoring'),
     monitorPlatform:gv('monitorPlatform')||'',
@@ -1591,7 +1605,7 @@ const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'
 // IEC-style PV string symbol: rect with diagonal, +/- terminals top & bottom
 // cx,cy = center of module body; w,h = symbol size
 // Returns SVG markup + the Y coordinate of the bottom terminal tip
-function pvStringSymbol(cx, cy, w, h, idx) {
+function pvStringSymbol(cx, cy, w, h) {
   const x = cx - w/2, y = cy - h/2;
   const termLen = 5;
   let s = '';
@@ -1630,7 +1644,7 @@ function renderPVArray(v, cx, startY, compact=false) {
   const modCY = startY + modH / 2;
 
   // Get terminal y-positions from a reference symbol at cx
-  const refSym = pvStringSymbol(cx, modCY, modW, modH, null);
+  const refSym = pvStringSymbol(cx, modCY, modW, modH);
   const topTermY = refSym.topTermY;
   const botTermY = refSym.botTermY;
 
@@ -1659,7 +1673,7 @@ function renderPVArray(v, cx, startY, compact=false) {
   // Draw each symbol side by side
   for (let i = 0; i < showCount; i++) {
     const symCX = groupLeft + i * (modW + gap) + modW / 2;
-    s += pvStringSymbol(symCX, modCY, modW, modH, null).svg;
+    s += pvStringSymbol(symCX, modCY, modW, modH).svg;
   }
 
   // Horizontal bus bars connecting all symbols at top and bottom terminals
@@ -2230,7 +2244,6 @@ function calcStrings(totalMods, mps, modW){
   const remainder=totalMods-fullStrings*mps;
   const modsLast=remainder>0?remainder:mps;
   const totalStrings=remainder>0?fullStrings+1:Math.max(1,fullStrings);
-  const actualMods=fullStrings*mps+modsLast*(remainder>0?1:0)||(mps);
   const actualKw=(totalMods*modW/1000);
   return{fullStrings,modsLast,totalStrings,totalMods,actualKw};
 }
@@ -2775,14 +2788,14 @@ function render(){
   const recBreakerMin=(v.hasArr2?totalInvAcA:parseFloat(invAC))*1.25;
   const recBreaker=nextStandardBreaker(Math.ceil(recBreakerMin));
   const bkrPoles=(v.invV||'').includes('1ph')?'2-P':'3-P';
-  $('solarBreaker').value=recBreaker; _lastAutoBreaker=recBreaker;
+  $('solarBreaker').value=recBreaker;
   $('breaker-math').textContent=v.hasArr2
     ?`Arr1: ${parseFloat(invAC).toFixed(1)} A\nArr2: ${a2InvAcA.toFixed(1)} A\nTotal: ${totalInvAcA.toFixed(1)} A\n× 1.25 = ${recBreakerMin.toFixed(1)} A\n→ ${recBreaker}A std.`
     :`${parseFloat(invAC).toFixed(1)} A\n× 1.25 = ${recBreakerMin.toFixed(1)} A\n→ ${recBreaker}A std.`;
   // Panel must satisfy NEC 705.12(D)(2): solar ≤ busbar×1.2 − main.
   // Minimum panel = solar×5. Use next standard size above that for meaningful headroom.
   const recPanel=nextPanelSize(Math.ceil(recBreaker*5)+1);
-  $('panelA').value=recPanel; _lastAutoPanel=recPanel;
+  $('panelA').value=recPanel;
   const activeBreaker=recBreaker;
   const activePanel=recPanel;
   const bkrLabel=`${activeBreaker}A ${bkrPoles}`;
@@ -3906,14 +3919,21 @@ function renderReport(){
   const sb=$('rpt-sys-body'); if(sb) sb.innerHTML=info;
   const dt=$('rpt-date'); if(dt) dt.textContent=dateStr;
 
-  // PV layout image
-  const img=$('rpt-layout-img'), ph=$('rpt-img-placeholder');
+  // PV layout image — use background-image so aspect ratio is preserved by the browser
+  const col=$('rpt-img-col'), ph=$('rpt-img-placeholder');
   if(_rptLayoutImg){
-    if(img){img.src=_rptLayoutImg;img.style.display='';}
+    if(col) col.style.backgroundImage=`url('${_rptLayoutImg}')`;
     if(ph) ph.style.display='none';
   } else {
-    if(img) img.style.display='none';
+    if(col) col.style.backgroundImage='none';
     if(ph) ph.style.display='';
+  }
+
+  // Orientation class
+  const page=$('rpt-page');
+  if(page){
+    const isLand=(gv('rptOrientation')||'portrait')==='landscape';
+    page.classList.toggle('rpt-land', isLand);
   }
 }
 
@@ -3947,7 +3967,7 @@ async function downloadRptPDF(){
 }
 
 // ── Curtailment Analysis Tab ─────────────────────────────────────────────────
-let _anPvHourly=null,_anLoadHourly=null,_anCurtHourly=null,_anGridHourly=null;
+let _anPvHourly=null,_anLoadHourly=null,_anCurtHourly=null;
 let _anHeatmapView='year';
 let _anSweepResults=[],_anPeakCurtDay=0,_anCsvData=null,_anSimBase=null,_anSimParams=null,_anKneePct=null,_anKneeIdx=null;
 let _chartMonthly=null,_chartSizing=null,_chartDispatch=null;
@@ -4622,7 +4642,6 @@ function anHeatmapViewChanged(){
 }
 
 const _HM_MONTH_STARTS=[0,31,59,90,120,151,181,212,243,273,304,334];
-const _HM_MONTH_DAYS  =[31,28,31,30,31,30,31,31,30,31,30,31];
 const _HM_MONTH_KEYS  =['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
 const _HM_MONTH_NAMES =['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -4648,7 +4667,7 @@ function anDrawHeatmap(curtHourly){
 
   const isYear=_anHeatmapView==='year';
   const mi=_HM_MONTH_KEYS.indexOf(_anHeatmapView);
-  const days    = isYear ? 365 : (_HM_MONTH_DAYS[mi]||31);
+  const days    = isYear ? 365 : (AN_MDAYS[mi]||31);
   const dayOff  = isYear ? 0   : (_HM_MONTH_STARTS[mi]||0);
   const cellW=gridW/days, cellH=gridH/24;
 
@@ -4920,11 +4939,9 @@ const _DISPATCH_LABELS={
   oct:'Oct 15', nov:'Nov 15', winter:'Dec 21 (Winter Solstice)'
 };
 function _dayOfYear(dayIdx){
-  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const days=[31,28,31,30,31,30,31,31,30,31,30,31];
   let d=dayIdx; let m=0;
-  while(m<12&&d>=days[m]){d-=days[m];m++;}
-  return `${months[m]} ${d+1}`;
+  while(m<12&&d>=AN_MDAYS[m]){d-=AN_MDAYS[m];m++;}
+  return `${AN_MONTHS[m]} ${d+1}`;
 }
 
 function renderDispatchChart(){
@@ -5212,11 +5229,9 @@ function download8760Csv(){
     gridNet=_anSimBase.gridNet; curtail=_anSimBase.curtail;
   }
 
-  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const MDAYS=[31,28,31,30,31,30,31,31,30,31,30,31];
   const monthOf=new Uint8Array(8760);
   let hh=0;
-  MDAYS.forEach((d,m)=>{for(let i=0;i<d*24;i++,hh++) monthOf[hh]=m;});
+  AN_MDAYS.forEach((d,m)=>{for(let i=0;i<d*24;i++,hh++) monthOf[hh]=m;});
 
   const pvSrc=_anPvWattsData?'PVWatts_TMY':'ClearSky';
   const battCols=hasBatt?',batt_charge_kw,batt_discharge_kw,soc_kwh':'';
@@ -5233,7 +5248,7 @@ function download8760Csv(){
     const gi=(+(Math.max(0,gn)).toFixed(3));
     const ge=(+(Math.max(0,-gn)).toFixed(3));
     const batt=hasBatt?`,${+(battCharge[h]||0).toFixed(3)},${+(battDischarge[h]||0).toFixed(3)},${+(socArr[h]||0).toFixed(3)}`:'';
-    rows.push(`${h+1},${MONTHS[m]},${dom},${hod},${pv},${ld},${cu}${batt},${gi},${ge}`);
+    rows.push(`${h+1},${AN_MONTHS[m]},${dom},${hod},${pv},${ld},${cu}${batt},${gi},${ge}`);
     if(hod===23) dom++;
   }
 
