@@ -4024,23 +4024,28 @@ function _rptHitTest(mx,my,W,H,b){
   function onMove(e){
     if(!_rptCropImg) return;
     const canvas=$('rpt-handles-canvas'); if(!canvas) return;
-    const {mx,my}=coords(e,canvas);
     const {w:W,h:H}=_rptColDims();
+    // When not dragging, only update cursor if mouse is actually over the canvas
     if(!_rptHandlesDrag){
+      const cr=canvas.getBoundingClientRect();
+      if(e.clientX<cr.left||e.clientX>cr.right||e.clientY<cr.top||e.clientY>cr.bottom) return;
+      const {mx,my}=coords(e,canvas);
       const b=_rptImgBounds(W,H);
       const hit=_rptHitTest(mx,my,W,H,b);
       canvas.style.cursor=hit?(_CROP_CUR[hit.id]||(hit.id==='l'||hit.id==='r'?'ew-resize':'ns-resize')):'default';
       return;
     }
+    const {mx,my}=coords(e,canvas);
     const dx=mx-_rptHandlesDrag.sx, dy=my-_rptHandlesDrag.sy;
     if(_rptHandlesDrag.type==='margin'){
-      const {id,origPad}=_rptHandlesDrag; const p={...origPad};
-      const mxH=H/2-20, mxW=W/2-20;
-      // Drag handle TOWARD image = less margin; AWAY from image = more margin
-      if(id==='t')  p.t=Math.max(0,Math.min(mxH,origPad.t-dy));
-      if(id==='b')  p.b=Math.max(0,Math.min(mxH,origPad.b+dy));
-      if(id==='l')  p.l=Math.max(0,Math.min(mxW,origPad.l-dx));
-      if(id==='r')  p.r=Math.max(0,Math.min(mxW,origPad.r+dx));
+      // Use direct mouse position to set margin (no delta feedback loop)
+      const p={..._rptPad};
+      const maxH=H/2-10, maxW=W/2-10;
+      const {id}=_rptHandlesDrag;
+      if(id==='t') p.t=Math.max(0,Math.min(maxH,my*2));
+      else if(id==='b') p.b=Math.max(0,Math.min(maxH,(H-my)*2));
+      else if(id==='l') p.l=Math.max(0,Math.min(maxW,mx*2));
+      else if(id==='r') p.r=Math.max(0,Math.min(maxW,(W-mx)*2));
       _rptPad=p;
     } else {
       const {id,origCrop,origB}=_rptHandlesDrag; if(!origB) return;
@@ -4058,8 +4063,10 @@ function _rptHitTest(mx,my,W,H,b){
   function onUp(){ _rptHandlesDrag=null; }
   document.addEventListener('DOMContentLoaded',function(){
     const c=$('rpt-handles-canvas'); if(!c) return;
-    c.addEventListener('mousedown',onDown); c.addEventListener('mousemove',onMove);
-    c.addEventListener('mouseup',onUp); c.addEventListener('mouseleave',onUp);
+    c.addEventListener('mousedown',onDown);
+    // mousemove/mouseup on document so fast drags outside canvas still work
+    document.addEventListener('mousemove',onMove);
+    document.addEventListener('mouseup',onUp);
   });
 })();
 
