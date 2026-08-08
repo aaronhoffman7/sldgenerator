@@ -130,7 +130,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-preview-wrap{flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:20px}
 /* ── Portrait layout (default): image left 64%, info panel right ── */
 .rpt-page{width:1056px;height:816px;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.4);display:flex;flex-direction:row;flex-shrink:0;font-family:'Avenir Next','Avenir',sans-serif;overflow:hidden;position:relative}
-.rpt-img-col{flex:0 0 672px;background:#fff center/contain no-repeat;position:relative;display:flex;align-items:center;justify-content:center}
+.rpt-img-col{flex:0 0 672px;background:#fff center/contain no-repeat content-box content-box;position:relative;display:flex;align-items:center;justify-content:center;padding:20px 28px}
 .rpt-img-placeholder{color:#9aa0b4;font-size:13px;text-align:center;line-height:2;user-select:none}
 .rpt-info-col{flex:1;display:flex;flex-direction:column;padding:18px 18px 20px 24px;border-left:1px solid #dde0ea;overflow:hidden}
 /* info groups — used for both portrait and landscape reflow */
@@ -142,7 +142,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-logo-divider{width:1px;height:30px;background:#c0c4d0;flex-shrink:0}
 .rpt-pv-label{color:#1a5fa8;font-size:13px;font-weight:700;line-height:1.35;margin-bottom:18px}
 .rpt-proj-name{font-size:19px;font-weight:800;color:#111;margin-bottom:5px;line-height:1.2}
-.rpt-proj-addr{font-size:11.5px;color:#444;line-height:1.65;margin-bottom:18px}
+.rpt-proj-addr{font-size:13.5px;color:#444;line-height:1.65;margin-bottom:18px}
 .rpt-divider{border:none;border-top:1px solid #d8dbe8;margin-bottom:14px;flex-shrink:0}
 .rpt-sys-head{font-size:12px;font-weight:700;color:#111;margin-bottom:8px}
 .rpt-sys-body{font-size:11px;color:#333;line-height:1.85}
@@ -150,19 +150,21 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-date{position:absolute;bottom:14px;right:16px;font-size:10.5px;color:#777;text-align:right;background:rgba(255,255,255,0.88);padding:2px 5px;border-radius:2px}
 /* ── Landscape layout: full-width image below, compact info bar at top ── */
 .rpt-page.rpt-land{flex-direction:column}
-.rpt-page.rpt-land .rpt-img-col{order:1;flex:1;width:100%;background-color:#fff}
+.rpt-page.rpt-land .rpt-img-col{order:1;flex:1;width:100%;padding:16px 40px;background-origin:content-box;background-clip:content-box}
 .rpt-page.rpt-land .rpt-info-col{order:0;flex:0 0 auto;width:100%;flex-direction:row;align-items:center;gap:0;border-left:none;border-bottom:1px solid #dde0ea;padding:14px 24px;overflow:visible}
 .rpt-page.rpt-land .rpt-grp-brand{order:5;flex-shrink:0;margin-left:auto;border-left:1px solid #d8dbe8;border-right:none;padding-left:20px;padding-right:0;margin-right:0}
 .rpt-page.rpt-land .rpt-grp-project{flex-shrink:0;padding-right:20px;margin-right:20px;border-right:1px solid #d8dbe8}
 .rpt-page.rpt-land .rpt-grp-sys{flex-shrink:0}
 .rpt-page.rpt-land .rpt-logos-row{margin-bottom:8px;justify-content:flex-end}
-.rpt-page.rpt-land .rpt-pv-label{font-size:10px;margin-bottom:0}
+.rpt-page.rpt-land .rpt-pv-label{margin-bottom:0}
 .rpt-page.rpt-land .rpt-proj-name{font-size:14px;margin-bottom:3px}
-.rpt-page.rpt-land .rpt-proj-addr{font-size:10px;line-height:1.5;margin-bottom:0}
+.rpt-page.rpt-land .rpt-proj-addr{font-size:11.5px;line-height:1.5;margin-bottom:0}
 .rpt-page.rpt-land .rpt-divider{display:none}
 .rpt-page.rpt-land .rpt-sys-head{font-size:10.5px;margin-bottom:5px}
 .rpt-page.rpt-land .rpt-sys-body{font-size:9.5px;line-height:1.7}
 .rpt-page.rpt-land .rpt-spacer{display:none}
+.rpt-elec-body{font-size:10px;color:#444;line-height:1.85}
+.rpt-page.rpt-land #rpt-elec-wrap{display:none!important}
 @media print{
   body>*{display:none!important}
   .rpt-page{display:flex!important;position:fixed;top:0;left:0;width:100vw;height:100vh;box-shadow:none;border:none}
@@ -206,14 +208,36 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <span class="sec-arrow" id="rpt-settings-arrow">&#9654;</span>
     </div>
     <div class="sec-body" id="rpt-settings-body" style="display:none">
-      <label>Array 1 label (e.g. Roof)</label>
-      <input type="text" id="rptArr1Name" value="Roof" oninput="renderReport()">
+      <label>Mounting types (kW DC)</label>
+      <div style="margin-top:4px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          <span style="font-size:11px;min-width:90px;color:var(--text)">Roof</span>
+          <input type="number" id="rptMtRoof" readonly tabindex="-1" style="flex:1;font-size:10px;padding:2px 5px;background:var(--bg-sec);border:1px solid var(--border);border-radius:3px;color:var(--muted)">
+          <span style="font-size:10px;color:var(--muted)">kW</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          <input type="checkbox" id="rptMtCanopyChk" onchange="renderReport()" style="margin:0;flex-shrink:0">
+          <span style="font-size:11px;min-width:84px;color:var(--text)">Canopy</span>
+          <input type="number" id="rptMtCanopy" min="0" step="0.1" placeholder="0" oninput="renderReport()" disabled style="flex:1;font-size:10px;padding:2px 5px;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text)">
+          <span style="font-size:10px;color:var(--muted)">kW</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" id="rptMtBiChk" onchange="renderReport()" style="margin:0;flex-shrink:0">
+          <span style="font-size:11px;min-width:84px;color:var(--text)">Bldg-Integrated</span>
+          <input type="number" id="rptMtBi" min="0" step="0.1" placeholder="0" oninput="renderReport()" disabled style="flex:1;font-size:10px;padding:2px 5px;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text)">
+          <span style="font-size:10px;color:var(--muted)">kW</span>
+        </div>
+      </div>
       <div id="rpt-arr2-name-row" style="display:none">
         <label style="margin-top:6px">Array 2 label (e.g. Parking Canopy)</label>
         <input type="text" id="rptArr2Name" value="Parking Canopy" oninput="renderReport()">
       </div>
       <label style="margin-top:6px">NZE target (kWh/year, optional)</label>
       <input type="number" id="rptNzeTarget" placeholder="e.g. 530000" step="1000" min="0" oninput="renderReport()">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
+        <span style="font-size:11px;color:var(--text)">Include electrical notes</span>
+        <label class="tog"><input type="checkbox" id="rptElecNotes" onchange="renderReport()"><div class="ttrack"><div class="tthumb"></div></div></label>
+      </div>
     </div>
   </div>
   <!-- SketchUp Import -->
@@ -242,6 +266,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           <span id="pvlayout-drop-label">Drop .png/.jpg here<br><span style="font-size:9px">or click to browse</span></span>
         </div>
         <input type="file" id="pvlayout-file-input" accept=".png,.jpg,.jpeg" style="display:none" onchange="pvLayoutFileSelected(this.files[0])">
+        <button id="pvlayout-crop-btn" onclick="openCropModal()" style="display:none;margin-top:5px;width:100%;font-size:10px;padding:4px 0;border:1px solid var(--border);border-radius:3px;background:var(--surface2);color:var(--text);cursor:pointer">&#9986; Edit Crop</button>
       </div>
       <div id="skp-preview-toggle-row" class="trow" style="display:none;margin-top:8px">
         <span>Array layout preview</span>
@@ -681,6 +706,11 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             <div class="rpt-sys-head">PV System Information:</div>
             <div class="rpt-sys-body" id="rpt-sys-body"></div>
           </div>
+          <div id="rpt-elec-wrap" style="display:none">
+            <hr class="rpt-divider" style="margin-top:10px">
+            <div class="rpt-sys-head">Electrical Notes:</div>
+            <div class="rpt-elec-body" id="rpt-elec-body"></div>
+          </div>
           <div class="rpt-spacer"></div>
         </div>
         <div class="rpt-date" id="rpt-date"></div>
@@ -980,6 +1010,16 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="modal-row">
       <button class="hbtn" onclick="closeProjectsModal()">Close</button>
     </div>
+  </div>
+</div>
+
+<!-- Crop modal -->
+<div id="crop-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9000;align-items:center;justify-content:center;flex-direction:column;gap:12px">
+  <div style="color:#fff;font-size:13px;font-weight:600;font-family:'Avenir Next','Avenir',sans-serif">Crop PV Layout Image — drag corners to resize</div>
+  <canvas id="crop-canvas" style="display:block;cursor:crosshair;touch-action:none"></canvas>
+  <div style="display:flex;gap:10px">
+    <button onclick="cropApply()" style="padding:7px 20px;background:#3d8ef8;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">Apply Crop</button>
+    <button onclick="cropCancel()" style="padding:7px 16px;background:#444;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;font-family:inherit">Cancel</button>
   </div>
 </div>
 
@@ -3861,12 +3901,144 @@ function pvLayoutFileSelected(f){
   const reader=new FileReader();
   reader.onload=function(ev){
     _rptLayoutImg=ev.target.result;
+    _rptLayoutImgOrig=ev.target.result;
     const lbl=$('pvlayout-drop-label');
     if(lbl) lbl.innerHTML=`<span style="color:var(--accent2)">&#10003; ${f.name}</span><br><span style="font-size:9px">click to replace</span>`;
+    const cb=$('pvlayout-crop-btn'); if(cb) cb.style.display='';
     renderReport();
   };
   reader.readAsDataURL(f);
 }
+
+// ── PV layout image crop tool ────────────────────────────────────────────────
+let _rptLayoutImgOrig=null; // full original before any crop
+let _cropImg=null, _cropScale=1, _cropRect=null, _cropDrag=null;
+
+function openCropModal(){
+  if(!_rptLayoutImgOrig) return;
+  const img=new Image();
+  img.onload=function(){
+    _cropImg=img;
+    const canvas=$('crop-canvas');
+    const maxW=Math.min(window.innerWidth*0.88,1000);
+    const maxH=Math.min(window.innerHeight*0.72,680);
+    _cropScale=Math.min(maxW/img.width, maxH/img.height, 1);
+    canvas.width=Math.round(img.width*_cropScale);
+    canvas.height=Math.round(img.height*_cropScale);
+    canvas.style.maxWidth='90vw';
+    _cropRect={x:0,y:0,w:img.width,h:img.height};
+    _drawCrop();
+    const m=$('crop-modal'); m.style.display='flex';
+  };
+  img.src=_rptLayoutImgOrig;
+}
+function _drawCrop(){
+  const canvas=$('crop-canvas'), ctx=canvas.getContext('2d');
+  const s=_cropScale, r=_cropRect;
+  const rx=r.x*s, ry=r.y*s, rw=r.w*s, rh=r.h*s;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(_cropImg,0,0,canvas.width,canvas.height);
+  // Dark mask outside crop
+  ctx.fillStyle='rgba(0,0,0,0.52)';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  // Reveal crop area
+  ctx.save();
+  ctx.globalCompositeOperation='destination-out';
+  ctx.fillRect(rx,ry,rw,rh);
+  ctx.restore();
+  // Redraw image in crop area (bright)
+  ctx.save();
+  ctx.beginPath(); ctx.rect(rx,ry,rw,rh); ctx.clip();
+  ctx.drawImage(_cropImg,0,0,canvas.width,canvas.height);
+  ctx.restore();
+  // Border + rule-of-thirds guides
+  ctx.strokeStyle='#fff'; ctx.lineWidth=1.5;
+  ctx.strokeRect(rx,ry,rw,rh);
+  ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=0.8;
+  [1/3,2/3].forEach(t=>{
+    ctx.beginPath(); ctx.moveTo(rx+rw*t,ry); ctx.lineTo(rx+rw*t,ry+rh); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(rx,ry+rh*t); ctx.lineTo(rx+rw,ry+rh*t); ctx.stroke();
+  });
+  // Corner handles
+  const hs=7;
+  [[rx,ry],[rx+rw,ry],[rx,ry+rh],[rx+rw,ry+rh]].forEach(([cx,cy])=>{
+    ctx.fillStyle='#fff'; ctx.fillRect(cx-hs/2,cy-hs/2,hs,hs);
+    ctx.strokeStyle='#3d8ef8'; ctx.lineWidth=1; ctx.strokeRect(cx-hs/2,cy-hs/2,hs,hs);
+  });
+}
+(function(){
+  function onDown(e){
+    const canvas=$('crop-canvas');
+    const rect=canvas.getBoundingClientRect();
+    const s=_cropScale;
+    const ex=e.type.startsWith('touch')?e.touches[0].clientX:e.clientX;
+    const ey=e.type.startsWith('touch')?e.touches[0].clientY:e.clientY;
+    const mx=(ex-rect.left)*(canvas.width/rect.width)/s;
+    const my=(ey-rect.top)*(canvas.height/rect.height)/s;
+    const r=_cropRect;
+    const corners=[[r.x,r.y],[r.x+r.w,r.y],[r.x,r.y+r.h],[r.x+r.w,r.y+r.h]];
+    const tol=12/s;
+    for(let i=0;i<4;i++){
+      if(Math.abs(mx-corners[i][0])<tol&&Math.abs(my-corners[i][1])<tol){
+        _cropDrag={type:'corner',idx:i,sx:mx,sy:my,orig:{...r}};
+        e.preventDefault(); return;
+      }
+    }
+    if(mx>=r.x&&mx<=r.x+r.w&&my>=r.y&&my<=r.y+r.h){
+      _cropDrag={type:'move',sx:mx,sy:my,orig:{...r}};
+      e.preventDefault();
+    }
+  }
+  function onMove(e){
+    if(!_cropDrag||!_cropImg) return;
+    const canvas=$('crop-canvas');
+    const rect=canvas.getBoundingClientRect();
+    const s=_cropScale;
+    const ex=e.type.startsWith('touch')?e.touches[0].clientX:e.clientX;
+    const ey=e.type.startsWith('touch')?e.touches[0].clientY:e.clientY;
+    const mx=(ex-rect.left)*(canvas.width/rect.width)/s;
+    const my=(ey-rect.top)*(canvas.height/rect.height)/s;
+    const dx=mx-_cropDrag.sx, dy=my-_cropDrag.sy;
+    const o=_cropDrag.orig, W=_cropImg.width, H=_cropImg.height, MIN=20;
+    if(_cropDrag.type==='move'){
+      _cropRect.x=Math.max(0,Math.min(W-o.w,o.x+dx));
+      _cropRect.y=Math.max(0,Math.min(H-o.h,o.y+dy));
+    } else {
+      let {x,y,w,h}=o;
+      const i=_cropDrag.idx;
+      if(i===0){x=Math.min(o.x+o.w-MIN,o.x+dx);y=Math.min(o.y+o.h-MIN,o.y+dy);w=o.x+o.w-x;h=o.y+o.h-y;}
+      else if(i===1){w=Math.max(MIN,o.w+dx);y=Math.min(o.y+o.h-MIN,o.y+dy);h=o.y+o.h-y;}
+      else if(i===2){x=Math.min(o.x+o.w-MIN,o.x+dx);w=o.x+o.w-x;h=Math.max(MIN,o.h+dy);}
+      else{w=Math.max(MIN,o.w+dx);h=Math.max(MIN,o.h+dy);}
+      x=Math.max(0,x); y=Math.max(0,y);
+      w=Math.min(W-x,w); h=Math.min(H-y,h);
+      if(w>0&&h>0) _cropRect={x,y,w,h};
+    }
+    _drawCrop();
+    e.preventDefault();
+  }
+  function onUp(){ _cropDrag=null; }
+  document.addEventListener('DOMContentLoaded',function(){
+    const c=$('crop-canvas');
+    c.addEventListener('mousedown',onDown); c.addEventListener('mousemove',onMove);
+    c.addEventListener('mouseup',onUp); c.addEventListener('mouseleave',onUp);
+    c.addEventListener('touchstart',onDown,{passive:false});
+    c.addEventListener('touchmove',onMove,{passive:false});
+    c.addEventListener('touchend',onUp);
+  });
+})();
+
+function cropApply(){
+  if(!_cropImg||!_cropRect) return;
+  const r=_cropRect;
+  const out=document.createElement('canvas');
+  out.width=Math.round(r.w); out.height=Math.round(r.h);
+  out.getContext('2d').drawImage(_cropImg,r.x,r.y,r.w,r.h,0,0,out.width,out.height);
+  _rptLayoutImg=out.toDataURL('image/jpeg',0.92);
+  $('crop-modal').style.display='none';
+  renderReport();
+}
+function cropCancel(){ $('crop-modal').style.display='none'; }
 
 function renderReport(){
   if(!$('tab-report')) return;
@@ -3885,7 +4057,6 @@ function renderReport(){
   const a1DcKw=a1Panels*a1ModW/1000;
   const a1AcKw=a1InvKw*a1InvCount;
   const a1ModModel=gv('modModel')||'';
-  const a1Name=gv('rptArr1Name')||'Roof';
 
   // Array 2
   const hasArr2=gc('hasArr2');
@@ -3900,15 +4071,24 @@ function renderReport(){
     const a2Panels=a2Strings*a2ModsPerStr;
     const a2DcKw=a2Panels*a2ModW/1000;
     const a2AcKw=a2InvKw*a2InvCount;
-    const a2ModModel=gv('a2modModel')||'';
     const a2Name=gv('rptArr2Name')||'Parking Canopy';
     totalPanels+=a2Panels; totalDcKw+=a2DcKw; totalAcKw+=a2AcKw;
     a2Lines=`<div>${a2Name}: ${a2Panels.toLocaleString()}&#215; panels, ${a2DcKw.toFixed(1)} kW DC</div>`;
-    // Show array 2 label field
     const r=$('rpt-arr2-name-row'); if(r) r.style.display='';
   } else {
     const r=$('rpt-arr2-name-row'); if(r) r.style.display='none';
   }
+
+  // Mount type breakdown (Roof auto-computed; Canopy/BI optional)
+  const canopyChk=gc('rptMtCanopyChk');
+  const biChk=gc('rptMtBiChk');
+  const canopyEl=$('rptMtCanopy'), biEl=$('rptMtBi');
+  if(canopyEl) canopyEl.disabled=!canopyChk;
+  if(biEl) biEl.disabled=!biChk;
+  const canopyKw=canopyChk?Math.max(0,+gv('rptMtCanopy')||0):0;
+  const biKw=biChk?Math.max(0,+gv('rptMtBi')||0):0;
+  const roofKw=Math.max(0,totalDcKw-canopyKw-biKw);
+  const roofEl=$('rptMtRoof'); if(roofEl) roofEl.value=roofKw.toFixed(2);
 
   // Annual production from PVWatts hourly data
   let annProdKwh=null;
@@ -3919,21 +4099,67 @@ function renderReport(){
   const modLabel=a1ModModel||'—';
   let info=`<div style="margin-bottom:6px">Basis of Design Module: ${modLabel}</div>`;
   if(hasArr2){
-    info+=`<div>${a1Name}: ${a1Panels.toLocaleString()}&#215; panels, ${a1DcKw.toFixed(1)} kW DC</div>`;
+    info+=`<div>Array 1: ${a1Panels.toLocaleString()}&#215; panels, ${a1DcKw.toFixed(1)} kW DC</div>`;
     info+=a2Lines;
-    info+=`<div style="margin-top:6px">Total System Size: ${totalDcKw.toFixed(1)} kW DC</div>`;
-    info+=`<div>AC Output: ${totalAcKw.toFixed(1)} kW AC</div>`;
   } else {
     info+=`<div>Module count: ${totalPanels.toLocaleString()}&#215; panels</div>`;
-    info+=`<div style="margin-top:6px">Total System Size: ${totalDcKw.toFixed(1)} kW DC</div>`;
-    info+=`<div>AC Output: ${totalAcKw.toFixed(1)} kW AC</div>`;
   }
+  // Mount type breakdown (only if split across types)
+  if(canopyKw>0||biKw>0){
+    info+=`<div style="margin-top:4px">`;
+    if(roofKw>0) info+=`<div>Roof: ${roofKw.toFixed(1)} kW DC</div>`;
+    if(canopyKw>0) info+=`<div>Canopy: ${canopyKw.toFixed(1)} kW DC</div>`;
+    if(biKw>0) info+=`<div>Building-Integrated: ${biKw.toFixed(1)} kW DC</div>`;
+    info+=`</div>`;
+  }
+  info+=`<div style="margin-top:6px">Total System Size: ${totalDcKw.toFixed(1)} kW DC</div>`;
+  info+=`<div>AC Output: ${totalAcKw.toFixed(1)} kW AC</div>`;
   if(annProdKwh!==null){
     info+=`<div>Est. Annual Production: ${Math.round(annProdKwh).toLocaleString()} kWh/year</div>`;
   } else {
     info+=`<div style="color:#aaa;font-style:italic">Est. Annual Production: run analysis to calculate</div>`;
   }
   if(nze>0) info+=`<div>NZE Target: ${nze.toLocaleString()} kWh/year</div>`;
+
+  // Electrical notes
+  const showElec=gc('rptElecNotes');
+  const ew=$('rpt-elec-wrap');
+  if(ew) ew.style.display=showElec?'':'none';
+  if(showElec){
+    const parseVolts=v=>v.startsWith('120')?120:v.startsWith('240')?240:v.startsWith('208')?208:v.startsWith('600')?600:480;
+    const a1VStr=gv('invV')||'480VAC 3ph';
+    const a1Volts=parseVolts(a1VStr);
+    const a1is3ph=a1VStr.includes('3ph');
+    const a1PhaseLabel=a1is3ph?`3-phase ${a1Volts}V`:`1-phase ${a1Volts}V`;
+    const a1DispA=(a1InvKw*1000)/(a1Volts*(a1is3ph?1.732:1))*a1InvCount;
+    const a1NecA=a1DispA*1.25;
+    const a1InvModelR=gv('invModel')||'—';
+    let totalDispA=a1DispA, totalNecA=a1NecA;
+    let invLine=`${a1InvCount}× ${a1InvModelR} (${a1InvKw} kW)`;
+    if(hasArr2){
+      const a2VStr=gv('a2invV')||'480VAC 3ph';
+      const a2Volts=parseVolts(a2VStr);
+      const a2is3ph=a2VStr.includes('3ph');
+      const a2InvKwR=+gv('a2invKw')||10;
+      const a2InvCountR=Math.max(1,+gv('a2invCount')||1);
+      const a2InvModelR=gv('a2invModel')||'—';
+      const a2DispA=(a2InvKwR*1000)/(a2Volts*(a2is3ph?1.732:1))*a2InvCountR;
+      totalDispA+=a2DispA; totalNecA+=a2DispA*1.25;
+      invLine=`Arr1: ${a1InvCount}× ${a1InvModelR} (${a1InvKw} kW) · Arr2: ${a2InvCountR}× ${a2InvModelR} (${a2InvKwR} kW)`;
+    }
+    const acWire=hasArr2?wireForParallel(totalNecA):wireFor(totalNecA);
+    const acConds=a1is3ph?4:3;
+    const acConduit=conduitFor(acConds,acWire.area);
+    const totalInvQty=a1InvCount+(hasArr2?(Math.max(1,+gv('a2invCount')||1)):0);
+    const commConduit=conduitFor(totalInvQty,0.0594);
+    let elecHtml='';
+    elecHtml+=`<div>Est. AC output: ${totalDispA.toFixed(1)} A total (${a1PhaseLabel})</div>`;
+    elecHtml+=`<div>Inverters: ${invLine}</div>`;
+    elecHtml+=`<div>AC power conduit: #${acWire.awg} AWG · ${acConduit} EMT, roof → elec. room</div>`;
+    elecHtml+=`<div>Comm. conduit: ${commConduit} EMT (CAT6), roof → elec. room</div>`;
+    elecHtml+=`<div style="color:#888;font-style:italic">DC wiring &amp; conduit by PV installer</div>`;
+    const eb=$('rpt-elec-body'); if(eb) eb.innerHTML=elecHtml;
+  }
 
   // Date M/D/YY
   const now=new Date();
