@@ -764,6 +764,9 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           </select>
           <button class="run-btn" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);margin-top:8px" onclick="fetchPVWatts()">&#8595; Fetch PVWatts Data</button>
           <div id="an-pvw-status" style="font-size:10px;color:var(--muted);margin-top:6px;min-height:14px;line-height:1.5"></div>
+          <label style="margin-top:8px">Target yield (kWh/kW/yr) <span style="font-size:9px;color:var(--muted);font-weight:400">blank = as modeled</span></label>
+          <input type="number" id="an-targetYield" value="" placeholder="e.g. 1250" step="10" min="0" oninput="anTargetYieldChanged()">
+          <div id="an-yield-hint" class="cnote"></div>
         </div>
         <div class="section">
           <div class="stitle">Load Profile</div>
@@ -1198,6 +1201,14 @@ async function loadProject(key){
     const data = JSON.parse(localStorage.getItem(key) || 'null');
     if(!data || !data.inputs) return;
     _currentProjectKey = key;
+
+    // Reset PV layout state before restoring (avoids stale image from previous project)
+    _rptCropImg = null; _rptLayoutImgOrig = null;
+    const _lic=$('rpt-img-canvas'),_lhc=$('rpt-handles-canvas'),_lph=$('rpt-img-placeholder');
+    if(_lic) _lic.style.display='none'; if(_lhc) _lhc.style.display='none'; if(_lph) _lph.style.display='';
+    const _llbl=$('pvlayout-drop-label');
+    if(_llbl) _llbl.innerHTML='&#128247;<br>Upload PV layout image<br>in the File Import section';
+
     restoreInputState(data.inputs);
     toggleBattFields(true);
     toggleMvFields();
@@ -1218,6 +1229,8 @@ async function loadProject(key){
             _rptCropImg = img;
             const ic=$('rpt-img-canvas'),hc=$('rpt-handles-canvas'),ph=$('rpt-img-placeholder');
             if(ic) ic.style.display=''; if(hc) hc.style.display=''; if(ph) ph.style.display='none';
+            const lbl=$('pvlayout-drop-label');
+            if(lbl) lbl.innerHTML='<span style="color:var(--accent2)">&#10003; image restored</span><br><span style="font-size:9px">click to replace</span>';
             _drawRptImage(); _drawRptHandles();
           };
           img.src = dataUrl;
@@ -4341,6 +4354,7 @@ let _anHeatmapView='year';
 let _anSweepResults=[],_anPeakCurtDay=0,_anCsvData=null,_anSimBase=null,_anSimParams=null,_anKneePct=null,_anKneeIdx=null;
 let _chartMonthly=null,_chartSizing=null,_chartDispatch=null;
 let _anPvWattsData=null; // hourly kW array fetched from NREL PVWatts API
+let _anYieldTarget=null; // {scale,modeledYield,targetYield} from last runAnalysis
 
 function switchTab(name){
   ['sld','analysis','report','sizing','debug'].forEach(t=>{
@@ -4502,6 +4516,31 @@ function anCsvFile(file){
   reader.readAsText(file);
 }
 
+// ── Production derate to a target specific yield ─────────────────────────────
+// Scales the hourly PV profile so annual kWh = target (kWh/kW/yr) × kW DC.
+// Returns {pv, scale, modeledYield, targetYield}; scale=1 when no target is set.
+function applyYieldTarget(pv,pvKw){
+  const target=parseFloat(gv('an-targetYield'))||0;
+  const annual=anSum(pv);
+  const modeledYield=pvKw>0?annual/pvKw:0;
+  if(!(target>0)||!(annual>0)||!(pvKw>0)) return{pv,scale:1,modeledYield,targetYield:0};
+  const scale=(target*pvKw)/annual;
+  const out=new Float32Array(pv.length);
+  for(let i=0;i<pv.length;i++) out[i]=pv[i]*scale;
+  return{pv:out,scale,modeledYield,targetYield:target};
+}
+
+function anTargetYieldChanged(){
+  const hint=$('an-yield-hint'); if(!hint) return;
+  const target=parseFloat(gv('an-targetYield'))||0;
+  const pvKw=parseFloat(gv('an-pvKw'))||0;
+  if(!_anPvWattsData||pvKw<=0){ hint.textContent=target>0?`Profile will be scaled to ${target.toFixed(0)} kWh/kW/yr`:''; return; }
+  const modeled=anSum(_anPvWattsData)/pvKw;
+  if(!(target>0)){ hint.textContent=`PVWatts modeled yield: ${modeled.toFixed(0)} kWh/kW/yr`; return; }
+  const scale=target/modeled;
+  hint.textContent=`PVWatts modeled ${modeled.toFixed(0)} kWh/kW/yr → scaled ×${scale.toFixed(3)} (${((scale-1)*100).toFixed(1)}%)`;
+}
+
 // ── PVWatts API Fetch ────────────────────────────────────────────────────────
 async function fetchPVWatts(){
   const statusEl=$('an-pvw-status');
@@ -4529,7 +4568,10 @@ async function fetchPVWatts(){
     const si=data.station_info||{};
     const annualMwh=(ac.reduce((a,b)=>a+b,0)/1e6).toFixed(2);
     statusEl.style.color='var(--green)';
-    statusEl.textContent=`✓ ${[si.city,si.state].filter(Boolean).join(', ')||'Loaded'} · ${annualMwh} MWh/yr`;
+    const pvKwFetched=parseFloat(gv('an-pvKw'))||0;
+    const yieldStr=pvKwFetched>0?` · ${(anSum(_anPvWattsData)/pvKwFetched).toFixed(0)} kWh/kW`:'';
+    statusEl.textContent=`✓ ${[si.city,si.state].filter(Boolean).join(', ')||'Loaded'} · ${annualMwh} MWh/yr${yieldStr}`;
+    anTargetYieldChanged();
     _anCanAutoRun=true;
     scheduleAnalysis(300);
   }catch(e){
@@ -4850,8 +4892,12 @@ async function runAnalysis(){
     const rate=parseFloat(gv('an-rate'))/100||0.15;
     const loadType=gv('an-loadType');
 
-    const pvSrc=_anPvWattsData?'PVWatts TMY':'Clear-sky model';
-    const pv=_anPvWattsData||makeSolarProfile(pvKw,dcAcRatio,losses,lat,tilt);
+    const pvRaw=_anPvWattsData||makeSolarProfile(pvKw,dcAcRatio,losses,lat,tilt);
+    const yt=applyYieldTarget(pvRaw,pvKw);
+    const pv=yt.pv;
+    const pvSrc=(_anPvWattsData?'PVWatts TMY':'Clear-sky model')+(yt.targetYield>0?` · scaled to ${yt.targetYield.toFixed(0)} kWh/kW (×${yt.scale.toFixed(3)})`:'');
+    _anYieldTarget=yt;
+    anTargetYieldChanged();
     const loadOpts=getLoadOpts();
     const load=(loadType==='csv'&&_anCsvData)?_anCsvData:makeLoadProfile(loadType,peakKw,loadOpts);
 
@@ -5506,6 +5552,10 @@ function buildDebugReport(){
   row('Tilt (°)',gn('an-tilt'));
   row('Export limit (kW)',gn('an-export'));
   row('Array type',gs('an-array-type'));
+  const tyv=gv('an-targetYield');
+  row('Target yield (kWh/kW/yr)',tyv?tyv:'(as modeled)');
+  if(_anYieldTarget) row('Modeled yield (kWh/kW/yr)',+_anYieldTarget.modeledYield.toFixed(0));
+  if(_anYieldTarget&&_anYieldTarget.targetYield>0) row('Yield scale factor',+_anYieldTarget.scale.toFixed(4));
   row('Load type',gs('an-loadType'));
   row('Peak demand (kW)',gn('an-peakKw'));
   const annKwh=gv('an-annualKwh');
