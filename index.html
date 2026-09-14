@@ -167,6 +167,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 /* Notes blocks may shrink (text wraps) so the brand group always stays on the page */
 .rpt-page.rpt-land #rpt-elec-wrap{flex:0 1 auto;min-width:0;max-width:300px;padding-left:20px;margin-left:20px;border-left:1px solid #d8dbe8}
 .rpt-conduit-note{margin-top:4px}
+.rpt-conduit-line{padding-left:12px;text-indent:-12px;margin-left:12px}
 .rpt-page.rpt-land .rpt-grp-sys{max-width:420px}
 .rpt-page.rpt-land .rpt-elec-body{font-size:9.5px;line-height:1.7}
 @media print{
@@ -4323,9 +4324,10 @@ function renderReport(){
   // under the system info: power conduit, comms conduit, and the DC-by-installer note.
   if(gc('rptConduitNotes')){
     const notes=conduitNoteLines(vals(),gc('showNecLabels')).slice(0,3).map(t=>t.replace(/^\d+\.\s+/,''));
-    info+=`<div class="rpt-conduit-note"><b>Conduit notes:</b> ${esc(notes[0])}</div>`;
-    info+=`<div>${esc(notes[1])}</div>`;
-    info+=`<div style="font-style:italic">${esc(notes[2])}</div>`;
+    info+=`<div class="rpt-conduit-note"><b>Conduit notes:</b></div>`;
+    info+=`<div class="rpt-conduit-line">${esc(notes[0])}</div>`;
+    info+=`<div class="rpt-conduit-line">${esc(notes[1])}</div>`;
+    info+=`<div class="rpt-conduit-line" style="font-style:italic">${esc(notes[2])}</div>`;
   }
 
   // Electrical notes
