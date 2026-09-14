@@ -140,7 +140,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-logos-row{display:flex;align-items:center;justify-content:flex-end;gap:14px;margin-bottom:20px}
 .rpt-logos-row img{max-height:38px;max-width:120px;object-fit:contain}
 .rpt-logo-divider{width:1px;height:30px;background:#c0c4d0;flex-shrink:0}
-.rpt-pv-label{color:#1a5fa8;font-size:13px;font-weight:700;line-height:1.35;margin-bottom:18px}
+.rpt-pv-label{color:#1a5fa8;font-size:15px;font-weight:700;line-height:1.35;margin-bottom:18px}
 .rpt-proj-name{font-size:19px;font-weight:800;color:#111;margin-bottom:5px;line-height:1.2}
 .rpt-proj-addr{font-size:13.5px;color:#444;line-height:1.65;margin-bottom:18px}
 .rpt-divider{border:none;border-top:1px solid #d8dbe8;margin-bottom:14px;flex-shrink:0}
@@ -4323,7 +4323,7 @@ function renderReport(){
   // under the system info: power conduit, comms conduit, and the DC-by-installer note.
   if(gc('rptConduitNotes')){
     const notes=conduitNoteLines(vals(),gc('showNecLabels')).slice(0,3).map(t=>t.replace(/^\d+\.\s+/,''));
-    info+=`<div class="rpt-conduit-note">Conduit notes: ${esc(notes[0])}</div>`;
+    info+=`<div class="rpt-conduit-note"><b>Conduit notes:</b> ${esc(notes[0])}</div>`;
     info+=`<div>${esc(notes[1])}</div>`;
     info+=`<div style="font-style:italic">${esc(notes[2])}</div>`;
   }
