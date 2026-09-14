@@ -165,11 +165,9 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-page.rpt-land .rpt-spacer{display:none}
 .rpt-elec-body{font-size:10px;color:#444;line-height:1.85}
 /* Notes blocks may shrink (text wraps) so the brand group always stays on the page */
-.rpt-page.rpt-land #rpt-elec-wrap,.rpt-page.rpt-land #rpt-conduit-wrap{flex:0 1 auto;min-width:0;padding-left:20px;margin-left:20px;border-left:1px solid #d8dbe8}
-.rpt-conduit-body div{padding-left:18px;text-indent:-18px}
-.rpt-page.rpt-land #rpt-conduit-wrap{max-width:330px;min-width:200px}
-.rpt-page.rpt-land #rpt-elec-wrap{max-width:300px;min-width:170px}
-.rpt-page.rpt-land .rpt-conduit-body{line-height:1.5}
+.rpt-page.rpt-land #rpt-elec-wrap{flex:0 1 auto;min-width:0;max-width:300px;padding-left:20px;margin-left:20px;border-left:1px solid #d8dbe8}
+.rpt-conduit-note{margin-top:4px}
+.rpt-page.rpt-land .rpt-grp-sys{max-width:420px}
 .rpt-page.rpt-land .rpt-elec-body{font-size:9.5px;line-height:1.7}
 @media print{
   body>*{display:none!important}
@@ -723,11 +721,6 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             <div class="rpt-sys-head">Electrical Notes:</div>
             <div class="rpt-elec-body" id="rpt-elec-body"></div>
           </div>
-          <div id="rpt-conduit-wrap" style="display:none">
-            <hr class="rpt-divider" style="margin-top:10px">
-            <div class="rpt-sys-head">Conduit Notes:</div>
-            <div class="rpt-elec-body rpt-conduit-body" id="rpt-conduit-body"></div>
-          </div>
           <div class="rpt-spacer"></div>
         </div>
         <div class="rpt-date" id="rpt-date"></div>
@@ -1068,8 +1061,15 @@ function idbDel(key){ return _idbOpen().then(db=>new Promise((res,rej)=>{ const 
 function collectInputState(){
   const state = {};
   document.querySelectorAll('input[id],select[id],textarea[id]').forEach(el => {
+    if(el.type === 'file') return; // file pickers can't be restored programmatically (and would abort restore)
     state[el.id] = el.type === 'checkbox' ? el.checked : el.value;
   });
+  // Auto-fill locks: which inverter/combiner fields the user overrode manually, so a reload
+  // doesn't let the auto-sizer clobber them on the next edit
+  state.__autoLocks = {
+    invKw:{..._lastAutoInvKw}, invV:{..._lastAutoInvV}, invCount:{..._lastAutoInvCount},
+    invModel:{..._lastAutoInvModel}, combV:{..._lastAutoCombV}, comms:_lastAutoComms,
+  };
   // Persist the component list from the .dae upload
   state.__daeCounts      = _daeCounts || {};
   state.__daeDismissed   = [...(_daeDismissed || [])];
@@ -1092,10 +1092,24 @@ function restoreInputState(state){
   Object.entries(state).forEach(([id, val]) => {
     if(id.startsWith('__')) return;
     const el = $(id);
-    if(!el) return;
-    if(el.type === 'checkbox') el.checked = val;
-    else el.value = val;
+    if(!el || el.type === 'file') return;
+    try {
+      if(el.type === 'checkbox') el.checked = !!val;
+      else el.value = val;
+    } catch(e){ console.warn('restoreInputState: could not restore', id, e); }
   });
+
+  // Restore auto-fill locks (older saves have none → treat every restored value as manual,
+  // which is the safe default: nothing the user saved gets silently re-sized)
+  const locks = state.__autoLocks;
+  [1,2].forEach(n => {
+    _lastAutoInvKw[n]    = locks ? locks.invKw[n]    : -1;
+    _lastAutoInvV[n]     = locks ? locks.invV[n]     : -1;
+    _lastAutoInvCount[n] = locks ? locks.invCount[n] : -1;
+    _lastAutoInvModel[n] = locks ? locks.invModel[n] : -1;
+    _lastAutoCombV[n]    = locks ? locks.combV[n]    : -1;
+  });
+  _lastAutoComms = locks ? locks.comms : ''; // '' = manually locked
 
   // Restore component list
   if(Object.keys(daeCounts).length > 0){
@@ -1296,6 +1310,8 @@ function startupNewProject(fromHeader){
   $('an-array-type').value='1';
   // Clear project and analysis state
   _currentProjectKey = null;
+  [1,2].forEach(n => { _lastAutoInvKw[n]=_lastAutoInvV[n]=_lastAutoInvCount[n]=_lastAutoInvModel[n]=_lastAutoCombV[n]=null; });
+  _lastAutoComms = null;
   _lastDaeXml = null;
   _daeCounts = {};
   _daeDismissed = new Set();
@@ -4303,6 +4319,15 @@ function renderReport(){
   }
   if(nze>0) info+=`<div>NZE Target: ${nze.toLocaleString()} kWh/year</div>`;
 
+  // Conduit notes — same text as the SLD's NEC box (via conduitNoteLines), shown as plain lines
+  // under the system info: power conduit, comms conduit, and the DC-by-installer note.
+  if(gc('rptConduitNotes')){
+    const notes=conduitNoteLines(vals(),gc('showNecLabels')).slice(0,3).map(t=>t.replace(/^\d+\.\s+/,''));
+    info+=`<div class="rpt-conduit-note">Conduit notes: ${esc(notes[0])}</div>`;
+    info+=`<div>${esc(notes[1])}</div>`;
+    info+=`<div style="font-style:italic">${esc(notes[2])}</div>`;
+  }
+
   // Electrical notes
   const showElec=gc('rptElecNotes');
   const ew=$('rpt-elec-wrap');
@@ -4333,16 +4358,6 @@ function renderReport(){
     elecHtml+=`<div>Est. AC output: ${totalDispA.toFixed(1)} A total (${a1PhaseLabel})</div>`;
     elecHtml+=`<div>Inverters: ${invLine}</div>`;
     const eb=$('rpt-elec-body'); if(eb) eb.innerHTML=elecHtml;
-  }
-
-  // Conduit notes — generated by the same function as the SLD's NEC box, so the wording always matches
-  const showConduit=gc('rptConduitNotes');
-  const cw=$('rpt-conduit-wrap');
-  if(cw) cw.style.display=showConduit?'':'none';
-  if(showConduit){
-    const lines=conduitNoteLines(vals(),gc('showNecLabels'));
-    const cb=$('rpt-conduit-body');
-    if(cb) cb.innerHTML=lines.map((t,i)=>`<div${i===2?' style="color:#888;font-style:italic"':''}>${esc(t)}</div>`).join('');
   }
 
   // Date M/D/YY
