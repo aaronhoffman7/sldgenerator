@@ -4370,10 +4370,11 @@ async function downloadRptPDF(){
     if(ic) ic.style.display='none';
     if(hc) hc.style.display='none';
 
-    // Page geometry: letter landscape, 0.25" margins, page box scaled to fit — identical to preview aspect
+    // Page geometry: letter landscape, full-bleed — the preview page is 1056×816 (exactly 11:8.5),
+    // so the page box fills the sheet edge-to-edge with no added margins, matching the preview
     const {jsPDF}=window.jspdf;
     const pdf=new jsPDF({orientation:'landscape',unit:'in',format:'letter'});
-    const margin=0.25,pW=11,pH=8.5;
+    const margin=0,pW=11,pH=8.5;
     const availW=pW-margin*2,availH=pH-margin*2;
     const aspect=pagePxW/pagePxH;
     let boxW=availW,boxH=boxW/aspect;
