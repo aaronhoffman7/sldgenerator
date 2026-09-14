@@ -164,7 +164,12 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-page.rpt-land .rpt-sys-body{font-size:9.5px;line-height:1.7}
 .rpt-page.rpt-land .rpt-spacer{display:none}
 .rpt-elec-body{font-size:10px;color:#444;line-height:1.85}
-.rpt-page.rpt-land #rpt-elec-wrap{flex-shrink:0;padding-left:20px;margin-left:20px;border-left:1px solid #d8dbe8}
+/* Notes blocks may shrink (text wraps) so the brand group always stays on the page */
+.rpt-page.rpt-land #rpt-elec-wrap,.rpt-page.rpt-land #rpt-conduit-wrap{flex:0 1 auto;min-width:0;padding-left:20px;margin-left:20px;border-left:1px solid #d8dbe8}
+.rpt-conduit-body div{padding-left:18px;text-indent:-18px}
+.rpt-page.rpt-land #rpt-conduit-wrap{max-width:330px;min-width:200px}
+.rpt-page.rpt-land #rpt-elec-wrap{max-width:300px;min-width:170px}
+.rpt-page.rpt-land .rpt-conduit-body{line-height:1.5}
 .rpt-page.rpt-land .rpt-elec-body{font-size:9.5px;line-height:1.7}
 @media print{
   body>*{display:none!important}
@@ -239,6 +244,10 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
         <span style="font-size:11px;color:var(--text)">Include electrical notes</span>
         <label class="tog"><input type="checkbox" id="rptElecNotes" onchange="renderReport()"><div class="ttrack"><div class="tthumb"></div></div></label>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+        <span style="font-size:11px;color:var(--text)">Include conduit notes <span style="font-size:9px;color:var(--muted)">(same as SLD)</span></span>
+        <label class="tog"><input type="checkbox" id="rptConduitNotes" checked onchange="renderReport()"><div class="ttrack"><div class="tthumb"></div></div></label>
       </div>
     </div>
   </div>
@@ -645,7 +654,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 <main>
   <div class="tab-bar">
     <button class="tab-btn active" id="tab-btn-sld" onclick="switchTab('sld')">Single Line Diagram</button>
-    <button class="tab-btn" id="tab-btn-analysis" onclick="switchTab('analysis')">Curtailment Analysis</button>
+    <button class="tab-btn" id="tab-btn-analysis" onclick="switchTab('analysis')">Load Analysis</button>
     <button class="tab-btn" id="tab-btn-report" onclick="switchTab('report')">Project Report</button>
     <button class="tab-btn" id="tab-btn-sizing" onclick="switchTab('sizing')">Wire Schedule</button>
     <button class="tab-btn" id="tab-btn-debug" onclick="switchTab('debug')">Debug / Export</button>
@@ -713,6 +722,11 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             <hr class="rpt-divider" style="margin-top:10px">
             <div class="rpt-sys-head">Electrical Notes:</div>
             <div class="rpt-elec-body" id="rpt-elec-body"></div>
+          </div>
+          <div id="rpt-conduit-wrap" style="display:none">
+            <hr class="rpt-divider" style="margin-top:10px">
+            <div class="rpt-sys-head">Conduit Notes:</div>
+            <div class="rpt-elec-body rpt-conduit-body" id="rpt-conduit-body"></div>
           </div>
           <div class="rpt-spacer"></div>
         </div>
@@ -1060,7 +1074,7 @@ function collectInputState(){
   state.__daeCounts      = _daeCounts || {};
   state.__daeDismissed   = [...(_daeDismissed || [])];
   state.__daeArrayAssign = {...(_daeArrayAssign || {})};
-  // Persist curtailment analysis state
+  // Persist load analysis state
   state.__pvWattsFetched = !!_anPvWattsData;
   state.__anCsvData      = _anCsvData ? Array.from(_anCsvData) : null;
   // Persist report image crop/pad state (image data itself stored in IDB)
@@ -1160,8 +1174,15 @@ async function saveProject(asNew){
   }
   const record = { name, savedBy, date, timestamp: ts, hasDae: !!_lastDaeXml, hasPvLayout: !!_rptLayoutImgOrig, inputs: collectInputState() };
   localStorage.setItem(key, JSON.stringify(record));
-  if(_lastDaeXml) await idbPut(key, _lastDaeXml);
-  if(_rptLayoutImgOrig) await idbPut(key + '_pvlayout', _rptLayoutImgOrig);
+  try {
+    if(_lastDaeXml) await idbPut(key, _lastDaeXml);
+    // PV layout image is stored alongside the project in IndexedDB (data URLs are too large for localStorage)
+    if(_rptLayoutImgOrig) await idbPut(key + '_pvlayout', _rptLayoutImgOrig);
+    else await idbDel(key + '_pvlayout').catch(()=>{});
+  } catch(e){
+    console.error('saveProject: could not store attachments', e);
+    alert('Project inputs were saved, but the 3D model / PV layout image could not be stored: ' + e.message);
+  }
   closeSaveModal();
   renderProjectsList();
 }
@@ -1187,7 +1208,7 @@ function renderProjectsList(){
     <div class="proj-item">
       <div class="proj-item-info">
         <div class="proj-item-name" title="${p.name}">${p.name}</div>
-        <div class="proj-item-meta">${p.date}${p.savedBy?' &bull; '+p.savedBy:''}${p.hasDae?' &bull; &#127760; 3D model':''}</div>
+        <div class="proj-item-meta">${p.date}${p.savedBy?' &bull; '+p.savedBy:''}${p.hasDae?' &bull; &#127760; 3D model':''}${p.hasPvLayout?' &bull; &#128247; PV layout':''}</div>
       </div>
       <div class="proj-item-btns">
         <button class="hbtn" style="padding:4px 10px;font-size:10px" onclick="loadProject('${p.key}')">Load</button>
@@ -1223,17 +1244,8 @@ async function loadProject(key){
       try {
         const dataUrl = await idbGet(key + '_pvlayout');
         if(dataUrl){
-          _rptLayoutImgOrig = dataUrl;
-          const img = new Image();
-          img.onload = function(){
-            _rptCropImg = img;
-            const ic=$('rpt-img-canvas'),hc=$('rpt-handles-canvas'),ph=$('rpt-img-placeholder');
-            if(ic) ic.style.display=''; if(hc) hc.style.display=''; if(ph) ph.style.display='none';
-            const lbl=$('pvlayout-drop-label');
-            if(lbl) lbl.innerHTML='<span style="color:var(--accent2)">&#10003; image restored</span><br><span style="font-size:9px">click to replace</span>';
-            _drawRptImage(); _drawRptHandles();
-          };
-          img.src = dataUrl;
+          await setPvLayoutImage(dataUrl,'image restored');
+          if($('tab-report')&&$('tab-report').classList.contains('active')) renderReport();
         }
       } catch(e){ console.warn('loadProject: could not load PV layout image', e); }
     }
@@ -1294,6 +1306,8 @@ function startupNewProject(fromHeader){
   _rptLayoutImgOrig = null;
   _cropRect = null;
   _rptPad = {t:20,r:28,b:20,l:28};
+  const _nlbl=$('pvlayout-drop-label');
+  if(_nlbl) _nlbl.innerHTML='Drop .png/.jpg here<br><span style="font-size:9px">or click to browse</span>';
   const _ic=$('rpt-img-canvas'),_hc=$('rpt-handles-canvas'),_ph=$('rpt-img-placeholder');
   if(_ic) _ic.style.display='none'; if(_hc) _hc.style.display='none'; if(_ph) _ph.style.display='';
   toggleBattFields(true);
@@ -1601,6 +1615,37 @@ function wireForParallel(a){
 }
 function wireLbl(w){return w.sets>1?`${w.sets}× #${w.awg} THWN-2`:`#${w.awg} THWN-2`;}
 function conduitFor(n,wireArea){const tot=n*wireArea;return(EMT_FILL.find(c=>c.f>=tot)||EMT_FILL[EMT_FILL.length-1]).size;}
+// Conduit notes shown in the SLD's NEC box and on the Project Report — one source so both always match.
+// Returns an array of plain-text lines (numbered). `withNec` appends NEC article references.
+function conduitNoteLines(v,withNec){
+  const CAT6_AREA=0.0594;
+  const c1=conduitRows(v);
+  const hasAcCombiner=gc('hasAcCombiner');
+  const c2roof=v.hasArr2?conduitRows(v.a2):null;
+  const totalAcA=c1.perInvAcA*c1.invCount;
+  const roofTotalAcA=v.hasArr2?(totalAcA+c2roof.perInvAcA*c2roof.invCount):totalAcA;
+  const roofTotalAcW=v.hasArr2?wireForParallel(roofTotalAcA):wireForParallel(totalAcA);
+  const roofCommRuns=v.hasArr2?c1.invCount+c2roof.invCount:c1.invCount;
+  const roofCommCond=conduitFor(roofCommRuns,CAT6_AREA);
+  const acMult=+gv('acConduitMult')||1;
+  const mPfx=`${acMult}× `;
+  let acNote;
+  if(hasAcCombiner){
+    acNote=`Provide ${mPfx}${conduitFor(c1.acConds,roofTotalAcW.area)} EMT for AC power, roof → elec. room (${roofTotalAcA.toFixed(1)} A req.)`;
+  } else if(v.hasArr2){
+    const r1=c1.invCount>1?` ×${c1.invCount}`:''; const r2=c2roof.invCount>1?` ×${c2roof.invCount}`:'';
+    acNote=`Provide ${mPfx}${conduitFor(c1.acConds,c1.perInvAcW.area)} EMT${r1} (A1) + ${mPfx}${conduitFor(c2roof.acConds,c2roof.perInvAcW.area)} EMT${r2} (A2) for AC power, roof → elec. room`;
+  } else {
+    const runs=c1.invCount>1?` · ×${c1.invCount} runs`:'';
+    acNote=`Provide ${mPfx}${conduitFor(c1.acConds,c1.perInvAcW.area)} EMT for AC power${runs}, roof → elec. room (${c1.perInvAcA.toFixed(1)} A req.)`;
+  }
+  return [
+    `1.  ${acNote}`,
+    `2.  Provide 1× ${roofCommCond} EMT for PV inverter communications, roof → elec. room${withNec?' · NEC Art. 800':''}`,
+    '3.  DC wiring & conduit by PV installer',
+    `4.  DC conduit/raceway: label as PV power source${withNec?' — NEC 690.56':''}`,
+  ];
+}
 // Compute conduit sizing data for one array config object
 function conduitRows(cfg){
   const invV=cfg.invV||'480VAC 3ph';
@@ -3458,22 +3503,9 @@ function render(){
     v.rsdMethod==='pvhcs' ? 'RSD: Dedicated shutdown receivers (PVHCS) · NEC 690.12(C)' :
     'RSD: DC Optimizers — module-level shutdown · NEC 690.12(C)'
   ) : '';
-  // AC roof conduit note
+  // AC conduit run multiplier (used by the sidebar conduit schedule)
   const acMult=+gv('acConduitMult')||1;
   const mPfx=`${acMult}× `;
-  function acRoofNote(){
-    if(hasAcCombiner){
-      const size=conduitFor(acConductors,roofTotalAcW.area);
-      return `Provide ${mPfx}${size} EMT for AC power, roof → elec. room (${roofTotalAcA.toFixed(1)} A req.)`;
-    }
-    if(v.hasArr2){
-      const r1=c1.invCount>1?` ×${c1.invCount}`:''; const r2=c2roof.invCount>1?` ×${c2roof.invCount}`:'';
-      return `Provide ${mPfx}${conduitFor(c1.acConds,c1.perInvAcW.area)} EMT${r1} (A1) + ${mPfx}${conduitFor(c2roof.acConds,c2roof.perInvAcW.area)} EMT${r2} (A2) for AC power, roof → elec. room`;
-    }
-    const size=conduitFor(acConductors,perInvAcW.area);
-    const runs=c1.invCount>1?` · ×${c1.invCount} runs`:'';
-    return `Provide ${mPfx}${size} EMT for AC power${runs}, roof → elec. room (${perInvAcA.toFixed(1)} A req.)`;
-  }
   const boldStyle=`fill:#1a2040;font-family:'Avenir Next','Avenir',sans-serif;font-size:11px;font-weight:700`;
   const italicNote=`fill:#8a90a8;font-family:'Avenir Next','Avenir',sans-serif;font-size:8px;font-style:italic`;
   function necDiv(y){ return `<line x1="${LX+6}" y1="${NY+y}" x2="${LX+NW-6}" y2="${NY+y}" stroke="#d0d5e8" stroke-width="0.7"/>`; }
@@ -3539,10 +3571,7 @@ function render(){
     necItems.push(necHead(dY+11, 'CONDUIT NOTES'));
     let cY = dY+11;
     const cLine = (txt, extra='') => wrapNecText(txt, _nwAvail).forEach((l,i) => { cY+=12; necItems.push(necLine(cY, l, i===0?extra:'')); });
-    cLine(`1.  ${acRoofNote()}`);
-    cLine(`2.  Provide 1× ${roofCommCond} EMT for PV inverter communications, roof → elec. room${_showNec?' · NEC Art. 800':''}`);
-    cLine('3.  DC wiring &amp; conduit by PV installer', ' style="font-style:italic"');
-    cLine(`4.  DC conduit/raceway: label as PV power source${_showNec?' — NEC 690.56':''}`);
+    conduitNoteLines(v,_showNec).forEach((txt,i)=>cLine(esc(txt), i===2?' style="font-style:italic"':''));
     necY = cY;
   }
 
@@ -3946,19 +3975,9 @@ function pvLayoutFileDrop(e){ e.preventDefault(); const f=e.dataTransfer.files[0
 function pvLayoutFileSelected(f){
   if(!f||!f.type.startsWith('image/')) return;
   const reader=new FileReader();
-  reader.onload=function(ev){
-    _rptLayoutImgOrig=ev.target.result;
+  reader.onload=async function(ev){
     _cropRect=null;
-    const lbl=$('pvlayout-drop-label');
-    if(lbl) lbl.innerHTML=`<span style="color:var(--accent2)">&#10003; ${f.name}</span><br><span style="font-size:9px">click to replace</span>`;
-    const img=new Image();
-    img.onload=function(){
-      _rptCropImg=img;
-      const ic=$('rpt-img-canvas'),hc=$('rpt-handles-canvas'),ph=$('rpt-img-placeholder');
-      if(ic) ic.style.display=''; if(hc) hc.style.display=''; if(ph) ph.style.display='none';
-      _drawRptImage(); _drawRptHandles();
-    };
-    img.src=_rptLayoutImgOrig;
+    await setPvLayoutImage(ev.target.result,f.name);
     renderReport();
   };
   reader.readAsDataURL(f);
@@ -4310,19 +4329,20 @@ function renderReport(){
       totalDispA+=a2DispA; totalNecA+=a2DispA*1.25;
       invLine=`Arr1: ${a1InvCount}× ${a1InvModelR} (${a1InvKw} kW) · Arr2: ${a2InvCountR}× ${a2InvModelR} (${a2InvKwR} kW)`;
     }
-    const acWire=hasArr2?wireForParallel(totalNecA):wireFor(totalNecA);
-    const acConds=a1is3ph?4:3;
-    const acConduit=conduitFor(acConds,acWire.area);
-    const acMult=Math.max(1,+gv('acConduitMult')||1);
-    const totalInvQty=a1InvCount+(hasArr2?(Math.max(1,+gv('a2invCount')||1)):0);
-    const commConduit=conduitFor(totalInvQty,0.0594);
     let elecHtml='';
     elecHtml+=`<div>Est. AC output: ${totalDispA.toFixed(1)} A total (${a1PhaseLabel})</div>`;
     elecHtml+=`<div>Inverters: ${invLine}</div>`;
-    elecHtml+=`<div>AC power conduit: ${acMult>1?`×${acMult} `:''}${acConduit} EMT, roof → elec. room</div>`;
-    elecHtml+=`<div>Comm. conduit: ${commConduit} EMT (CAT6), roof → elec. room</div>`;
-    elecHtml+=`<div style="color:#888;font-style:italic">DC wiring &amp; conduit by PV installer</div>`;
     const eb=$('rpt-elec-body'); if(eb) eb.innerHTML=elecHtml;
+  }
+
+  // Conduit notes — generated by the same function as the SLD's NEC box, so the wording always matches
+  const showConduit=gc('rptConduitNotes');
+  const cw=$('rpt-conduit-wrap');
+  if(cw) cw.style.display=showConduit?'':'none';
+  if(showConduit){
+    const lines=conduitNoteLines(vals(),gc('showNecLabels'));
+    const cb=$('rpt-conduit-body');
+    if(cb) cb.innerHTML=lines.map((t,i)=>`<div${i===2?' style="color:#888;font-style:italic"':''}>${esc(t)}</div>`).join('');
   }
 
   // Date M/D/YY
@@ -4455,7 +4475,7 @@ async function downloadRptPDF(){
   }
 }
 
-// ── Curtailment Analysis Tab ─────────────────────────────────────────────────
+// ── Load Analysis Tab ─────────────────────────────────────────────────
 let _anPvHourly=null,_anLoadHourly=null,_anCurtHourly=null;
 let _anHeatmapView='year';
 let _anSweepResults=[],_anPeakCurtDay=0,_anCsvData=null,_anSimBase=null,_anSimParams=null,_anKneePct=null,_anKneeIdx=null;
@@ -5561,6 +5581,25 @@ function saveState(){
   }catch(e){}
 }
 
+// Install a PV layout image (data URL) into the report preview and file-import label
+function setPvLayoutImage(dataUrl,label){
+  return new Promise(resolve=>{
+    _rptLayoutImgOrig=dataUrl;
+    const img=new Image();
+    img.onload=function(){
+      _rptCropImg=img;
+      const ic=$('rpt-img-canvas'),hc=$('rpt-handles-canvas'),ph=$('rpt-img-placeholder');
+      if(ic) ic.style.display=''; if(hc) hc.style.display=''; if(ph) ph.style.display='none';
+      const lbl=$('pvlayout-drop-label');
+      if(lbl) lbl.innerHTML=`<span style="color:var(--accent2)">&#10003; ${label}</span><br><span style="font-size:9px">click to replace</span>`;
+      _drawRptImage(); _drawRptHandles();
+      resolve(true);
+    };
+    img.onerror=()=>resolve(false);
+    img.src=dataUrl;
+  });
+}
+
 function restoreState(){
   try{
     const raw=localStorage.getItem('sld_autosave');
@@ -5650,7 +5689,7 @@ function buildDebugReport(){
   row('MV transformer',gb('hasMvXfmr'));
   if(gc('hasMvXfmr')) row('Transformer kVA',gn('mvKva'));
 
-  sec('CURTAILMENT ANALYSIS — INPUTS');
+  sec('LOAD ANALYSIS — INPUTS');
   row('PV size (kW DC)',gn('an-pvKw'));
   row('DC/AC ratio',gn('an-dcAc'));
   row('System losses (%)',gn('an-losses'));
@@ -5678,7 +5717,7 @@ function buildDebugReport(){
   const sp=_anSimParams;
   if(sp) row('Battery duration used (h)',sp.battDurHr);
 
-  sec('CURTAILMENT ANALYSIS — OUTPUTS');
+  sec('LOAD ANALYSIS — OUTPUTS');
   if(_anSimBase && _anSweepResults && _anSweepResults.length){
     const totalCurt=anSum(_anSimBase.curtail);
     const annualPv=anSum(_anPvHourly||[]);
@@ -5736,7 +5775,7 @@ function downloadDebugReport(){
 
 function download8760Csv(){
   if(!_anPvHourly||!_anLoadHourly){
-    alert('Run the curtailment analysis first to generate 8760 profiles.');
+    alert('Run the load analysis first to generate 8760 profiles.');
     return;
   }
   const params=_anSimParams||{};
