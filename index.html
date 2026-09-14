@@ -147,7 +147,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-sys-head{font-size:12px;font-weight:700;color:#111;margin-bottom:8px}
 .rpt-sys-body{font-size:11px;color:#333;line-height:1.85}
 .rpt-spacer{flex:1}
-.rpt-date{position:absolute;bottom:14px;right:16px;font-size:10.5px;color:#777;text-align:right;background:rgba(255,255,255,0.88);padding:2px 5px;border-radius:2px}
+.rpt-date{position:absolute;bottom:14px;right:16px;z-index:10;font-size:10.5px;color:#777;text-align:right;background:rgba(255,255,255,0.88);padding:2px 5px;border-radius:2px;white-space:nowrap}
 /* ── Landscape layout: full-width image below, compact info bar at top ── */
 .rpt-page.rpt-land{flex-direction:column}
 .rpt-page.rpt-land .rpt-img-col{order:1;flex:1;width:100%}
@@ -3980,12 +3980,42 @@ function _rptImgBounds(W,H){
   let iw,ih; if(ia>da){iw=dW;ih=dW/ia;}else{ih=dH;iw=dH*ia;}
   return {x:_rptPad.l+(dW-iw)/2, y:_rptPad.t+(dH-ih)/2, w:iw, h:ih};
 }
+// While a crop handle is being dragged the image stays put at its drag-start scale
+// (so the handle tracks the cursor 1:1); the crop rect is drawn as a marquee on top.
+// Returns {s, x0, y0, rect:{x,y,w,h}} in column CSS px, or null when not crop-dragging.
+function _rptCropDragView(){
+  const d=_rptHandlesDrag;
+  if(!d||d.type!=='crop'||!d.origB||!_rptCropImg) return null;
+  const s=d.origB.w/d.origCrop.w;
+  const x0=d.origB.x-d.origCrop.x*s, y0=d.origB.y-d.origCrop.y*s;
+  const r=_cropRect||{x:0,y:0,w:_rptCropImg.naturalWidth,h:_rptCropImg.naturalHeight};
+  return {s,x0,y0,rect:{x:x0+r.x*s,y:y0+r.y*s,w:r.w*s,h:r.h*s}};
+}
+// Size a preview canvas to the column at device-pixel resolution; returns a ctx scaled to CSS px
+function _rptPrepCanvas(canvas,W,H){
+  const dpr=Math.max(1,Math.min(3,window.devicePixelRatio||1));
+  const bw=Math.round(W*dpr), bh=Math.round(H*dpr);
+  if(canvas.width!==bw||canvas.height!==bh){canvas.width=bw;canvas.height=bh;}
+  const ctx=canvas.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+  return ctx;
+}
 function _drawRptImage(){
   const canvas=$('rpt-img-canvas'); if(!canvas||!_rptCropImg) return;
   const {w:W,h:H}=_rptColDims();
-  canvas.width=W; canvas.height=H;
-  const ctx=canvas.getContext('2d');
+  const ctx=_rptPrepCanvas(canvas,W,H);
   ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+  const dv=_rptCropDragView();
+  if(dv){
+    // Full image at fixed scale, dimmed outside the live crop rect
+    const iW=_rptCropImg.naturalWidth, iH=_rptCropImg.naturalHeight;
+    ctx.drawImage(_rptCropImg,0,0,iW,iH,dv.x0,dv.y0,iW*dv.s,iH*dv.s);
+    ctx.fillStyle='rgba(255,255,255,0.6)';
+    ctx.beginPath(); ctx.rect(0,0,W,H); ctx.rect(dv.rect.x,dv.rect.y,dv.rect.w,dv.rect.h);
+    ctx.fill('evenodd');
+    return;
+  }
   const r=_cropRect||{x:0,y:0,w:_rptCropImg.naturalWidth,h:_rptCropImg.naturalHeight};
   const b=_rptImgBounds(W,H); if(!b) return;
   ctx.drawImage(_rptCropImg,r.x,r.y,r.w,r.h,b.x,b.y,b.w,b.h);
@@ -3993,13 +4023,30 @@ function _drawRptImage(){
 function _drawRptHandles(){
   const canvas=$('rpt-handles-canvas'); if(!canvas||!_rptCropImg) return;
   const {w:W,h:H}=_rptColDims();
-  canvas.width=W; canvas.height=H;
-  const ctx=canvas.getContext('2d');
+  const ctx=_rptPrepCanvas(canvas,W,H);
   ctx.clearRect(0,0,W,H);
-  const b=_rptImgBounds(W,H); if(!b) return;
-  // Dashed border around image display area
-  ctx.setLineDash([4,3]); ctx.strokeStyle='rgba(61,142,248,0.45)'; ctx.lineWidth=1;
-  ctx.strokeRect(b.x,b.y,b.w,b.h); ctx.setLineDash([]);
+  const dv=_rptCropDragView();
+  const b=dv?dv.rect:_rptImgBounds(W,H); if(!b) return;
+  // Dashed border around image display area (solid + rule-of-thirds while cropping)
+  if(dv){
+    ctx.strokeStyle='rgba(61,142,248,0.9)'; ctx.lineWidth=1.2; ctx.strokeRect(b.x,b.y,b.w,b.h);
+    ctx.strokeStyle='rgba(61,142,248,0.35)'; ctx.lineWidth=1;
+    for(let i=1;i<3;i++){
+      ctx.beginPath();ctx.moveTo(b.x+b.w*i/3,b.y);ctx.lineTo(b.x+b.w*i/3,b.y+b.h);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(b.x,b.y+b.h*i/3);ctx.lineTo(b.x+b.w,b.y+b.h*i/3);ctx.stroke();
+    }
+    // Crop size readout
+    const r=_cropRect||{x:0,y:0,w:_rptCropImg.naturalWidth,h:_rptCropImg.naturalHeight};
+    const txt=`${Math.round(r.w)} × ${Math.round(r.h)} px`;
+    ctx.font='600 10px Avenir Next,Avenir,sans-serif'; ctx.textBaseline='top';
+    const tw=ctx.measureText(txt).width+10;
+    const tx=Math.max(2,Math.min(W-tw-2,b.x+b.w-tw)), ty=Math.max(2,Math.min(H-18,b.y+b.h+4));
+    ctx.fillStyle='rgba(61,142,248,0.9)'; ctx.fillRect(tx,ty,tw,16);
+    ctx.fillStyle='#fff'; ctx.fillText(txt,tx+5,ty+3);
+  } else {
+    ctx.setLineDash([4,3]); ctx.strokeStyle='rgba(61,142,248,0.45)'; ctx.lineWidth=1;
+    ctx.strokeRect(b.x,b.y,b.w,b.h); ctx.setLineDash([]);
+  }
   // 8 crop handles on image boundary
   const hs=_CH;
   [[b.x,b.y],[b.x+b.w/2,b.y],[b.x+b.w,b.y],
@@ -4009,6 +4056,7 @@ function _drawRptHandles(){
     ctx.fillStyle='#fff'; ctx.fillRect(cx-hs,cy-hs,hs*2,hs*2);
     ctx.strokeStyle='#3d8ef8'; ctx.lineWidth=1.2; ctx.strokeRect(cx-hs,cy-hs,hs*2,hs*2);
   });
+  if(dv) return; // margin handles hidden while cropping
   // 4 margin handles (circles) positioned in each margin area
   const ms=_MH;
   [{x:W/2,y:Math.max(ms+1,_rptPad.t/2),v:true},
@@ -4105,14 +4153,38 @@ function _rptHitTest(mx,my,W,H,b){
       if(fl.b){h=Math.max(MIN,Math.min(iH-y,h+dy*scY));}
       if(fl.l){const nx=Math.max(0,Math.min(x+w-MIN,x+dx*scX));w=x+w-nx;x=nx;}
       if(fl.r){w=Math.max(MIN,Math.min(iW-x,w+dx*scX));}
+      // Snap to whole source pixels so the crop is exactly reproducible in the PDF
+      x=Math.round(x);y=Math.round(y);w=Math.round(w);h=Math.round(h);
       if(w>0&&h>0) _cropRect={x,y,w,h};
     }
     _drawRptImage(); _drawRptHandles(); e.preventDefault();
   }
-  function onUp(){ _rptHandlesDrag=null; }
+  function onUp(){
+    if(!_rptHandlesDrag) return;
+    const wasCrop=_rptHandlesDrag.type==='crop';
+    _rptHandlesDrag=null;
+    if(wasCrop&&_rptCropImg){
+      // Treat a full-image crop as "no crop"
+      const r=_cropRect;
+      if(r&&r.x===0&&r.y===0&&r.w===_rptCropImg.naturalWidth&&r.h===_rptCropImg.naturalHeight) _cropRect=null;
+      _drawRptImage(); _drawRptHandles(); // re-fit to the column now that the drag is done
+      saveState();
+    } else if(_rptCropImg){ saveState(); }
+  }
+  function onDblClick(e){
+    if(!_rptCropImg||!_cropRect) return;
+    const canvas=$('rpt-handles-canvas'); if(!canvas) return;
+    const {mx,my}=coords(e,canvas);
+    const {w:W,h:H}=_rptColDims();
+    const b=_rptImgBounds(W,H); if(!b) return;
+    if(mx<b.x||mx>b.x+b.w||my<b.y||my>b.y+b.h) return;
+    _cropRect=null; _drawRptImage(); _drawRptHandles(); saveState(); e.preventDefault();
+  }
   document.addEventListener('DOMContentLoaded',function(){
     const c=$('rpt-handles-canvas'); if(!c) return;
+    c.title='Drag corner/edge handles to crop · double-click image to reset crop';
     c.addEventListener('mousedown',onDown);
+    c.addEventListener('dblclick',onDblClick);
     // mousemove/mouseup on document so fast drags outside canvas still work
     document.addEventListener('mousemove',onMove);
     document.addEventListener('mouseup',onUp);
@@ -4289,54 +4361,88 @@ async function downloadRptPDF(){
   const btn=$('rpt-dl-btn');
   if(btn){btn.disabled=true;btn.textContent='Generating…';}
   const ic=$('rpt-img-canvas'), hc=$('rpt-handles-canvas');
+  const dateEl=$('rpt-date');
   try{
     const page=$('rpt-page');
-    const SC=2;
+    const pageRect=page.getBoundingClientRect();
+    const pagePxW=page.offsetWidth, pagePxH=page.offsetHeight;
     // Hide both image canvases so html2canvas gets a clean white image col
     if(ic) ic.style.display='none';
     if(hc) hc.style.display='none';
 
-    // 1. Capture layout (text, borders, info panel) — image col is white
-    const layoutCanvas=await html2canvas(page,{
-      scale:SC,useCORS:true,allowTaint:true,
-      backgroundColor:'#ffffff',
-      width:page.offsetWidth,height:page.offsetHeight
-    });
-
-    // 2. Composite: layout first, then raw source image on top at exact same position
-    const out=document.createElement('canvas');
-    out.width=layoutCanvas.width; out.height=layoutCanvas.height;
-    const ctx=out.getContext('2d');
-    ctx.drawImage(layoutCanvas,0,0);
-
-    if(_rptCropImg){
-      // Compute image display bounds at SC scale — mirrors _rptImgBounds exactly
-      const pageRect=page.getBoundingClientRect();
-      const colEl=$('rpt-img-col');
-      const colRect=colEl.getBoundingClientRect();
-      const colX=Math.round((colRect.left-pageRect.left)*SC);
-      const colY=Math.round((colRect.top-pageRect.top)*SC);
-      const colW=Math.round(colRect.width*SC);
-      const colH=Math.round(colRect.height*SC);
-      const pad={t:_rptPad.t*SC,r:_rptPad.r*SC,b:_rptPad.b*SC,l:_rptPad.l*SC};
-      const dW=colW-pad.l-pad.r, dH=colH-pad.t-pad.b;
-      const r=_cropRect||{x:0,y:0,w:_rptCropImg.naturalWidth,h:_rptCropImg.naturalHeight};
-      const ia=r.w/r.h, da=dW/dH;
-      let iw,ih; if(ia>da){iw=dW;ih=dW/ia;}else{ih=dH;iw=dH*ia;}
-      const ix=colX+pad.l+(dW-iw)/2, iy=colY+pad.t+(dH-ih)/2;
-      ctx.drawImage(_rptCropImg,r.x,r.y,r.w,r.h,ix,iy,iw,ih);
-    }
-
-    // 3. Save to PDF
+    // Page geometry: letter landscape, 0.25" margins, page box scaled to fit — identical to preview aspect
     const {jsPDF}=window.jspdf;
     const pdf=new jsPDF({orientation:'landscape',unit:'in',format:'letter'});
     const margin=0.25,pW=11,pH=8.5;
     const availW=pW-margin*2,availH=pH-margin*2;
-    const aspect=out.width/out.height;
-    let imgW=availW,imgH=imgW/aspect;
-    if(imgH>availH){imgH=availH;imgW=imgH*aspect;}
-    const x=margin+(availW-imgW)/2,y=margin+(availH-imgH)/2;
-    pdf.addImage(out.toDataURL('image/jpeg',0.92),'JPEG',x,y,imgW,imgH);
+    const aspect=pagePxW/pagePxH;
+    let boxW=availW,boxH=boxW/aspect;
+    if(boxH>availH){boxH=availH;boxW=boxH*aspect;}
+    const bx=margin+(availW-boxW)/2,by=margin+(availH-boxH)/2;
+    const k=boxW/pagePxW; // inches per preview CSS px
+    const rectIn=(el)=>{ const r=el.getBoundingClientRect(); return {x:bx+(r.left-pageRect.left)*k,y:by+(r.top-pageRect.top)*k,w:r.width*k,h:r.height*k}; };
+
+    // 1. Layout layer (text, logos, borders) — date excluded so it can be re-layered on top of the image
+    const SC=3;
+    const layoutCanvas=await html2canvas(page,{
+      scale:SC,useCORS:true,allowTaint:true,
+      backgroundColor:'#ffffff',
+      width:pagePxW,height:pagePxH,
+      ignoreElements:el=>el.id==='rpt-date'
+    });
+    pdf.addImage(layoutCanvas.toDataURL('image/jpeg',0.95),'JPEG',bx,by,boxW,boxH);
+
+    // 2. PV layout image at native crop resolution, placed exactly where the preview draws it
+    if(_rptCropImg){
+      const colEl=$('rpt-img-col');
+      const colCss=rectIn(colEl); // column box in inches
+      const {w:W,h:H}=_rptColDims();
+      const b=_rptImgBounds(W,H);
+      if(b){
+        const r=_cropRect||{x:0,y:0,w:_rptCropImg.naturalWidth,h:_rptCropImg.naturalHeight};
+        // Clip to the column exactly as the preview canvas does (overflow hidden)
+        const cx0=Math.max(0,b.x), cy0=Math.max(0,b.y), cx1=Math.min(W,b.x+b.w), cy1=Math.min(H,b.y+b.h);
+        if(cx1>cx0&&cy1>cy0){
+          const sx=r.w/b.w, sy=r.h/b.h;
+          const src={x:r.x+(cx0-b.x)*sx,y:r.y+(cy0-b.y)*sy,w:(cx1-cx0)*sx,h:(cy1-cy0)*sy};
+          // Output canvas at native source pixels, capped for canvas/PDF sanity (still ≥300 dpi on the page)
+          const MAX_SIDE=6000, MAX_PX=20e6;
+          let ow=Math.round(src.w), oh=Math.round(src.h);
+          const cap=Math.min(1,MAX_SIDE/Math.max(ow,oh),Math.sqrt(MAX_PX/(ow*oh)));
+          ow=Math.max(1,Math.round(ow*cap)); oh=Math.max(1,Math.round(oh*cap));
+          const ic2=document.createElement('canvas'); ic2.width=ow; ic2.height=oh;
+          const ictx=ic2.getContext('2d');
+          ictx.imageSmoothingEnabled=true; ictx.imageSmoothingQuality='high';
+          ictx.fillStyle='#fff'; ictx.fillRect(0,0,ow,oh); // flatten transparency to white like the preview
+          ictx.drawImage(_rptCropImg,src.x,src.y,src.w,src.h,0,0,ow,oh);
+          const isPng=/^data:image\/png/i.test(_rptLayoutImgOrig||'')&&ow*oh<=6e6;
+          const imgData=isPng?ic2.toDataURL('image/png'):ic2.toDataURL('image/jpeg',0.95);
+          pdf.addImage(imgData,isPng?'PNG':'JPEG',colCss.x+cx0*k,colCss.y+cy0*k,(cx1-cx0)*k,(cy1-cy0)*k,undefined,isPng?'FAST':'NONE');
+        }
+      }
+    }
+
+    // 3. Date — always last so it sits in front of the image, at the same bottom-right spot as the preview
+    if(dateEl&&dateEl.textContent){
+      const dr=rectIn(dateEl);
+      let dateCanvas=null;
+      try{
+        dateCanvas=await html2canvas(dateEl,{scale:SC,backgroundColor:null,useCORS:true,allowTaint:true});
+      }catch(_){ dateCanvas=null; }
+      if(!dateCanvas||!dateCanvas.width){
+        // Fallback: draw the date by hand mirroring .rpt-date CSS
+        const cs=getComputedStyle(dateEl);
+        const dw=Math.round(dateEl.offsetWidth*SC), dh=Math.round(dateEl.offsetHeight*SC);
+        dateCanvas=document.createElement('canvas'); dateCanvas.width=dw; dateCanvas.height=dh;
+        const dctx=dateCanvas.getContext('2d');
+        dctx.fillStyle='rgba(255,255,255,0.88)'; dctx.fillRect(0,0,dw,dh);
+        dctx.fillStyle=cs.color||'#777'; dctx.font=`${parseFloat(cs.fontSize)*SC}px ${cs.fontFamily}`;
+        dctx.textBaseline='middle'; dctx.textAlign='right';
+        dctx.fillText(dateEl.textContent,dw-5*SC,dh/2);
+      }
+      pdf.addImage(dateCanvas.toDataURL('image/png'),'PNG',dr.x,dr.y,dr.w,dr.h,undefined,'FAST');
+    }
+
     const fname=(gv('projName')||'project').replace(/[^a-z0-9]/gi,'_')+'_Report.pdf';
     pdf.save(fname);
   } catch(err){
