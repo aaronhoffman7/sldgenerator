@@ -151,7 +151,11 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 /* ── Landscape layout: full-width image below, compact info bar at top ── */
 .rpt-page.rpt-land{flex-direction:column}
 .rpt-page.rpt-land .rpt-img-col{order:1;flex:1;width:100%}
-.rpt-page.rpt-land .rpt-info-col{order:0;flex:0 0 auto;width:100%;flex-direction:row;align-items:center;gap:0;border-left:none;border-bottom:1px solid #dde0ea;padding:14px 24px;overflow:visible}
+/* Groups stretch to the full header height so every vertical divider is the same length;
+   each group centers its own content. The bottom rule is inset to the header's content edges. */
+.rpt-page.rpt-land .rpt-info-col{order:0;flex:0 0 auto;width:100%;flex-direction:row;align-items:stretch;gap:0;border-left:none;border-bottom:none;padding:14px 24px;overflow:visible;position:relative}
+.rpt-page.rpt-land .rpt-info-col::after{content:'';position:absolute;left:24px;right:24px;bottom:0;height:1px;background:#dde0ea}
+.rpt-page.rpt-land .rpt-grp-brand,.rpt-page.rpt-land .rpt-grp-project,.rpt-page.rpt-land .rpt-grp-sys,.rpt-page.rpt-land #rpt-elec-wrap{display:flex;flex-direction:column;justify-content:center}
 .rpt-page.rpt-land .rpt-grp-brand{order:5;flex-shrink:0;margin-left:auto;border-left:1px solid #d8dbe8;border-right:none;padding-left:20px;padding-right:0;margin-right:0}
 .rpt-page.rpt-land .rpt-grp-project{flex-shrink:0;padding-right:20px;margin-right:20px;border-right:1px solid #d8dbe8}
 .rpt-page.rpt-land .rpt-grp-sys{flex-shrink:0}
@@ -167,7 +171,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 /* Notes blocks may shrink (text wraps) so the brand group always stays on the page */
 .rpt-page.rpt-land #rpt-elec-wrap{flex:0 1 auto;min-width:0;max-width:300px;padding-left:20px;margin-left:20px;border-left:1px solid #d8dbe8}
 .rpt-conduit-note{margin-top:4px}
-.rpt-conduit-line{padding-left:12px;text-indent:-12px;margin-left:12px}
+.rpt-conduit-line{padding-left:12px;text-indent:-12px} /* flush with the lines above; wrapped continuations hang */
 .rpt-page.rpt-land .rpt-grp-sys{max-width:420px}
 .rpt-page.rpt-land .rpt-elec-body{font-size:9.5px;line-height:1.7}
 @media print{
