@@ -761,8 +761,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           </div>
           <label>Panel tilt (°)</label>
           <input type="number" id="an-tilt" value="20" step="1" min="0" max="60">
-          <label>Export limit (kW)</label>
-          <input type="number" id="an-export" value="0" step="1" oninput="anExportChanged()">
+          <label>Export limit (kW) <span style="font-size:9px;color:var(--muted);font-weight:400">blank = net metering</span></label>
+          <input type="number" id="an-export" value="" placeholder="None (net metering)" step="1" oninput="anExportChanged()">
           <div id="an-export-hint" class="cnote"></div>
         </div>
         <div class="section">
@@ -1094,6 +1094,10 @@ function restoreInputState(state){
   const daeDismissed   = state.__daeDismissed   || [];
   const daeArrayAssign = state.__daeArrayAssign || {};
 
+  // Older saves stored the analysis export limit as "0" by default (which now means zero-export);
+  // when the SLD field was blank that "0" meant "no restriction", so restore it as blank.
+  if(state['an-export']==='0' && !(state['exportLimit']||'').trim()) state['an-export']='';
+
   Object.entries(state).forEach(([id, val]) => {
     if(id.startsWith('__')) return;
     const el = $(id);
@@ -1369,7 +1373,7 @@ function showMonthlyModal(type){
     for(let i=0;i<d*24;i++,h++){pv+=pvH[h]||0;ld+=loadH[h]||0;cu+=curtH[h]||0;}
     pvM.push(pv/1000); loadM.push(ld/1000); curtM.push(cu/1000);
   });
-  const pvSrc=_anPvWattsData?'PVWatts TMY':'Clear-sky model';
+  const pvSrc=_anPvSrc||(_anPvWattsData?'PVWatts TMY':'Clear-sky model');
   // pick which series to highlight based on clicked card
   const series=type==='pv'?pvM:type==='load'?loadM:curtM;
   const label=type==='pv'?'PV Generation':type==='load'?'Load':'Curtailment';
@@ -1736,7 +1740,8 @@ function vals(){
     feederRecloser:gc('feederRecloser'),
     gridNetwork:_gridNw,
     bessMode:_bessMode,
-    exportLimit:+gv('exportLimit')||0,
+    exportLimit:(gv('exportLimit')||'').trim()===''?null:(+gv('exportLimit')||0), // null = no restriction
+
     exportLimitType:gv('exportLimitType')||'net',
     pfRequirement:gv('pfRequirement')||'',
     hasTelemetry:gc('hasTelemetry'),
@@ -3676,7 +3681,7 @@ function render(){
   }
 
   // ── Grid & Telemetry notes box ───────────────────────────────────────────
-  const showGridBox = v.hasTelemetry || v.gridNetwork!=='radial' || v.exportLimit!==0 || v.pfRequirement;
+  const showGridBox = v.hasTelemetry || v.gridNetwork!=='radial' || v.exportLimit!==null || v.pfRequirement;
   let gridBoxH = 0;
   if(showGridBox){
     const GY = NY + necH + 10;
@@ -3696,6 +3701,9 @@ function render(){
     if(v.exportLimit>0){
       gLines.push({bold:true,  text:`Export limit: ${v.exportLimit} kW ${v.exportLimitType}`});
       gLines.push({bold:false, text:`Do not exceed ${v.exportLimit} kW ${v.exportLimitType} flow to grid at POI`});
+    } else if(v.exportLimit===0){
+      gLines.push({bold:true,  text:'Zero-export'});
+      gLines.push({bold:false, text:'No PV export to grid at POI — surplus curtailed or stored'});
     } else if(v.exportLimit<0){
       gLines.push({bold:true,  text:`Import minimum: ${-v.exportLimit} kW`});
       gLines.push({bold:false, text:`Site must draw ≥ ${-v.exportLimit} kW from grid at all times — no zero-export`});
@@ -4499,7 +4507,7 @@ async function downloadRptPDF(){
 // ── Load Analysis Tab ─────────────────────────────────────────────────
 let _anPvHourly=null,_anLoadHourly=null,_anCurtHourly=null;
 let _anHeatmapView='year';
-let _anSweepResults=[],_anPeakCurtDay=0,_anCsvData=null,_anSimBase=null,_anSimParams=null,_anKneePct=null,_anKneeIdx=null;
+let _anSweepResults=[],_anPeakCurtDay=0,_anPeakDayIsExport=false,_anPvSrc='',_anCsvData=null,_anSimBase=null,_anSimParams=null,_anKneePct=null,_anKneeIdx=null;
 let _chartMonthly=null,_chartSizing=null,_chartDispatch=null;
 let _anPvWattsData=null; // hourly kW array fetched from NREL PVWatts API
 let _anYieldTarget=null; // {scale,modeledYield,targetYield} from last runAnalysis
@@ -4579,21 +4587,28 @@ function syncAnalysisFromSLD(){
   anExportHint();
 }
 
+// Export restriction for the load analysis. Blank = no restriction (net metering: all surplus
+// PV exports, nothing is curtailed) → Infinity. 0 = zero-export. Negative = import minimum.
+function anExportLimitKw(){
+  const raw=(gv('an-export')||'').trim();
+  if(raw==='') return Infinity;
+  const v=parseFloat(raw);
+  return isNaN(v)?Infinity:v;
+}
 function anExportHint(){
-  const v=parseFloat(gv('an-export'));
+  const v=anExportLimitKw();
   const el=$('an-export-hint');
-  if(isNaN(v)||v===0) el.textContent='0 = no export (zero-export)';
+  if(v===Infinity) el.textContent='No restriction — net metering; surplus PV exports, no curtailment';
+  else if(v===0) el.textContent='Zero-export: no PV may flow to grid — surplus is curtailed (or stored)';
   else if(v>0) el.textContent=`Max ${v} kW allowed to flow to grid at POI`;
   else el.textContent=`Import minimum: site must draw ≥ ${-v} kW from grid at all times`;
 }
 function exportLimitChanged(){
-  const val=parseFloat(gv('exportLimit'))||0;
-  const anEl=$('an-export'); if(anEl) anEl.value=val;
+  const anEl=$('an-export'); if(anEl) anEl.value=(gv('exportLimit')||'').trim();
   anExportHint(); render();
 }
 function anExportChanged(){
-  const val=parseFloat(gv('an-export'))||0;
-  const sldEl=$('exportLimit'); if(sldEl) sldEl.value=val!==0?val:'';
+  const sldEl=$('exportLimit'); if(sldEl) sldEl.value=(gv('an-export')||'').trim();
   anExportHint(); render();
 }
 
@@ -4611,14 +4626,20 @@ function anLoadTypeChanged(){
     // Jan-Feb full school + heating; Jun-Aug summer break; Sep-Dec back to school
     [100,100,90,80,80,40,20,22,75,85,95,75].forEach((v,i)=>{$('an-load-m-'+i).value=v;});
   }
-  renderLoadPreview();
+  anSyncPeakAnnual();
 }
 
-function anLoadParamChanged(){ renderLoadPreview(); }
+function anLoadParamChanged(){ anSyncPeakAnnual(); }
 
+// Which of peak demand / annual kWh the user last typed — that one is the master, the other is
+// re-derived whenever the load shape changes so the two never drift apart.
+let _anAnnualIsMaster=false;
+function anSyncPeakAnnual(){
+  if(_anAnnualIsMaster&&parseFloat(gv('an-annualKwh'))>0) anAnnualKwhChanged(); else anPeakKwChanged();
+}
 function _normLoadStats(){
   const type=gv('an-loadType');
-  if(type==='csv'||type==='flat') return null;
+  if(type==='csv') return null;
   const opts={...getLoadOpts(),annualKwh:0};
   const norm=makeLoadProfile(type,1,opts);
   const total=norm.reduce((s,v)=>s+v,0)||1;
@@ -4627,7 +4648,8 @@ function _normLoadStats(){
 }
 
 function anPeakKwChanged(){
-  const ns=_normLoadStats(); if(!ns) return;
+  _anAnnualIsMaster=false;
+  const ns=_normLoadStats(); if(!ns){renderLoadPreview();return;}
   const peakKw=parseFloat(gv('an-peakKw'));
   if(!peakKw||peakKw<=0) return;
   const annual=Math.round(peakKw*ns.total/ns.peak);
@@ -4636,9 +4658,10 @@ function anPeakKwChanged(){
 }
 
 function anAnnualKwhChanged(){
-  const ns=_normLoadStats(); if(!ns) return;
+  const ns=_normLoadStats(); if(!ns){renderLoadPreview();return;}
   const annual=parseFloat(gv('an-annualKwh'));
-  if(!annual||annual<=0){renderLoadPreview();return;}
+  if(!annual||annual<=0){_anAnnualIsMaster=false;renderLoadPreview();return;}
+  _anAnnualIsMaster=true;
   const amplitude=annual/ns.total;
   const impliedPeak=Math.round(amplitude*ns.peak*10)/10;
   $('an-peakKw').value=impliedPeak;
@@ -4764,9 +4787,10 @@ function makeSolarProfile(systemKwDC,dcAcRatio,lossesP,latDeg,tiltDeg){
 
 // ── Synthetic Load Profiles ──────────────────────────────────────────────────
 function getLoadOpts(){
+  const num=(id,dflt)=>{const v=parseFloat(gv(id));return isNaN(v)?dflt:v;};
   return {
-    base:       parseFloat(gv('an-load-base'))    ?? 15,
-    wkend:      parseFloat(gv('an-load-wkend'))   ?? 25,
+    base:       num('an-load-base',15),
+    wkend:      num('an-load-wkend',25),
     mf:         Array.from({length:12},(_,i)=>(parseFloat(gv(`an-load-m-${i}`))||100)/100),
     annualKwh:  parseFloat(gv('an-annualKwh'))    || 0
   };
@@ -4903,8 +4927,8 @@ function renderLoadPreview(){
   } else {
     noteEl.style.color='var(--muted)';
     noteEl.textContent=isYear
-      ?'Daily average (solid) and daily peak (dashed) across all 365 days. Changes here do not re-run the simulation automatically.'
-      :'Solid = typical weekday · Dashed = typical weekend · Monthly scale applies. Changes here do not re-run the simulation automatically.';
+      ?'Daily average (solid) and daily peak (dashed) across all 365 days.'
+      :'Solid = typical weekday · Dashed = typical weekend · Monthly scale applies.';
   }
 
   const ctx=$('an-load-prev-chart').getContext('2d');
@@ -5031,7 +5055,7 @@ async function runAnalysis(){
     const losses=parseFloat(gv('an-losses'))||14;
     const lat=parseFloat(gv('an-lat'))||39.9;
     const tilt=parseFloat(gv('an-tilt'))||20;
-    const exportLimKw=parseFloat(gv('an-export'))||0;
+    const exportLimKw=anExportLimitKw(); // Infinity = net metering (no curtailment)
     const peakKw=parseFloat(gv('an-peakKw'))||50;
     const minKwh=Math.max(0,parseFloat(gv('an-minKwh'))||0);
     const maxKwh=parseFloat(gv('an-maxKwh'))||200;
@@ -5055,11 +5079,22 @@ async function runAnalysis(){
     const base=simulate(pv,load,exportLimKw,0,0,1.0);
     _anSimBase=base;
     const totalCurt=anSum(base.curtail);
-    const totalBaseImport=anSum(Array.from(base.gridNet).map(v=>Math.max(0,v)));
+    let totalBaseImport=0,totalBaseExport=0;
+    for(let i=0;i<base.gridNet.length;i++){const g=base.gridNet[i]; if(g>0) totalBaseImport+=g; else totalBaseExport-=g;}
 
-    const dailyCurt=new Array(365).fill(0);
-    for(let d=0;d<365;d++) for(let hr=0;hr<24;hr++) dailyCurt[d]+=base.curtail[d*24+hr];
-    _anPeakCurtDay=dailyCurt.indexOf(Math.max(...dailyCurt));
+    // "Peak day" for the dispatch chart: the day with the most curtailment, or — when nothing is
+    // curtailed (net metering) — the day with the most export
+    const dailyCurt=new Array(365).fill(0), dailyExp=new Array(365).fill(0);
+    for(let d=0;d<365;d++) for(let hr=0;hr<24;hr++){
+      const i=d*24+hr; dailyCurt[d]+=base.curtail[i]; if(base.gridNet[i]<0) dailyExp[d]-=base.gridNet[i];
+    }
+    _anPeakDayIsExport=totalCurt===0;
+    if(totalCurt>0) _anPeakCurtDay=dailyCurt.indexOf(Math.max(...dailyCurt));
+    else if(totalBaseExport>0) _anPeakCurtDay=dailyExp.indexOf(Math.max(...dailyExp));
+    else { // nothing curtailed or exported — fall back to the highest-PV day
+      const dailyPv=new Array(365).fill(0); for(let i=0;i<8760;i++) dailyPv[Math.floor(i/24)]+=pv[i];
+      _anPeakCurtDay=dailyPv.indexOf(Math.max(...dailyPv));
+    }
 
     // Compute full-recovery size FIRST so the sweep range is always correct.
     $('an-status').textContent='Finding full-recovery size…';
@@ -5091,12 +5126,12 @@ async function runAnalysis(){
       return{kwh,kw,curtRec,gridAvoided:totalBaseImport-gridImport,cycles};
     });
 
-    _anPvHourly=pv; _anLoadHourly=load; _anCurtHourly=base.curtail;
+    _anPvHourly=pv; _anLoadHourly=load; _anCurtHourly=base.curtail; _anPvSrc=pvSrc;
     _anSimParams={pvKw,dcAcRatio,losses,lat,tilt,exportLimKw,peakKw,maxKwh:sweepMax,battDurHr,rte,rate,loadType};
 
     const annualPv=anSum(pv), maxCurt=Math.max(...base.curtail);
     const annualLoad=anSum(load);
-    const selfConsumed=annualPv-totalCurt; // PV delivered directly to load (no curtailment, no export)
+    const selfConsumed=annualPv-totalCurt-totalBaseExport; // PV delivered directly to load (not curtailed, not exported)
     const selfSuffPct=annualLoad>0?(selfConsumed/annualLoad*100):0;
     const maxRec=_anSweepResults[_anSweepResults.length-1].curtRec;
     const fullRecKw=fullRecKwh?Math.ceil(Math.max(fullRecKwh/battDurHr,(pvKw/dcAcRatio)*0.5)):0;
@@ -5114,26 +5149,29 @@ async function runAnalysis(){
       <div class="summary-card" onclick="showMonthlyModal('load')" style="${cardClick}" title="Click for monthly breakdown">
         <div class="s-label">Annual Load ↗</div>
         <div class="s-val">${(annualLoad/1000).toFixed(1)}<span style="font-size:13px;font-weight:400"> MWh</span></div>
-        <div class="s-sub">${(totalBaseImport/1000).toFixed(1)} MWh from grid · ${(selfConsumed/1000).toFixed(1)} MWh self-consumed (${selfSuffPct.toFixed(0)}%)</div></div>
+        <div class="s-sub">${(totalBaseImport/1000).toFixed(1)} MWh from grid · ${(selfConsumed/1000).toFixed(1)} MWh PV self-consumed (${selfSuffPct.toFixed(0)}%) · ${(totalBaseExport/1000).toFixed(1)} MWh exported</div></div>
       <div class="summary-card" onclick="showMonthlyModal('curt')" style="${cardClick}" title="Click for monthly breakdown">
         <div class="s-label">Annual Curtailment ↗</div>
         <div class="s-val">${(totalCurt/1000).toFixed(1)}<span style="font-size:13px;font-weight:400"> MWh</span></div>
-        <div class="s-sub">${annualPv>0?(totalCurt/annualPv*100).toFixed(1):0}% of generation</div></div>
+        <div class="s-sub">${exportLimKw===Infinity?'Net metering — no export restriction':`${annualPv>0?(totalCurt/annualPv*100).toFixed(1):0}% of generation`}</div></div>
       <div class="summary-card"><div class="s-label">Peak Curtailment</div>
         <div class="s-val">${maxCurt.toFixed(1)}<span style="font-size:13px;font-weight:400"> kW</span></div>
-        <div class="s-sub">Hourly max (Day ${_anPeakCurtDay+1})</div></div>
+        <div class="s-sub">${totalCurt>0?`Hourly max (Day ${_anPeakCurtDay+1})`:'None'}</div></div>
       <div class="summary-card"><div class="s-label">Max Simulated Battery (${_anSweepResults[_anSweepResults.length-1].kwh} kWh)</div>
         <div class="s-val">${totalCurt>0?(maxRec/totalCurt*100).toFixed(0):0}<span style="font-size:13px;font-weight:400">%</span></div>
         <div class="s-sub">${(maxRec/1000).toFixed(1)} MWh recovered</div></div>
       <div class="summary-card"><div class="s-label">Est. for ~100% Recovery</div>
         ${fullRecCard}</div>`;
 
-    anRenderMonthlyChart(pv,load,base.curtail);
+    anRenderMonthlyChart(pv,load,base.curtail,base.gridNet);
     anDrawHeatmap(base.curtail);
     anRenderSizingChart(_anSweepResults,totalCurt,rate);
 
     // Init battery slider — default to knee point (optimal) from sizing curve
     _anDispatchDay='peak';
+    const peakOpt=document.querySelector('#an-dispatch-day-sel option[value="peak"]');
+    if(peakOpt) peakOpt.textContent=_anPeakDayIsExport?'Peak Export Day':'Peak Curtailment Day';
+    $('an-dispatch-day-sel').value='peak';
     _anBattIdx=_anKneeIdx!=null?_anKneeIdx:Math.ceil((_anSweepResults.length-1)/2);
     const slider=$('an-batt-slider');
     slider.max=_anSweepResults.length-1;
@@ -5142,7 +5180,7 @@ async function runAnalysis(){
     $('an-batt-slider-row').style.display='block';
     anUpdateBattLabel();
     renderDispatchChart();
-    if(_anKneePct!=null) $('an-pv-target-pct').value=Math.round(_anKneePct);
+    if(_anKneePct>0) $('an-pv-target-pct').value=Math.max(10,Math.round(_anKneePct));
     anComputePvSizing();
 
     $('an-placeholder').style.display='none';
@@ -5170,8 +5208,9 @@ function anMonthlySum(hourly){
   return m;
 }
 
-function anRenderMonthlyChart(pv,load,curt){
+function anRenderMonthlyChart(pv,load,curt,gridNet){
   const pvM=anMonthlySum(pv),loadM=anMonthlySum(load),curtM=anMonthlySum(curt);
+  const expM=gridNet?anMonthlySum(Array.from(gridNet,v=>Math.max(0,-v))):new Array(12).fill(0);
   const ctx=$('an-monthly-chart').getContext('2d');
   if(_chartMonthly) _chartMonthly.destroy();
   _chartMonthly=new Chart(ctx,{
@@ -5179,6 +5218,7 @@ function anRenderMonthlyChart(pv,load,curt){
     data:{labels:AN_MONTHS,datasets:[
       {label:'PV Generation',data:pvM.map(v=>+(v/1000).toFixed(1)),backgroundColor:'rgba(245,200,66,0.7)',borderColor:'#f5c842',borderWidth:1},
       {label:'Load',data:loadM.map(v=>+(v/1000).toFixed(1)),backgroundColor:'rgba(61,142,248,0.4)',borderColor:'#3d8ef8',borderWidth:1},
+      {label:'Grid Export',data:expM.map(v=>+(v/1000).toFixed(1)),backgroundColor:'rgba(79,217,142,0.45)',borderColor:'#4fd98e',borderWidth:1},
       {label:'Curtailment',data:curtM.map(v=>+(v/1000).toFixed(1)),backgroundColor:'rgba(255,80,80,0.65)',borderColor:'#ff5050',borderWidth:1},
     ]},
     options:{
@@ -5414,8 +5454,13 @@ function applyBattToSLD(){
   // Ensure battery is enabled on SLD
   const hasBattEl=document.getElementById('hasBatt');
   if(hasBattEl&&!hasBattEl.checked){ hasBattEl.checked=true; toggleBattFields(); }
-  $('battKw').value=Math.round(s.kw*10)/10;
-  $('battKwh').value=s.kwh;
+  // Sweep sizes are usable kWh; the SLD holds nameplate per unit × qty with a SOC window
+  // (syncAnalysisFromSLD applies the same window in reverse, so this round-trips exactly)
+  const qty=Math.max(1,parseInt(gv('battQty'))||1);
+  const socMin=parseFloat(gv('battSocMin'))||10, socMax=parseFloat(gv('battSocMax'))||90;
+  const socWin=Math.max(0.05,(socMax-socMin)/100);
+  $('battKw').value=Math.round(s.kw/qty*10)/10;
+  $('battKwh').value=Math.round(s.kwh/socWin/qty*10)/10;
   $('pcsKva').value=Math.round(s.kw*10)/10;
   render();
   saveState();
@@ -5435,6 +5480,11 @@ function anComputePvSizing(){
   const s=_anSweepResults[_anBattIdx];
   const targetFrac=(parseFloat(gv('an-pv-target-pct'))||80)/100;
   const params=_anSimParams;
+  if(params.exportLimKw===Infinity){
+    res.textContent='N/A';
+    sub.textContent='Net metering — no export restriction, so PV size is not limited by curtailment recovery.';
+    return;
+  }
   const pvKw=params.pvKw;
   const pvNorm=_anPvHourly.map(v=>v/pvKw);
   const load=_anLoadHourly;
@@ -5512,7 +5562,7 @@ function renderDispatchChart(){
   const dayIdx=_anDispatchDay==='peak'?_anPeakCurtDay:(_DISPATCH_DAYS[_anDispatchDay]||0);
   $('an-dispatch-label').textContent=
     _anDispatchDay==='peak'
-      ?`${_dayOfYear(dayIdx)} (Peak Curtailment)`
+      ?`${_dayOfYear(dayIdx)} (${_anPeakDayIsExport?'Peak Export':'Peak Curtailment'})`
       :(_DISPATCH_LABELS[_anDispatchDay]||`Day ${dayIdx+1}`);
 
   const p=_anSimParams||{};
@@ -5527,7 +5577,7 @@ function renderDispatchChart(){
   const curtD=slice(res.curtail), dischD=slice(res.battDischarge);
   const chgD=slice(res.battCharge), socD=slice(res.socArr);
   const gn=slice(res.gridNet);
-  const impD=gn.map(v=>Math.max(0,v));
+  const impD=gn.map(v=>Math.max(0,v)), expD=gn.map(v=>Math.max(0,-v));
 
   const hasBatt=(sweep.kwh||0)>0;
 
@@ -5541,6 +5591,7 @@ function renderDispatchChart(){
       {label:'Battery Charge',data:chgD,borderColor:'#60c8f5',borderWidth:1.5,pointRadius:0,fill:true,backgroundColor:'rgba(96,200,245,0.10)',tension:0.3,yAxisID:'y',hidden:!hasBatt},
       {label:'Battery Discharge',data:dischD,borderColor:'#4fd98e',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,yAxisID:'y',hidden:!hasBatt},
       {label:'Grid Import',data:impD,borderColor:'#3d8ef8',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,3],tension:0.3,yAxisID:'y'},
+      {label:'Grid Export',data:expD,borderColor:'#4fd98e',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,3],tension:0.3,yAxisID:'y'},
       {label:'Curtailment',data:curtD,borderColor:'#ff5050',borderWidth:2,pointRadius:0,fill:true,backgroundColor:'rgba(255,80,80,0.18)',tension:0.3,yAxisID:'y'},
       {label:'SOC',data:socD,borderColor:'#a78bfa',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[2,3],tension:0.3,yAxisID:'y2',hidden:!hasBatt},
     ]},
@@ -5717,7 +5768,7 @@ function buildDebugReport(){
   row('Latitude',gn('an-lat'));
   row('Longitude',gn('an-lon'));
   row('Tilt (°)',gn('an-tilt'));
-  row('Export limit (kW)',gn('an-export'));
+  row('Export limit (kW)',anExportLimitKw()===Infinity?'None (net metering)':gn('an-export'));
   row('Array type',gs('an-array-type'));
   const tyv=gv('an-targetYield');
   row('Target yield (kWh/kW/yr)',tyv?tyv:'(as modeled)');
@@ -5745,10 +5796,14 @@ function buildDebugReport(){
     const annualLoad=anSum(_anLoadHourly||[]);
     row('Annual PV (MWh)',+(annualPv/1000).toFixed(2));
     row('Annual load (MWh)',+(annualLoad/1000).toFixed(2));
+    let expSum=0,impSum=0; for(const g of _anSimBase.gridNet){ if(g>0) impSum+=g; else expSum-=g; }
+    row('Annual grid import (MWh)',+(impSum/1000).toFixed(2));
+    row('Annual grid export (MWh)',+(expSum/1000).toFixed(2));
+    row('PV self-consumed (MWh)',+((annualPv-totalCurt-expSum)/1000).toFixed(2));
     row('Annual curtailment (MWh)',+(totalCurt/1000).toFixed(2));
     row('Curtailment % of generation',annualPv>0?(totalCurt/annualPv*100).toFixed(1)+'%':'—');
     row('Peak curtailment (kW)',Math.max(..._anSimBase.curtail).toFixed(1));
-    row('Peak curtailment day',_anPeakCurtDay+1);
+    row(_anPeakDayIsExport?'Peak export day':'Peak curtailment day',_anPeakCurtDay+1);
     const last=_anSweepResults[_anSweepResults.length-1];
     row('At sweep max ('+last.kwh+' kWh) — rec%',totalCurt>0?(last.curtRec/totalCurt*100).toFixed(1)+'%':'—');
     row('At sweep max — MWh recovered',+(last.curtRec/1000).toFixed(2));
