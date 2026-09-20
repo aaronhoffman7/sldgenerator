@@ -37,6 +37,10 @@ label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px;margin-t
 label:first-of-type{margin-top:0}
 input[type=text],input[type=number],select{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:12px;padding:5px 8px;border-radius:4px;outline:none;transition:border-color .15s}
 .fields-locked{opacity:0.45;pointer-events:none;user-select:none}
+.arr-mirrored .arr-fields input,.arr-mirrored .arr-fields select{opacity:0.72;font-style:italic}
+.arr-mirror-badge{font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent2);border:1px solid var(--accent2);border-radius:3px;padding:1px 5px;white-space:nowrap}
+.arr-remove-btn{font-size:10px;padding:2px 8px;border-radius:3px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer}
+.arr-remove-btn:hover{color:#f5a742;border-color:#f5a742}
 input:focus,select:focus{border-color:var(--accent2)}
 select option{background:var(--surface2)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -238,10 +242,6 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
           <span style="font-size:10px;color:var(--muted)">kW</span>
         </div>
       </div>
-      <div id="rpt-arr2-name-row" style="display:none">
-        <label style="margin-top:6px">Array 2 label (e.g. Parking Canopy)</label>
-        <input type="text" id="rptArr2Name" value="Parking Canopy" oninput="renderReport()">
-      </div>
       <label style="margin-top:6px">NZE target (kWh/year, optional)</label>
       <input type="number" id="rptNzeTarget" placeholder="e.g. 530000" step="1000" min="0" oninput="renderReport()">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
@@ -351,77 +351,11 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <input type="text" id="invModel" value="SMA Sunny Boy 10.0" oninput="invModelChanged()">
     </div><!-- end arr1-body -->
   </div>
-  <!-- Array 2 -->
-  <div class="section">
-    <div class="sec-toggle" onclick="toggleSec('arr2-body','arr2-arrow')">
-      <div class="stitle" style="display:flex;align-items:center;gap:8px">
-        PV Array 2
-        <label class="tog" onclick="event.stopPropagation()" style="margin-top:0"><input type="checkbox" id="hasArr2" onchange="arr2Toggle();render()"><div class="ttrack"><div class="tthumb"></div></div></label>
-      </div>
-      <span class="sec-arrow" id="arr2-arrow">&#9654;</span>
-    </div>
-    <div class="sec-body" id="arr2-body" style="display:none">
-    <div style="margin-top:6px;margin-bottom:4px;display:flex;align-items:center;gap:6px">
-      <input type="checkbox" id="arr2-linked" checked onchange="arr2LinkChanged()" style="width:auto">
-      <span style="font-size:11px;color:var(--muted)">Mirror Array 1 settings</span>
-    </div>
-    <div id="arr2-fields">
-    <div class="row2">
-      <div><label>System size (kW DC)</label><input type="number" id="a2systemKw" placeholder="e.g. 10" step="0.1" min="0.1" oninput="arrSystemKwChanged(2)"></div>
-      <div><label>Total modules</label><input type="number" id="a2numMods" placeholder="e.g. 24" min="1" oninput="arrNumModsChanged(2)"></div>
-    </div>
-    <div id="a2system-kw-note" class="cnote"></div>
-    <div class="row2">
-      <div><label>Strings</label><input type="number" id="a2strings" value="2" min="1" max="500" oninput="arrStringsChanged(2)"></div>
-      <div><label>Mods/string</label><input type="number" id="a2mods" value="12" min="1" max="40" oninput="arrModsChanged(2)"></div>
-    </div>
-    <div class="row2">
-      <div><label>Module Wp</label><input type="number" id="a2modW" value="550" min="50" max="700" oninput="arrModWChanged(2)"></div>
-      <div><label>Voc (V)</label><input type="number" id="a2voc" value="49.9" step="0.1" oninput="arrVocChanged(2)"></div>
-    </div>
-    <div class="row2">
-      <div><label>Isc (A)</label><input type="number" id="a2isc" value="10.2" step="0.1" oninput="render()"></div>
-    </div>
-    <label>Module make / model</label>
-    <input type="text" id="a2modModel" value="JA Solar 550W" oninput="render()">
-    <div class="stitle" style="margin-top:12px">String Combiner 2</div>
-    <div class="trow"><span>Include combiner box</span><label class="tog"><input type="checkbox" id="a2hasCombiner" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-    <label>Max DC voltage rating</label>
-    <select id="a2combV" onchange="arrCombVChanged(2)"><option value="600">600 VDC</option><option value="1000" selected>1000 VDC</option><option value="1500">1500 VDC</option></select>
-    <label>String fuse (A)</label>
-    <input type="number" id="a2combFuse" value="15" min="5" max="60" oninput="render()">
-    <div class="stitle" style="margin-top:12px">Inverter 2</div>
-    <label>Type</label>
-    <select id="a2invType" onchange="render()">
-      <option value="string">String inverter</option>
-      <option value="hybrid">Hybrid (DC-coupled battery)</option>
-      <option value="micro">Microinverters</option>
-      <option value="central">Central inverter</option>
-    </select>
-    <div class="row2">
-      <div><label>DC/AC ratio</label><input type="number" id="a2dcAcRatio" value="1.20" step="0.01" min="0.5" max="2.0" oninput="arrDcAcRatioChanged(2)"></div>
-      <div><label>AC size (kW)</label><div id="a2ac-system-kw" class="cval" style="padding-top:4px">--</div></div>
-    </div>
-    <div class="row2">
-      <div><label>Unit size (kW)</label><input type="number" id="a2invKw" value="10" min="1" max="500" oninput="arrInvKwChanged(2)"></div>
-      <div><label>Output voltage</label>
-        <select id="a2invV" onchange="arrInvVChanged(2)">
-          <option value="120VAC 1ph">120VAC 1ph</option>
-          <option value="240VAC 1ph">240VAC 1ph</option>
-          <option value="208VAC 3ph">208VAC 3ph</option>
-          <option value="480VAC 3ph" selected>480VAC 3ph</option>
-          <option value="600VAC 3ph">600VAC 3ph</option>
-        </select>
-      </div>
-    </div>
-    <div id="a2inv-ac-calc" class="cnote" style="margin-top:6px"></div>
-    <div class="row2">
-      <div><label>Quantity</label><input type="number" id="a2invCount" value="1" min="1" max="20" oninput="arrInvCountChanged(2)"></div>
-    </div>
-    <label>Make / model</label>
-    <input type="text" id="a2invModel" value="SMA Sunny Boy 10.0" oninput="render()">
-    </div><!-- end arr2-fields -->
-    </div><!-- end arr2-body -->
+  <!-- Additional PV arrays (generated by addArray(); each mirrors Array 1 until edited) -->
+  <div id="extra-arrays"></div>
+  <div class="section" id="add-array-section" style="padding-top:6px;padding-bottom:10px">
+    <button class="hbtn" id="add-array-btn" style="width:100%;padding:7px 10px;font-size:11px" onclick="addArray()">+ Add array</button>
+    <div class="cnote" id="add-array-note" style="margin-top:4px;text-align:center">New arrays mirror Array 1 until you change a value</div>
   </div>
   <div class="section">
     <div class="sec-toggle" onclick="toggleSec('batt-body','batt-arrow')">
@@ -565,7 +499,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     </div>
     <div class="row2">
       <div><label>Panel size (A)</label>
-        <select id="panelA" onchange="render()"><option value="20">20A</option><option value="40">40A</option><option value="60">60A</option><option value="80">80A</option><option value="100">100A</option><option value="200" selected>200A</option><option value="300">300A</option><option value="400">400A</option><option value="500">500A</option><option value="600">600A</option><option value="700">700A</option><option value="800">800A</option><option value="900">900A</option><option value="1000">1000A</option><option value="1100">1100A</option><option value="1200">1200A</option><option value="1300">1300A</option><option value="1400">1400A</option><option value="1500">1500A</option><option value="1600">1600A</option><option value="1700">1700A</option><option value="1800">1800A</option><option value="1900">1900A</option><option value="2000">2000A</option></select>
+        <select id="panelA" onchange="render()"><option value="20">20A</option><option value="40">40A</option><option value="60">60A</option><option value="80">80A</option><option value="100">100A</option><option value="200" selected>200A</option><option value="300">300A</option><option value="400">400A</option><option value="500">500A</option><option value="600">600A</option><option value="700">700A</option><option value="800">800A</option><option value="900">900A</option><option value="1000">1000A</option><option value="1100">1100A</option><option value="1200">1200A</option><option value="1300">1300A</option><option value="1400">1400A</option><option value="1500">1500A</option><option value="1600">1600A</option><option value="1700">1700A</option><option value="1800">1800A</option><option value="1900">1900A</option><option value="2000">2000A</option><option value="2500">2500A</option><option value="3000">3000A</option><option value="4000">4000A</option></select>
       </div>
     </div>
     <div class="row2">
@@ -624,11 +558,11 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <div class="trow"><span>Revenue-grade metering</span><label class="tog"><input type="checkbox" id="telRevMeter" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
       <div class="trow"><span>Remote curtailment</span><label class="tog"><input type="checkbox" id="telRemoteCurtail" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
       <div class="trow"><span>UPS / battery backup</span><label class="tog"><input type="checkbox" id="telUPS" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
-      <label>Alt. comm. path (Internet SCADA)</label>
+      <label>Comm. path to utility SCADA</label>
       <select id="telCommPath" onchange="render()">
-        <option value="cellular">Cellular LTE (wireless)</option>
-        <option value="broadband">Broadband / Ethernet (wired)</option>
-        <option value="none">None — direct fiber only</option>
+        <option value="cellular">Cellular LTE (private APN / VPN)</option>
+        <option value="broadband">Broadband / Ethernet (VPN)</option>
+        <option value="none">Utility-provided fiber / radio</option>
       </select>
       <label>Additional notes</label>
       <input type="text" id="telNotes" placeholder="Optional utility-specific requirement" oninput="render()">
@@ -759,8 +693,10 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             <div><label>Latitude (°N)</label><input type="number" id="an-lat" value="39.9" step="0.1" min="-90" max="90"></div>
             <div><label>Longitude (°E)</label><input type="number" id="an-lon" value="-75.2" step="0.1" min="-180" max="180"></div>
           </div>
-          <label>Panel tilt (°)</label>
-          <input type="number" id="an-tilt" value="20" step="1" min="0" max="60">
+          <div class="row2">
+            <div><label>Panel tilt (°)</label><input type="number" id="an-tilt" value="20" step="1" min="0" max="90"></div>
+            <div><label>Azimuth (°) <span style="font-size:9px;color:var(--muted);font-weight:400">180 = S</span></label><input type="number" id="an-azimuth" value="180" step="5" min="0" max="359"></div>
+          </div>
           <label>Export limit (kW) <span style="font-size:9px;color:var(--muted);font-weight:400">blank = net metering</span></label>
           <input type="number" id="an-export" value="" placeholder="None (net metering)" step="1" oninput="anExportChanged()">
           <div id="an-export-hint" class="cnote"></div>
@@ -1044,10 +980,11 @@ let _showNec = true;
 let _showWire = true;
 let _showConduitNotes = true;
 let _showNecNotes = true;
-const _lastAutoInvKw    = {1: null, 2: null};
-const _lastAutoInvV     = {1: null, 2: null};
-const _lastAutoInvCount = {1: null, 2: null};
-const _lastAutoCombV    = {1: null, 2: null};
+const _mkArrTracker=()=>({1:null,2:null,3:null,4:null}); // keyed by array number (see ARR_MAX)
+const _lastAutoInvKw    = _mkArrTracker();
+const _lastAutoInvV     = _mkArrTracker();
+const _lastAutoInvCount = _mkArrTracker();
+const _lastAutoCombV    = _mkArrTracker();
 
 // IndexedDB for DAE files (localStorage is too small for most .dae exports)
 const _idbName = 'sld_dae_db', _idbStore = 'dae';
@@ -1069,6 +1006,8 @@ function collectInputState(){
     if(el.type === 'file') return; // file pickers can't be restored programmatically (and would abort restore)
     state[el.id] = el.type === 'checkbox' ? el.checked : el.value;
   });
+  // Generated arrays: how many, and which still mirror Array 1
+  state.__arrays = extraNs().map(n => ({ n, mirror: arrMirrored(n) }));
   // Auto-fill locks: which inverter/combiner fields the user overrode manually, so a reload
   // doesn't let the auto-sizer clobber them on the next edit
   state.__autoLocks = {
@@ -1094,6 +1033,16 @@ function restoreInputState(state){
   const daeDismissed   = state.__daeDismissed   || [];
   const daeArrayAssign = state.__daeArrayAssign || {};
 
+  // Rebuild generated array sections before values are applied. Older saves used a fixed
+  // "Array 2" toggle (hasArr2 + arr2-linked) and a report-only name — migrate those.
+  let arrDefs = state.__arrays;
+  if(!arrDefs){
+    arrDefs = state.hasArr2 ? [{ n:2, mirror: state['arr2-linked'] !== false }] : [];
+    if(state.hasArr2 && state.rptArr2Name && !state.a2name) state.a2name = state.rptArr2Name;
+  }
+  setArrayCount(1 + arrDefs.length, { silent:true });
+  arrDefs.forEach(d => _arrSetMirror(d.n, !!d.mirror));
+
   // Older saves stored the analysis export limit as "0" by default (which now means zero-export);
   // when the SLD field was blank that "0" meant "no restriction", so restore it as blank.
   if(state['an-export']==='0' && !(state['exportLimit']||'').trim()) state['an-export']='';
@@ -1111,13 +1060,14 @@ function restoreInputState(state){
   // Restore auto-fill locks (older saves have none → treat every restored value as manual,
   // which is the safe default: nothing the user saved gets silently re-sized)
   const locks = state.__autoLocks;
-  [1,2].forEach(n => {
-    _lastAutoInvKw[n]    = locks ? locks.invKw[n]    : -1;
-    _lastAutoInvV[n]     = locks ? locks.invV[n]     : -1;
-    _lastAutoInvCount[n] = locks ? locks.invCount[n] : -1;
-    _lastAutoInvModel[n] = locks ? locks.invModel[n] : -1;
-    _lastAutoCombV[n]    = locks ? locks.combV[n]    : -1;
-  });
+  for(let n=1;n<=ARR_MAX;n++){
+    const L=(o)=>locks?(o&&o[n]!==undefined?o[n]:null):-1;
+    _lastAutoInvKw[n]    = L(locks&&locks.invKw);
+    _lastAutoInvV[n]     = L(locks&&locks.invV);
+    _lastAutoInvCount[n] = L(locks&&locks.invCount);
+    _lastAutoInvModel[n] = L(locks&&locks.invModel);
+    _lastAutoCombV[n]    = L(locks&&locks.combV);
+  }
   _lastAutoComms = locks ? locks.comms : ''; // '' = manually locked
 
   // Restore component list
@@ -1145,7 +1095,6 @@ function restoreInputState(state){
     if(toggleRow) toggleRow.style.display = 'flex';
   }
 
-  if(typeof arr2Toggle === 'function') arr2Toggle();
 
   // Restore CSV load profile
   if(state.__anCsvData && state.__anCsvData.length >= 8760){
@@ -1319,7 +1268,8 @@ function startupNewProject(fromHeader){
   $('an-array-type').value='1';
   // Clear project and analysis state
   _currentProjectKey = null;
-  [1,2].forEach(n => { _lastAutoInvKw[n]=_lastAutoInvV[n]=_lastAutoInvCount[n]=_lastAutoInvModel[n]=_lastAutoCombV[n]=null; });
+  setArrayCount(1, { silent:true });
+  for(let n=1;n<=ARR_MAX;n++){ _lastAutoInvKw[n]=_lastAutoInvV[n]=_lastAutoInvCount[n]=_lastAutoInvModel[n]=_lastAutoCombV[n]=null; }
   _lastAutoComms = null;
   _lastDaeXml = null;
   _daeCounts = {};
@@ -1444,6 +1394,182 @@ function aid(n,field){ return n===1?field:`a${n}${field}`; }
 function agv(n,field){ return gv(aid(n,field)); }
 function a$(n,field){ return $(aid(n,field)); }
 
+// ── Multiple PV arrays ────────────────────────────────────────────────────────
+// Array 1 is the static sidebar section; arrays 2..ARR_MAX are generated from arrSectionHtml().
+// A generated array "mirrors" Array 1 (every field copied on each render) until the user edits
+// any of its fields, after which it is independent. "Re-mirror" restores the link.
+const ARR_MAX=4;
+const ARR_FIELDS=['systemKw','numMods','strings','mods','modW','voc','isc','modModel','hasCombiner','combV','combFuse','invType','dcAcRatio','invKw','invV','invCount','invModel'];
+let _arrCount=1;
+function arrNs(){ return Array.from({length:_arrCount},(_,i)=>i+1); }
+function extraNs(){ return arrNs().slice(1); }
+function arrMirrored(n){ const sec=$('arr'+n+'-section'); return !!sec&&sec.dataset.mirror==='1'; }
+function arrName(n){ return n===1?'Array 1':((agv(n,'name')||'').trim()||`Array ${n}`); }
+
+function arrSectionHtml(n){
+  const a=`a${n}`;
+  return `<div class="section" id="arr${n}-section" data-mirror="1">
+    <div class="sec-toggle" onclick="toggleSec('arr${n}-body','arr${n}-arrow')">
+      <div class="stitle" style="display:flex;align-items:center;gap:8px">PV Array ${n} <span class="arr-mirror-badge" id="arr${n}-mirror-badge" title="Mirrors Array 1 — edit any field to make this array independent">mirrors 1</span></div>
+      <div style="display:flex;align-items:center;gap:6px" onclick="event.stopPropagation()">
+        <button class="arr-remove-btn" onclick="removeArray(${n})" title="Remove this array">Remove</button>
+        <span class="sec-arrow open" id="arr${n}-arrow">&#9654;</span>
+      </div>
+    </div>
+    <div class="sec-body" id="arr${n}-body">
+    <label>Array name <span style="font-size:9px;color:var(--muted);font-weight:400">(report label)</span></label>
+    <input type="text" id="${a}name" value="Array ${n}" oninput="render();renderReport()">
+    <div id="arr${n}-mirror-row" style="margin:6px 0 2px;display:none">
+      <button class="hbtn" style="padding:3px 10px;font-size:10px" onclick="remirrorArray(${n})">&#8635; Re-mirror Array 1</button>
+    </div>
+    <div class="arr-fields" id="arr${n}-fields">
+    <div class="row2">
+      <div><label>System size (kW DC)</label><input type="number" id="${a}systemKw" placeholder="e.g. 10" step="0.1" min="0.1" oninput="arrSystemKwChanged(${n})"></div>
+      <div><label>Total modules</label><input type="number" id="${a}numMods" placeholder="e.g. 24" min="1" oninput="arrNumModsChanged(${n})"></div>
+    </div>
+    <div id="${a}system-kw-note" class="cnote"></div>
+    <div class="row2">
+      <div><label>Strings</label><input type="number" id="${a}strings" value="2" min="1" max="500" oninput="arrStringsChanged(${n})"></div>
+      <div><label>Mods/string</label><input type="number" id="${a}mods" value="12" min="1" max="40" oninput="arrModsChanged(${n})"></div>
+    </div>
+    <div class="row2">
+      <div><label>Module Wp</label><input type="number" id="${a}modW" value="550" min="50" max="700" oninput="arrModWChanged(${n})"></div>
+      <div><label>Voc (V)</label><input type="number" id="${a}voc" value="49.9" step="0.1" oninput="arrVocChanged(${n})"></div>
+    </div>
+    <div class="row2">
+      <div><label>Isc (A)</label><input type="number" id="${a}isc" value="10.2" step="0.1" oninput="render()"></div>
+    </div>
+    <label>Module make / model</label>
+    <input type="text" id="${a}modModel" value="JA Solar 550W" oninput="render()">
+    <div class="stitle" style="margin-top:12px">String Combiner ${n}</div>
+    <div class="trow"><span>Include combiner box</span><label class="tog"><input type="checkbox" id="${a}hasCombiner" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+    <label>Max DC voltage rating</label>
+    <select id="${a}combV" onchange="arrCombVChanged(${n})"><option value="600">600 VDC</option><option value="1000" selected>1000 VDC</option><option value="1500">1500 VDC</option></select>
+    <label>String fuse (A)</label>
+    <input type="number" id="${a}combFuse" value="15" min="5" max="60" oninput="render()">
+    <div class="stitle" style="margin-top:12px">Inverter ${n}</div>
+    <label>Type</label>
+    <select id="${a}invType" onchange="render()">
+      <option value="string">String inverter</option>
+      <option value="hybrid">Hybrid (DC-coupled battery)</option>
+      <option value="micro">Microinverters</option>
+      <option value="central">Central inverter</option>
+    </select>
+    <div class="row2">
+      <div><label>DC/AC ratio</label><input type="number" id="${a}dcAcRatio" value="1.20" step="0.01" min="0.5" max="2.0" oninput="arrDcAcRatioChanged(${n})"></div>
+      <div><label>AC size (kW)</label><div id="${a}ac-system-kw" class="cval" style="padding-top:4px">--</div></div>
+    </div>
+    <div class="row2">
+      <div><label>Unit size (kW)</label><input type="number" id="${a}invKw" value="10" min="1" max="500" oninput="arrInvKwChanged(${n})"></div>
+      <div><label>Output voltage</label>
+        <select id="${a}invV" onchange="arrInvVChanged(${n})">
+          <option value="120VAC 1ph">120VAC 1ph</option>
+          <option value="240VAC 1ph">240VAC 1ph</option>
+          <option value="208VAC 3ph">208VAC 3ph</option>
+          <option value="480VAC 3ph" selected>480VAC 3ph</option>
+          <option value="600VAC 3ph">600VAC 3ph</option>
+        </select>
+      </div>
+    </div>
+    <div id="${a}inv-ac-calc" class="cnote" style="margin-top:6px"></div>
+    <div class="row2">
+      <div><label>Quantity</label><input type="number" id="${a}invCount" value="1" min="1" max="20" oninput="arrInvCountChanged(${n})"></div>
+    </div>
+    <label>Make / model</label>
+    <input type="text" id="${a}invModel" value="SMA Sunny Boy 10.0" oninput="render()">
+    </div><!-- end arr${n}-fields -->
+    </div><!-- end arr${n}-body -->
+  </div>`;
+}
+
+// Copy Array 1's values into every array that is still mirroring it
+function arrSyncAll(){
+  extraNs().forEach(n=>{
+    if(!arrMirrored(n)) return;
+    ARR_FIELDS.forEach(f=>{
+      const src=$(f), dst=a$(n,f); if(!src||!dst) return;
+      if(src.type==='checkbox') dst.checked=src.checked; else dst.value=src.value;
+    });
+    const note=$('system-kw-note'), dn=a$(n,'system-kw-note'); if(note&&dn) dn.textContent=note.textContent;
+  });
+}
+function _arrSetMirror(n,on){
+  const sec=$('arr'+n+'-section'); if(!sec) return;
+  sec.dataset.mirror=on?'1':'0';
+  sec.classList.toggle('arr-mirrored',on);
+  const badge=$('arr'+n+'-mirror-badge'); if(badge) badge.style.display=on?'':'none';
+  const row=$('arr'+n+'-mirror-row'); if(row) row.style.display=on?'none':'block';
+}
+function remirrorArray(n){
+  _arrSetMirror(n,true);
+  [_lastAutoInvKw,_lastAutoInvV,_lastAutoInvCount,_lastAutoInvModel,_lastAutoCombV].forEach(o=>{o[n]=null;});
+  arrSyncAll(); render(); saveState();
+}
+// Any user edit inside a generated array's fields makes that array independent
+function _arrWatchEdits(n){
+  const fields=$('arr'+n+'-fields'); if(!fields) return;
+  const unlink=()=>{ if(arrMirrored(n)) _arrSetMirror(n,false); };
+  fields.addEventListener('input',unlink,true);
+  fields.addEventListener('change',unlink,true);
+}
+function _arrRefreshAddBtn(){
+  const b=$('add-array-btn'); if(b){ b.disabled=_arrCount>=ARR_MAX; b.textContent=_arrCount>=ARR_MAX?`Maximum ${ARR_MAX} arrays`:'+ Add array'; }
+}
+// Ensure exactly `count` array sections exist (creates/removes generated sections as needed)
+function setArrayCount(count,opts={}){
+  count=Math.max(1,Math.min(ARR_MAX,count|0));
+  const wrap=$('extra-arrays'); if(!wrap) return;
+  while(_arrCount>count){ const sec=$('arr'+_arrCount+'-section'); if(sec) sec.remove(); _arrCount--; }
+  while(_arrCount<count){
+    const n=_arrCount+1;
+    wrap.insertAdjacentHTML('beforeend',arrSectionHtml(n));
+    _arrSetMirror(n,true);
+    _arrWatchEdits(n);
+    [_lastAutoInvKw,_lastAutoInvV,_lastAutoInvCount,_lastAutoInvModel,_lastAutoCombV].forEach(o=>{o[n]=null;});
+    _arrCount=n;
+  }
+  _arrRefreshAddBtn();
+  if(!opts.silent){ arrSyncAll(); }
+}
+function addArray(){
+  if(_arrCount>=ARR_MAX) return;
+  setArrayCount(_arrCount+1);
+  const n=_arrCount;
+  render(); renderReport(); saveState();
+  const sec=$('arr'+n+'-section'); if(sec) sec.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function removeArray(n){
+  if(n<2||n>_arrCount) return;
+  if(!confirm(`Remove ${arrName(n)}?`)) return;
+  // Shift higher arrays down so numbering stays contiguous: snapshot their values, rebuild, restore
+  const snap=[];
+  for(let k=n+1;k<=_arrCount;k++){
+    const vals={}; ARR_FIELDS.concat(['name']).forEach(f=>{const el=a$(k,f); if(el) vals[f]=el.type==='checkbox'?el.checked:el.value;});
+    snap.push({vals,mirror:arrMirrored(k)});
+  }
+  setArrayCount(n-1,{silent:true});
+  snap.forEach((sn,i)=>{
+    setArrayCount(n+i,{silent:true});
+    const k=n+i;
+    Object.entries(sn.vals).forEach(([f,val])=>{const el=a$(k,f); if(!el) return; if(el.type==='checkbox') el.checked=val; else el.value=(f==='name'&&/^Array \d+$/.test(val))?`Array ${k}`:val;});
+    _arrSetMirror(k,sn.mirror);
+  });
+  arrSyncAll(); render(); renderReport(); saveState();
+}
+// Actual DC kW of array n as built from its strings (partial last string when the kW target
+// doesn't divide evenly) — same rule the SLD uses for its kW labels
+function arrActualMods(n){
+  const sysKw=+agv(n,'systemKw')||0, strings=Math.max(1,+agv(n,'strings')||1), mods=Math.max(1,+agv(n,'mods')||1), modW=+agv(n,'modW')||550;
+  let modsLast=mods;
+  if(sysKw>0){ const totalMods=Math.round(sysKw*1000/modW); modsLast=Math.min(Math.max(1,totalMods-(strings-1)*mods),mods); }
+  return (strings-1)*mods+modsLast;
+}
+function arrActualKwDc(n){ return arrActualMods(n)*(+agv(n,'modW')||550)/1000; }
+// Total inverter AC kW across all arrays (from the sidebar inputs)
+function totalInvAcKw(){
+  return arrNs().reduce((sum,n)=>sum+(+agv(n,'invKw')||10)*Math.max(1,+agv(n,'invCount')||1),0);
+}
+
 // Inverter brand → monitoring platform lookup
 const MONITORING_DB = [
   { keys:['sma','sunny boy','sunny tripower','sunny highpower','sunny island','core1','core2','sb ','stp ','si '],
@@ -1500,10 +1626,15 @@ function detectMonitoring(model) {
   return null;
 }
 
+let _lastAutoPlatform=null;
+function _setAutoPlatform(det){
+  const pf=$('monitorPlatform'); if(!pf||!det) return;
+  if(!pf.value||pf.value===_lastAutoPlatform){ pf.value=det.platform; _lastAutoPlatform=det.platform; }
+}
 function invModelChanged() {
   const det = detectMonitoring(gv('invModel'));
   const pf = $('monitorPlatform');
-  if (pf && det) pf.value = det.platform;
+  _setAutoPlatform(det);
   const gn = $('monitor-gateway-note');
   if (gn) gn.textContent = det ? `Gateway: ${det.gateway}` : '';
   render();
@@ -1551,7 +1682,7 @@ const INV_BOD = [
   {ph:3, kw:300.0, model:'SMA SC 300 UD-US'},
   {ph:3, kw:500.0, model:'SMA SC 500 UD-US'},
 ];
-const _lastAutoInvModel = {1: null, 2: null};
+const _lastAutoInvModel = _mkArrTracker();
 
 function autoFillInvV(n, totalAcKw){
   const el = a$(n,'invV');
@@ -1603,8 +1734,7 @@ function autoFillInvModel(n){
     _lastAutoInvModel[n] = best.model;
     if(n === 1){
       const det = detectMonitoring(best.model);
-      const pf = $('monitorPlatform');
-      if(pf && det && !pf.value) pf.value = det.platform;
+      _setAutoPlatform(det);
       const gn = $('monitor-gateway-note');
       if(gn) gn.textContent = det ? `Gateway: ${det.gateway}` : '';
     }
@@ -1620,15 +1750,17 @@ const WIRE_AMP=[
   {awg:'1', amps:130,area:0.1562},{awg:'1/0',amps:150,area:0.1855},
   {awg:'2/0',amps:175,area:0.2223},{awg:'3/0',amps:200,area:0.2679},
   {awg:'4/0',amps:230,area:0.3237},
-  {awg:'350 kcmil',amps:310,area:0.5242},{awg:'500 kcmil',amps:380,area:0.7073},
-  {awg:'600 kcmil',amps:420,area:0.8659},{awg:'750 kcmil',amps:475,area:1.0761},
-  {awg:'1000 kcmil',amps:545,area:1.5900}
-];
+  {awg:'250 kcmil',amps:255,area:0.3970},{awg:'300 kcmil',amps:285,area:0.4608},
+  {awg:'350 kcmil',amps:310,area:0.5242},{awg:'400 kcmil',amps:335,area:0.5863},
+  {awg:'500 kcmil',amps:380,area:0.7073},{awg:'600 kcmil',amps:420,area:0.8676},
+  {awg:'700 kcmil',amps:460,area:0.9887},{awg:'750 kcmil',amps:475,area:1.0496},
+  {awg:'1000 kcmil',amps:545,area:1.3478}
+]; // NEC 310.16 75°C Cu (14–10 AWG capped per 240.4(D)) · Ch.9 Table 5 THWN-2 areas (in²)
 // NEC Ch.9 Table 4 — EMT, 40% fill (in²)
 const EMT_FILL=[
   {size:'½"',f:0.122},{size:'¾"',f:0.213},{size:'1"',f:0.346},
   {size:'1¼"',f:0.598},{size:'1½"',f:0.814},{size:'2"',f:1.342},
-  {size:'2½"',f:1.847},{size:'3"',f:2.829},{size:'4"',f:4.754}
+  {size:'2½"',f:2.343},{size:'3"',f:3.538},{size:'3½"',f:4.618},{size:'4"',f:5.901}
 ];
 function wireFor(a){return WIRE_AMP.find(w=>w.amps>=a)||WIRE_AMP[WIRE_AMP.length-1];}
 function wireForParallel(a){
@@ -1638,28 +1770,31 @@ function wireForParallel(a){
   const sets=Math.ceil(a/largest.amps);
   return{...largest,sets};
 }
-function wireLbl(w){return w.sets>1?`${w.sets}× #${w.awg} THWN-2`:`#${w.awg} THWN-2`;}
+function awgStr(w){ return /kcmil/.test(w.awg)?w.awg:('#'+w.awg+' AWG'); }          // "#4 AWG" / "350 kcmil"
+function wireLbl(w){const c=/kcmil/.test(w.awg)?w.awg:('#'+w.awg);return w.sets>1?`${w.sets}× ${c} THWN-2`:`${c} THWN-2`;}
 function conduitFor(n,wireArea){const tot=n*wireArea;return(EMT_FILL.find(c=>c.f>=tot)||EMT_FILL[EMT_FILL.length-1]).size;}
 // Conduit notes shown in the SLD's NEC box and on the Project Report — one source so both always match.
 // Returns an array of plain-text lines (numbered). `withNec` appends NEC article references.
 function conduitNoteLines(v,withNec){
   const CAT6_AREA=0.0594;
-  const c1=conduitRows(v);
+  const cs=(v.arrays||[v]).map(conduitRows); // one conduit calc per array
+  const c1=cs[0];
   const hasAcCombiner=gc('hasAcCombiner');
-  const c2roof=v.hasArr2?conduitRows(v.a2):null;
-  const totalAcA=c1.perInvAcA*c1.invCount;
-  const roofTotalAcA=v.hasArr2?(totalAcA+c2roof.perInvAcA*c2roof.invCount):totalAcA;
-  const roofTotalAcW=v.hasArr2?wireForParallel(roofTotalAcA):wireForParallel(totalAcA);
-  const roofCommRuns=v.hasArr2?c1.invCount+c2roof.invCount:c1.invCount;
+  const roofTotalAcA=cs.reduce((t,c)=>t+c.perInvAcA*c.invCount,0);
+  const roofTotalAcW=wireForParallel(roofTotalAcA);
+  const roofCommRuns=cs.reduce((t,c)=>t+c.invCount,0);
   const roofCommCond=conduitFor(roofCommRuns,CAT6_AREA);
   const acMult=+gv('acConduitMult')||1;
   const mPfx=`${acMult}× `;
   let acNote;
   if(hasAcCombiner){
-    acNote=`Provide ${mPfx}${conduitFor(c1.acConds,roofTotalAcW.area)} EMT for AC power, roof → elec. room (${roofTotalAcA.toFixed(1)} A req.)`;
-  } else if(v.hasArr2){
-    const r1=c1.invCount>1?` ×${c1.invCount}`:''; const r2=c2roof.invCount>1?` ×${c2roof.invCount}`:'';
-    acNote=`Provide ${mPfx}${conduitFor(c1.acConds,c1.perInvAcW.area)} EMT${r1} (A1) + ${mPfx}${conduitFor(c2roof.acConds,c2roof.perInvAcW.area)} EMT${r2} (A2) for AC power, roof → elec. room`;
+    // One raceway per parallel conductor set (NEC 310.10(G)); user multiplier can add more
+    const runs=Math.max(acMult,roofTotalAcW.sets||1);
+    const setNote=(roofTotalAcW.sets||1)>1?` · ${roofTotalAcW.sets} parallel sets of ${awgStr(roofTotalAcW)}`:'';
+    acNote=`Provide ${runs}× ${conduitFor(c1.acConds,roofTotalAcW.area)} EMT for AC power, roof → elec. room (${roofTotalAcA.toFixed(1)} A req.${setNote})`;
+  } else if(cs.length>1){
+    const parts=cs.map((c,i)=>{const r=c.invCount>1?` ×${c.invCount}`:''; return `${mPfx}${conduitFor(c.acConds,c.perInvAcW.area)} EMT${r} (A${i+1})`;});
+    acNote=`Provide ${parts.join(' + ')} for AC power, roof → elec. room`;
   } else {
     const runs=c1.invCount>1?` · ×${c1.invCount} runs`:'';
     acNote=`Provide ${mPfx}${conduitFor(c1.acConds,c1.perInvAcW.area)} EMT for AC power${runs}, roof → elec. room (${c1.perInvAcA.toFixed(1)} A req.)`;
@@ -1678,33 +1813,45 @@ function conduitRows(cfg){
   const is3ph=invV.includes('3ph');
   const acConds=is3ph?4:3;
   const invCount=Math.max(1,cfg.invCount||1);
-  const strA=cfg.isc*1.5625;
+  const strA=cfg.isc*1.5625;                 // NEC 690.8(A)(1) ×1.25 · 690.8(B)(1) ×1.25
   const strW=wireFor(strA);
-  const dcA=cfg.strings*cfg.isc*1.5625;
+  const strPerInv=Math.ceil(cfg.strings/invCount); // strings are split across the inverters
+  const dcA=strPerInv*cfg.isc*1.5625;         // combiner → inverter, per inverter
   const dcW=wireFor(dcA);
   const perInvAcA=(cfg.invKw*1000)/(invVolts*(is3ph?1.732:1))*1.25;
   const perInvAcW=wireFor(perInvAcA);
   const CAT6_AREA=0.0594;
   const commCond=conduitFor(invCount,CAT6_AREA);
-  return{strA,strW,dcA,dcW,perInvAcA,perInvAcW,acConds,invCount,commCond};
+  return{strA,strW,dcA,dcW,strPerInv,perInvAcA,perInvAcW,acConds,invCount,commCond};
 }
 
 const STANDARD_BREAKERS=[15,20,25,30,35,40,45,50,60,70,80,90,100,110,125,150,175,200,225,250,300,350,400,450,500,600,700,800,1000,1200,1600,2000];
-const PANEL_SIZES=[20,40,60,80,100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000];
+const PANEL_SIZES=[20,40,60,80,100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000,2500,3000,4000];
 function nextStandardBreaker(minA){return STANDARD_BREAKERS.find(b=>b>=minA)||STANDARD_BREAKERS[STANDARD_BREAKERS.length-1];}
 function nextPanelSize(minA){return PANEL_SIZES.find(p=>p>=minA)||PANEL_SIZES[PANEL_SIZES.length-1];}
 function battVMin(battV){const nums=(battV||'').match(/[\d.]+/g);return nums?Math.min(...nums.map(Number)):48;}
 
+function arrVals(n){
+  return {
+    n, name:arrName(n),
+    systemKwRaw:+agv(n,'systemKw')||0,
+    strings:Math.max(1,+agv(n,'strings')||1),mods:Math.max(1,+agv(n,'mods')||1),
+    modW:+agv(n,'modW')||550,voc:+agv(n,'voc')||49.9,isc:+agv(n,'isc')||10.2,
+    modModel:agv(n,'modModel'),
+    hasCombiner:!!(a$(n,'hasCombiner')&&a$(n,'hasCombiner').checked),combV:+agv(n,'combV')||1000,combFuse:+agv(n,'combFuse')||15,
+    invType:agv(n,'invType')||'string',dcAcRatio:+agv(n,'dcAcRatio')||1.2,invKw:+agv(n,'invKw')||10,invCount:Math.max(1,+agv(n,'invCount')||1),
+    invV:agv(n,'invV')||'480VAC 3ph',invModel:agv(n,'invModel'),
+  };
+}
 function vals(){
-  const hasArr2 = gc('hasArr2');
+  const arrays=arrNs().map(arrVals);
+  const hasArr2=arrays.length>1; // true when more than one array is defined
   const _gridNw=gv('gridNetwork')||'radial';
   const _sanStrat=gv('interconnType')||'radial-feeder';
   const _isSanSsn=_gridNw==='san'||_gridNw==='ssn';
   const _bessMode=_isSanSsn&&_sanStrat==='bess';
   const _effInterconn=(_isSanSsn&&_sanStrat==='radial-feeder')?'radial-feeder':'behind-meter';
-  const _invKw=(+gv('invKw')||10)*Math.max(1,+gv('invCount')||1);
-  const _a2Kw=hasArr2?((+gv('a2invKw')||10)*Math.max(1,+gv('a2invCount')||1)):0;
-  const _totalAcKw=_invKw+_a2Kw;
+  const _totalAcKw=totalInvAcKw();
   return{
     projName:gv('projName'),designer:gv('designer'),
     strings:Math.max(1,+gv('strings')||1),mods:Math.max(1,+gv('mods')||1),
@@ -1712,15 +1859,10 @@ function vals(){
     modModel:gv('modModel'),
     hasCombiner:gc('hasCombiner'),combV:+gv('combV')||1000,combFuse:+gv('combFuse')||15,
     invType:gv('invType'),invKw:+gv('invKw')||10,invCount:Math.max(1,+gv('invCount')||1),invV:gv('invV'),invModel:gv('invModel'),
+    dcAcRatio:+gv('dcAcRatio')||1.2,
+    arrays,            // all arrays (arrays[0] is Array 1 — same values as the top-level fields)
+    extra:arrays.slice(1),
     hasArr2,
-    a2:{
-      strings:Math.max(1,+gv('a2strings')||1),mods:Math.max(1,+gv('a2mods')||1),
-      modW:+gv('a2modW')||550,voc:+gv('a2voc')||49.9,isc:+gv('a2isc')||10.2,
-      modModel:gv('a2modModel'),
-      hasCombiner:gc('a2hasCombiner'),combV:+gv('a2combV')||1000,combFuse:+gv('a2combFuse')||15,
-      invType:gv('a2invType'),dcAcRatio:+gv('a2dcAcRatio')||1.2,invKw:+gv('a2invKw')||10,invCount:Math.max(1,+gv('a2invCount')||1),
-      invV:gv('a2invV'),invModel:gv('a2invModel'),
-    },
     hasBatt:gc('hasBatt')||_bessMode,hasIslanding:gc('hasIslanding'),battCouple:gv('battCouple'),battKwh:+gv('battKwh')||13.5,
     battKw:+gv('battKw')||5,battQty:Math.max(1,+gv('battQty')||1),pcsKva:+gv('pcsKva')||5,
     battV:gv('battV'),battChem:gv('battChem'),battModel:gv('battModel'),
@@ -1731,7 +1873,7 @@ function vals(){
     hasMvXfmr:gc('hasMvXfmr'),mvKva:+gv('mvKva')||1000,mvQty:Math.max(1,+gv('mvQty')||1),
     mvPriKv:+gv('mvPriKv')||13.8,mvSecV:+gv('mvSecV')||480,
     panelA:+gv('panelA')||200,busbarA:(+gv('panelA')||200),solarBreaker:+gv('solarBreaker')||40,
-    hasRSD:gc('hasRSD'),rsdMethod:gv('rsdMethod')||'mlpe',rsdLocation:gv('rsdLocation')||'svc-disc',hasMeter:gc('hasMeter'),hasGnd:gc('hasGnd'),
+    hasRSD:gc('hasRSD'),rsdMethod:gv('rsdMethod')||'mlpe',rsdLocation:gv('rsdLocation')||'svc-disc',hasMeter:gc('hasMeter'),hasGnd:true, // grounding is always drawn
     hasSPD:gc('hasSPD'),hasUtilDisc:gc('hasUtilDisc'),hasNetMeter:gc('hasNetMeter'),hasMonitoring:gc('hasMonitoring'),
     monitorPlatform:gv('monitorPlatform')||'',
     interconnType:_effInterconn,
@@ -1846,15 +1988,32 @@ function renderPVArray(v, cx, startY, compact=false) {
   return { svg: s, botY: botTermY, envRightX: envX + envW, envY, envX };
 }
 
-function _stripNec(t){return t.replace(/\s*·?\s*NEC\s+[\w\d./()]+(?:\s*[/·]\s*[\w\d./()]+)*/g,'').trim();}
+// Remove NEC article references ("NEC 705.22", "NEC 690.12(C) / 690.15", "NEC Art. 800", "NEC 230.67 (AC)")
+// while leaving the surrounding descriptive text intact.
+function _stripNec(t){
+  return t.replace(/\s*·?\s*NEC\s+(?:Art\.?\s+)?\d[\w.()]*(?:\s*\([A-Z]+\))?(?:\s*[/·]\s*(?:NEC\s+)?\d[\w.()]*(?:\s*\([A-Z]+\))?)*/g,'')
+          .replace(/^\s*·\s*/,'').replace(/\s*·\s*$/,'').replace(/\s*·\s*·\s*/g,' · ').trim();
+}
+// Measure SVG label text with the diagram font (canvas fallback estimate if unavailable)
+const _sldMeasureCtx=(()=>{try{return document.createElement('canvas').getContext('2d');}catch(_){return null;}})();
+function sldTextW(txt,px,weight){
+  if(_sldMeasureCtx){ _sldMeasureCtx.font=`${weight||400} ${px}px 'Avenir Next','Avenir',sans-serif`; return _sldMeasureCtx.measureText(txt).width; }
+  return txt.length*px*0.55;
+}
+// Extra attributes that squeeze a label into `maxW` when its natural width is wider (never stretches)
+function sldFitAttr(txt,px,maxW,weight){
+  const w=sldTextW(txt,px,weight);
+  return w>maxW?` textLength="${maxW.toFixed(1)}" lengthAdjust="spacingAndGlyphs"`:'';
+}
+const _SLD_PX={'sld-lbl':13,'sld-sub':11,'sld-note':10};
 function compBox(x,y,w,h,fill,stroke,title,sub1,sub2,sub3){
   let s=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
   let subs=[sub1,sub2,sub3].filter(Boolean);
   if(!_showNec) subs=subs.map(_stripNec).filter(Boolean);
   const lines=[title,...subs];
-  const lh=14,total=lines.length*lh;
+  const lh=14,total=lines.length*lh, maxW=w-12;
   let ty=y+h/2-total/2+lh*0.75;
-  lines.forEach((l,i)=>{const cls=i===0?'sld-lbl':'sld-sub';s+=`<text x="${x+w/2}" y="${ty+i*lh}" class="${cls}" text-anchor="middle">${esc(l)}</text>`;});
+  lines.forEach((l,i)=>{const cls=i===0?'sld-lbl':'sld-sub';s+=`<text x="${x+w/2}" y="${ty+i*lh}" class="${cls}" text-anchor="middle"${sldFitAttr(l,_SLD_PX[cls],maxW,i===0?500:400)}>${esc(l)}</text>`;});
   return s;
 }
 function wireDC(x1,y1,x2,y2){return`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#c9a10a" stroke-width="2" stroke-dasharray="7 3"/>`;}
@@ -1891,13 +2050,14 @@ function discBox(x,y,w,h,fill,stroke,label,sub,sub2){
   s+=`<line x1="${mx-8}" y1="${my+5}" x2="${mx+8}" y2="${my-5}" stroke="${stroke}" stroke-width="1.5"/>`;
   s+=`<circle cx="${mx-8}" cy="${my+5}" r="2" fill="${stroke}"/>`;
   s+=`<circle cx="${mx+8}" cy="${my-5}" r="2" fill="${stroke}"/>`;
-  s+=`<text x="${mx}" y="${y+10}" class="sld-note" text-anchor="middle">${esc(label)}</text>`;
+  const fit=t=>sldFitAttr(t,10,w-10);
+  s+=`<text x="${mx}" y="${y+10}" class="sld-note" text-anchor="middle"${fit(label)}>${esc(label)}</text>`;
   const showSub2=_showNec?sub2:(_stripNec(sub2||'')||null);
   if(showSub2){
-    s+=`<text x="${mx}" y="${y+h-13}" class="sld-note" text-anchor="middle">${esc(sub)}</text>`;
-    s+=`<text x="${mx}" y="${y+h-4}" class="sld-note" text-anchor="middle">${esc(showSub2)}</text>`;
+    s+=`<text x="${mx}" y="${y+h-13}" class="sld-note" text-anchor="middle"${fit(sub)}>${esc(sub)}</text>`;
+    s+=`<text x="${mx}" y="${y+h-4}" class="sld-note" text-anchor="middle"${fit(showSub2)}>${esc(showSub2)}</text>`;
   } else if(sub){
-    s+=`<text x="${mx}" y="${y+h-5}" class="sld-note" text-anchor="middle">${esc(sub)}</text>`;
+    s+=`<text x="${mx}" y="${y+h-5}" class="sld-note" text-anchor="middle"${fit(sub)}>${esc(sub)}</text>`;
   }
   return s;
 }
@@ -2279,65 +2439,36 @@ function renderDaePreview(xmlText){
   });
 }
 
-function arr2Toggle(){
-  const on = gc('hasArr2');
-  const body = $('arr2-body');
-  const arrow = $('arr2-arrow');
-  body.style.display = on ? 'block' : 'none';
-  arrow.classList.toggle('open', on);
-  if(on){
-    arr2Sync();
-    const linked = gc('arr2-linked');
-    const fields = $('arr2-fields');
-    if(fields){
-      fields.querySelectorAll('input,select').forEach(el => el.disabled = linked);
-      fields.classList.toggle('fields-locked', linked);
-    }
-  }
-}
-
-function arr2Sync(){
-  if(!gc('arr2-linked')) return;
-  const fields = ['strings','mods','modW','voc','isc','modModel','combV','combFuse','invType','dcAcRatio','invKw','invV','invCount','invModel'];
-  fields.forEach(f => {
-    const src = $(f), dst = $('a2'+f);
-    if(src && dst) dst.value = src.value;
-  });
-  const hasComb = gc('hasCombiner'), hasCombEl = $('a2hasCombiner');
-  if(hasCombEl) hasCombEl.checked = hasComb;
-  // also sync systemKw
-  const skw = $('systemKw'), askw = $('a2systemKw');
-  if(skw && askw) askw.value = skw.value;
-}
-
-function arr2LinkChanged(){
-  const linked = gc('arr2-linked');
-  const fields = $('arr2-fields');
-  if(fields){
-    fields.querySelectorAll('input,select').forEach(el => el.disabled = linked);
-    fields.classList.toggle('fields-locked', linked);
-  }
-  if(linked) arr2Sync();
-  render();
-}
-
 function rsdLocationChanged(){
   const udCb=$('hasUtilDisc');
   if(udCb){
     const isSvcDisc=(gv('rsdLocation')||'svc-disc')==='svc-disc';
-    const _invKw=(+gv('invKw')||10)*Math.max(1,+gv('invCount')||1);
-    const _a2Kw=gc('hasArr2')?((+gv('a2invKw')||10)*Math.max(1,+gv('a2invCount')||1)):0;
     // Only set default when not already force-locked by >50kW or MV transformer
-    if(!gc('hasMvXfmr')&&_invKw+_a2Kw<=50) udCb.checked=isSvcDisc;
+    if(!gc('hasMvXfmr')&&totalInvAcKw()<=50) udCb.checked=isSvcDisc;
   }
   render();
+}
+let _lastAutoPoiKv=null;
+function _acVoltsOf(str){ str=str||'480VAC 3ph'; return str.startsWith('120')?120:str.startsWith('240')?240:str.startsWith('208')?208:str.startsWith('600')?600:480; }
+// Keep POI voltage in step with the service voltage: inverter output when there is no MV
+// step-up transformer, the transformer primary when there is. A manually typed value sticks.
+let _lastAutoMvSecV=null;
+function syncMvSecV(){
+  const el=$('mvSecV'); if(!el) return;
+  const auto=_acVoltsOf(gv('invV'));
+  if(_lastAutoMvSecV===null||+el.value===_lastAutoMvSecV){ el.value=String(auto); _lastAutoMvSecV=auto; }
+}
+function syncPoiKv(){
+  const el=$('poiKv'); if(!el) return;
+  const auto=gc('hasMvXfmr')?(+gv('mvPriKv')||13.8):_acVoltsOf(gv('invV'))/1000;
+  if(_lastAutoPoiKv===null||Math.abs((+el.value||0)-_lastAutoPoiKv)<1e-6){ el.value=String(auto); _lastAutoPoiKv=auto; }
 }
 function toggleMvFields(){
   const isMv=document.getElementById('hasMvXfmr').checked;
   const el=document.getElementById('mvxfmr-fields');
   if(el) el.style.display=isMv?'block':'none';
   const poiEl=$('poiKv');
-  if(poiEl) poiEl.value=isMv?(+gv('mvPriKv')||13.8).toString():'0.48';
+  if(poiEl){ poiEl.value=isMv?(+gv('mvPriKv')||13.8).toString():String(_acVoltsOf(gv('invV'))/1000); _lastAutoPoiKv=+poiEl.value; }
 }
 function mvPriKvChanged(){
   if(gc('hasMvXfmr')) $('poiKv').value=gv('mvPriKv')||'13.8';
@@ -2359,11 +2490,7 @@ function toggleBattFields(skipAutosize){
 }
 function autosizeBatt(){
   if(!gc('hasBatt')){render();return;}
-  const invKw=+gv('invKw')||10;
-  const invCount=Math.max(1,+gv('invCount')||1);
-  const hasArr2=gc('hasArr2');
-  const a2Kw=hasArr2?(+gv('a2invKw')||10)*Math.max(1,+gv('a2invCount')||1):0;
-  const totalAcKw=Math.round((invKw*invCount+a2Kw)*10)/10;
+  const totalAcKw=Math.round(totalInvAcKw()*10)/10;
   const dur=Math.max(0.5,+gv('battDuration')||2);
   const kwhVal=Math.round(totalAcKw*dur*10)/10;
   $('battKw').value=totalAcKw;
@@ -2378,13 +2505,11 @@ document.addEventListener('DOMContentLoaded',function(){
   // Ensure invType defaults to string (browser may restore a cached selection)
   const invTypeEl=document.getElementById('invType');
   if(invTypeEl&&!invTypeEl.value) invTypeEl.value='string';
-  // Disable arr2 manual fields by default (mirrored)
-  const arr2fields = document.getElementById('arr2-fields');
-  if(arr2fields) arr2fields.querySelectorAll('input,select').forEach(el => el.disabled = true);
+  _arrRefreshAddBtn();
   // Auto-fill monitoring platform from default invModel value
   const det = detectMonitoring(gv('invModel'));
   const pf = $('monitorPlatform');
-  if (pf && det && !pf.value) pf.value = det.platform;
+  _setAutoPlatform(det);
   const gn = $('monitor-gateway-note');
   if (gn && det) gn.textContent = `Gateway: ${det.gateway}`;
   // Initialize grid network dependent UI
@@ -2401,6 +2526,14 @@ function calcStrings(totalMods, mps, modW){
   const actualKw=(totalMods*modW/1000);
   return{fullStrings,modsLast,totalStrings,totalMods,actualKw};
 }
+// Push an auto-chosen combiner voltage to every other array whose combV is still auto
+function _arrPropagateCombV(n,val){
+  arrNs().forEach(k=>{
+    if(k===n) return;
+    const el=a$(k,'combV'); if(!el) return;
+    if(_lastAutoCombV[k]===null||+el.value===_lastAutoCombV[k]){ el.value=val; _lastAutoCombV[k]=val; }
+  });
+}
 function autoFillCombV(n){
   const mods=+agv(n,'mods')||1;
   const voc=+agv(n,'voc')||49.9;
@@ -2410,12 +2543,7 @@ function autoFillCombV(n){
   if(!el) return;
   if(_lastAutoCombV[n]===null||+el.value===_lastAutoCombV[n]){
     el.value=auto;
-    const otherN=n===1?2:1;
-    const otherEl=$(n===1?'a2combV':'combV');
-    if(otherEl&&(_lastAutoCombV[otherN]===null||+otherEl.value===_lastAutoCombV[otherN])){
-      otherEl.value=auto;
-      _lastAutoCombV[otherN]=auto;
-    }
+    _arrPropagateCombV(n,auto);
   }
   _lastAutoCombV[n]=auto;
 }
@@ -2430,11 +2558,7 @@ function arrSystemKwChanged(n){
   if(combVEl&&(_lastAutoCombV[n]===null||+combVEl.value===_lastAutoCombV[n])){
     const sizeV=systemKw<200?600:1000;
     combVEl.value=sizeV; _lastAutoCombV[n]=sizeV;
-    const otherN=n===1?2:1;
-    const otherEl=$(n===1?'a2combV':'combV');
-    if(otherEl&&(_lastAutoCombV[otherN]===null||+otherEl.value===_lastAutoCombV[otherN])){
-      otherEl.value=sizeV; _lastAutoCombV[otherN]=sizeV;
-    }
+    _arrPropagateCombV(n,sizeV);
   }
   const combV=+agv(n,'combV')||1000;
   const idealMods=Math.round(systemKw*1000/modW);
@@ -2514,11 +2638,7 @@ function arrNumModsChanged(n){
     if(combVEl&&(_lastAutoCombV[n]===null||+combVEl.value===_lastAutoCombV[n])){
       const sizeV=systemKw<200?600:1000;
       combVEl.value=sizeV; _lastAutoCombV[n]=sizeV;
-      const otherN=n===1?2:1;
-      const otherEl=$(n===1?'a2combV':'combV');
-      if(otherEl&&(_lastAutoCombV[otherN]===null||+otherEl.value===_lastAutoCombV[otherN])){
-        otherEl.value=sizeV; _lastAutoCombV[otherN]=sizeV;
-      }
+      _arrPropagateCombV(n,sizeV);
       const voc=+agv(n,'voc')||49.9;
       const mps=Math.min(Math.max(1,Math.floor(sizeV/(voc*1.25))),40);
       const modsEl=a$(n,'mods');
@@ -2530,12 +2650,10 @@ function arrNumModsChanged(n){
 function arrModWChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else if(+agv(n,'numMods')>0) arrNumModsChanged(n); else render(); }
 function arrVocChanged(n){ if(+agv(n,'systemKw')>0) arrSystemKwChanged(n); else { autoFillCombV(n); render(); } }
 function arrCombVChanged(n){
-  _lastAutoCombV[1]=-1; _lastAutoCombV[2]=-1; // user manually set — don't auto-override
-  // Mirror to the other array — DC voltage rating is always the same across both arrays
+  arrNs().forEach(k=>{_lastAutoCombV[k]=-1;}); // user manually set — don't auto-override
+  // Mirror to every other array — DC voltage rating is the same across the site
   const val = agv(n,'combV');
-  const otherId = n===1 ? 'a2combV' : 'combV';
-  const other = $(otherId);
-  if(other && other.value !== val) other.value = val;
+  arrNs().forEach(k=>{ if(k===n) return; const other=a$(k,'combV'); if(other && other.value !== val) other.value = val; });
   if(+agv(n,'systemKw')>0){
     arrSystemKwChanged(n);
   } else {
@@ -2789,23 +2907,24 @@ function renderArrayColumn(cfg, cx, startY, compact=false) {
   }
   const PV_DROP=W+24;
   s.push(wireDC(cx,y,cx,y+PV_DROP));
-  if(_showWire) s.push(wlabel(cx-4, y+PV_DROP/2, `#${dcRows.strW.awg} THWN-2`, false, 'end'));
+  if(_showWire) s.push(wlabel(cx-4, y+PV_DROP/2, wireLbl(dcRows.strW), false, 'end'));
   y+=PV_DROP;
   if(cfg.hasCombiner){
     const title=cfg.colLabel?`String Combiner ${cfg.colLabel}`:'String Combiner(s)';
     s.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8',title,`${cfg.combV} VDC max`,`${cfg.strings} str · ${cfg.combFuse}A OCP · NEC 690.9`));
     y+=54;
     s.push(wireDC(cx,y,cx,y+W));
-    if(_showWire) s.push(wlabel(cx-4, y+W/2, `#${dcRows.dcW.awg} THWN-2`, false, 'end'));
+    if(_showWire) s.push(wlabel(cx-4, y+W/2, wireLbl(dcRows.dcW), false, 'end'));
     y+=W;
   }
-  const arrayPmax=(cfg.strings*cfg.mods*cfg.modW/1000).toFixed(1);
+  const _ml=cfg.modsLast||cfg.mods; // partial last string, if any
+  const arrayPmax=(((cfg.strings-1)*cfg.mods+_ml)*cfg.modW/1000).toFixed(1);
   s.push(discBox(BX+15,y,BW-30,54,'#f5f7fc','#a0aac8','DC Disconnect',`${cfg.combV} VDC · ${Math.ceil(parseFloat(arrayIsc)*1.25)}A · ${arrayPmax} kW`,'NEC 690.13(E) / 690.15 / 690.53'));
   y+=54;
   if(cfg.hasSPD) s.push(spdSym(cx, y+Math.round(W/2), false, 'right', `${cfg.combV} VDC · Type 1`, 140));
   s.push(wireDC(cx,y,cx,y+W));
   s.push(wlabel(cx-4, y+W/2-4, 'DC', false, 'end'));
-  if(_showWire) s.push(wlabel(cx-4, y+W/2+7, `#${dcRows.dcW.awg} THWN-2`, false, 'end'));
+  if(_showWire) s.push(wlabel(cx-4, y+W/2+7, wireLbl(dcRows.dcW), false, 'end'));
   y+=W;
   const iF=cfg.invType==='hybrid'?'#ebf8f3':'#edf2ff';
   const iS=cfg.invType==='hybrid'?'#1e8a60':'#3a6bc0';
@@ -2849,8 +2968,8 @@ function renderArrayColumn(cfg, cx, startY, compact=false) {
     s.push(`<line x1="${lx}" y1="${symStartY+invSymH}" x2="${rx}" y2="${symStartY+invSymH}" stroke="${iS}" stroke-width="1.5"/>`);
   }
 
-  // "showing 6 of N" note right of box
-  if(cfg.invCount>6){
+  // "showing 3 of N" note right of box
+  if(cfg.invCount>showInvCount){
     s.push(`<text x="${invBX+invBW+6}" y="${symStartY+invSymH}" style="fill:${iS};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-style:italic" text-anchor="start">showing 3 of ${cfg.invCount}</text>`);
   }
 
@@ -2862,8 +2981,8 @@ function renderArrayColumn(cfg, cx, startY, compact=false) {
 
   // NEC compliance note at bottom
   const afciLine=cfg.invType==='hybrid'&&cfg.hasIslanding
-    ?'Int. AFCI · GFPD · Int. ATS · UL 1741 SA'
-    :_showNec?'Int. AFCI · NEC 690.11  ·  GFPD · NEC 690.5  ·  UL 1741-SA':'Int. AFCI · GFPD · UL 1741-SA';
+    ?'Int. AFCI · GFPD · Int. ATS · UL 1741 SB'
+    :_showNec?'Int. AFCI · NEC 690.11  ·  GFPD · NEC 690.41(B)  ·  UL 1741 SB':'Int. AFCI · GFPD · UL 1741 SB';
   s.push(`<text x="${cx}" y="${y+invH-botPad}" style="fill:#8090a8;font-family:'Avenir Next','Avenir',sans-serif;font-size:7.5px;font-style:italic" text-anchor="middle">${afciLine}</text>`);
 
   const invBotY=y+invH;
@@ -2878,16 +2997,16 @@ function render(){
   _showWire = gc('showWireLabels');
   _showConduitNotes = gc('showConduitNotes');
   _showNecNotes = gc('showNecNotes');
-  if(gc('hasArr2') && gc('arr2-linked')) arr2Sync();
+  arrSyncAll();
+  syncMvSecV();
+  syncPoiKv();
   // Show RSD location row only for MLPE/micro paths (not PVHCS, which places its own dedicated device)
   const _isMlpeRsdPath=gc('hasRSD')&&(gv('invType')==='micro'||(gv('rsdMethod')||'mlpe')==='mlpe');
   $('rsd-loc-row').style.display=_isMlpeRsdPath?'flex':'none';
   // Hard-force utility visible disconnect ON for >50 kW or MV transformer (non-negotiable code requirements)
   (function(){
-    const _invKw=(+gv('invKw')||10)*Math.max(1,+gv('invCount')||1);
-    const _a2Kw=gc('hasArr2')?((+gv('a2invKw')||10)*Math.max(1,+gv('a2invCount')||1)):0;
     const udCb=$('hasUtilDisc');
-    if(udCb && (gc('hasMvXfmr')||_invKw+_a2Kw>50)) udCb.checked=true;
+    if(udCb && (gc('hasMvXfmr')||totalInvAcKw()>50)) udCb.checked=true;
   })();
   const v=vals();
   $('rsd-method-row').style.display = (v.hasRSD && v.invType !== 'micro') ? 'flex' : 'none';
@@ -2907,44 +3026,40 @@ function render(){
   const stringVoc=(v.mods*v.voc).toFixed(1);
   const arrayIsc=(v.strings*v.isc).toFixed(1);
   const necVoc=(parseFloat(stringVoc)*1.25).toFixed(0);
-  const invVolts=v.invV.startsWith('240')?240:v.invV.startsWith('208')?208:480;
+  const invVolts=_acVoltsOf(v.invV);
   const is3ph=v.invV.includes('3ph');
   const invAC=((v.invKw*v.invCount*1000)/(invVolts*(is3ph?1.732:1))).toFixed(1);
   const perInvRaw=(v.invKw*1000)/(invVolts*(is3ph?1.732:1));
   $('inv-ac-calc').textContent=`${v.invKw} kW @ ${v.invV} = ${perInvRaw.toFixed(1)} A · ×1.25 = ${(perInvRaw*1.25).toFixed(1)} A min. per inverter`;
-  // Array 2 electrical calcs
-  let a2Kw=0,a2StrVoc=0,a2ArrIsc=0,a2InvAcA=0,a2perInvRaw=0,a2ModsLast=0;
-  if(v.hasArr2){
-    const a2SysKwRaw=+gv('a2systemKw');
-    a2ModsLast=getModsLast(a2SysKwRaw,v.a2.strings,v.a2.mods,v.a2.modW);
-    const a2TotalMods=(v.a2.strings-1)*v.a2.mods+a2ModsLast;
-    a2Kw=a2TotalMods*v.a2.modW/1000;
-    a2StrVoc=v.a2.mods*v.a2.voc;
-    a2ArrIsc=v.a2.strings*v.a2.isc;
-    const a2V=v.a2.invV.startsWith('120')?120:v.a2.invV.startsWith('240')?240:v.a2.invV.startsWith('208')?208:v.a2.invV.startsWith('600')?600:480;
-    const a23ph=v.a2.invV.includes('3ph');
-    a2InvAcA=(v.a2.invKw*v.a2.invCount*1000)/(a2V*(a23ph?1.732:1));
-    a2perInvRaw=(v.a2.invKw*1000)/(a2V*(a23ph?1.732:1));
-  }
-  const totalKwDc=parseFloat(arrayKw)+a2Kw;
-  const totalInvAcA=parseFloat(invAC)+a2InvAcA;
-  const maxNecVoc=v.hasArr2?Math.max(+necVoc,a2StrVoc*1.25):+necVoc;
+  // Per-array electrical calcs (index 0 = Array 1)
+  const _acV=str=>str.startsWith('120')?120:str.startsWith('240')?240:str.startsWith('208')?208:str.startsWith('600')?600:480;
+  const arrCalc=v.arrays.map(a=>{
+    const modsLast=getModsLast(a.systemKwRaw,a.strings,a.mods,a.modW);
+    const totalMods=(a.strings-1)*a.mods+modsLast;
+    const volts=_acV(a.invV), ph3=a.invV.includes('3ph');
+    const perInvRaw=(a.invKw*1000)/(volts*(ph3?1.732:1));
+    return {n:a.n,modsLast,totalMods,kwDc:totalMods*a.modW/1000,strVoc:a.mods*a.voc,arrIsc:a.strings*a.isc,
+            invAcA:perInvRaw*a.invCount,perInvRaw,invAcKw:a.invKw*a.invCount};
+  });
+  const totalKwDc=arrCalc.reduce((t,c)=>t+c.kwDc,0);
+  const totalInvAcA=arrCalc.reduce((t,c)=>t+c.invAcA,0);
+  const maxNecVoc=Math.max(...arrCalc.map(c=>c.strVoc*1.25));
   const systemKwRaw=+gv('systemKw');
   const dcAcRatioRaw=+gv('dcAcRatio')||1.2;
-  $('ac-system-kw').textContent=((v.invKw*v.invCount).toFixed(1)).replace(/\.0$/,'')+' kW';
-  if(v.hasArr2){
-    const a2InvAcCalc=a$(2,'inv-ac-calc');
-    if(a2InvAcCalc) a2InvAcCalc.textContent=`${v.a2.invKw} kW @ ${v.a2.invV} = ${a2perInvRaw.toFixed(1)} A · ×1.25 = ${(a2perInvRaw*1.25).toFixed(1)} A min. per inverter`;
-    const a2AcKwEl=a$(2,'ac-system-kw');
-    if(a2AcKwEl) a2AcKwEl.textContent=((v.a2.invKw*v.a2.invCount).toFixed(1)).replace(/\.0$/,'')+' kW';
-  }
+  v.arrays.forEach((a,i)=>{
+    const c=arrCalc[i];
+    const calcEl=a$(a.n,'inv-ac-calc');
+    if(calcEl) calcEl.textContent=`${a.invKw} kW @ ${a.invV} = ${c.perInvRaw.toFixed(1)} A · ×1.25 = ${(c.perInvRaw*1.25).toFixed(1)} A min. per inverter`;
+    const acKwEl=a$(a.n,'ac-system-kw');
+    if(acKwEl) acKwEl.textContent=(c.invAcKw.toFixed(1)).replace(/\.0$/,'')+' kW';
+  });
   // Auto-fill solar breaker and panel size (always override — both are fully calculated)
-  const recBreakerMin=(v.hasArr2?totalInvAcA:parseFloat(invAC))*1.25;
+  const recBreakerMin=totalInvAcA*1.25;
   const recBreaker=nextStandardBreaker(Math.ceil(recBreakerMin));
   const bkrPoles=(v.invV||'').includes('1ph')?'2-P':'3-P';
   $('solarBreaker').value=recBreaker;
   $('breaker-math').textContent=v.hasArr2
-    ?`Arr1: ${parseFloat(invAC).toFixed(1)} A\nArr2: ${a2InvAcA.toFixed(1)} A\nTotal: ${totalInvAcA.toFixed(1)} A\n× 1.25 = ${recBreakerMin.toFixed(1)} A\n→ ${recBreaker}A std.`
+    ?arrCalc.map(c=>`Arr${c.n}: ${c.invAcA.toFixed(1)} A`).join('\n')+`\nTotal: ${totalInvAcA.toFixed(1)} A\n× 1.25 = ${recBreakerMin.toFixed(1)} A\n→ ${recBreaker}A std.`
     :`${parseFloat(invAC).toFixed(1)} A\n× 1.25 = ${recBreakerMin.toFixed(1)} A\n→ ${recBreaker}A std.`;
   // Panel must satisfy NEC 705.12(D)(2): solar ≤ busbar×1.2 − main.
   // Minimum panel = solar×5. Use next standard size above that for meaningful headroom.
@@ -2954,15 +3069,23 @@ function render(){
   const activePanel=recPanel;
   const bkrLabel=`${activeBreaker}A ${bkrPoles}`;
   $('s-kw').textContent=(v.hasArr2?totalKwDc.toFixed(2):arrayKw)+' kW DC';
-  $('s-voc').textContent=stringVoc+' V';
-  $('s-isc').textContent=arrayIsc+' A';
+  if(v.hasArr2){
+    $('s-voc').textContent=Math.max(...arrCalc.map(c=>c.strVoc)).toFixed(1)+' V (max)';
+    $('s-isc').textContent=arrCalc.map(c=>`A${c.n} ${c.arrIsc.toFixed(1)}`).join(' · ')+' A';
+  } else {
+    $('s-voc').textContent=stringVoc+' V';
+    $('s-isc').textContent=arrayIsc+' A';
+  }
+  // A single PV breaker / panel assumes every array lands at the same AC voltage
+  const _mixedV=new Set(v.arrays.map(a=>a.invV)).size>1;
+  if(_mixedV) $('breaker-math').textContent+='\n⚠ Arrays have different AC voltages — amps cannot be combined on one breaker; use a transformer or separate services';
   if(v.hasBatt){
     const dur=(v.battKwh/v.battKw).toFixed(1);
     const cRate=(v.battKw/v.battKwh).toFixed(2);
     const usableKwh=(v.battKwh*(v.battSocMax-v.battSocMin)/100).toFixed(1);
     const usableDur=(usableKwh/v.battKw).toFixed(1);
     $('s-batt').textContent=`${v.battKw} kW · ${v.battKwh} kWh (${usableKwh} kWh usable) · ${usableDur}h · C/${(1/cRate).toFixed(1)}`;
-    const invKwTotal=Math.round((v.invKw*v.invCount+(v.hasArr2?v.a2.invKw*v.a2.invCount:0))*10)/10;
+    const invKwTotal=Math.round(arrCalc.reduce((t,c)=>t+c.invAcKw,0)*10)/10;
     const battDur=+gv('battDuration')||2;
     $('batt-calc').textContent=`Auto: ${invKwTotal} kW AC × ${battDur}h = ${(invKwTotal*battDur).toFixed(1)} kWh  ·  Gross: ${v.battKwh} kWh · Usable: ${usableKwh} kWh (SOC ${v.battSocMin}–${v.battSocMax}%) · Duration: ${usableDur}h · C-rate: ${cRate}C`;
     const battVdc=battVMin(v.battV);
@@ -2978,13 +3101,14 @@ function render(){
   }
   $('s-nec').textContent=Math.ceil(maxNecVoc)+' V';
 
-  // ── Layout constants (shift when Array 2 active) ─────────────────────────
-  const SVG_W=v.hasArr2?1550:1200;
-  const CX1=v.hasArr2?190:220;
-  const CX2=570;
-  const MCX=v.hasArr2?Math.round((CX1+CX2)/2):CX1; // merge / downstream centre
+  // ── Layout constants — one column per PV array, 380px apart ──────────────
+  const NARR=v.arrays.length, COL_SP=380;
+  const CXS=v.arrays.map((_,i)=>(NARR>1?190:220)+i*COL_SP);
+  const CX1=CXS[0], CXL=CXS[NARR-1];
+  const SVG_W=NARR>1?1550+(NARR-2)*COL_SP:1200;
+  const MCX=NARR>1?Math.round((CX1+CXL)/2):CX1; // merge / downstream centre
   const BW=160, BX=MCX-BW/2;
-  const BATTCX=v.hasArr2?980:580;
+  const BATTCX=NARR>1?CXL+410:580;
   const W=26;
   let el=[];
 
@@ -3010,28 +3134,26 @@ function render(){
   el.push(`<text x="${LOGO_X-10}" y="52" style="fill:#707890;font-family:'Avenir Next','Avenir',sans-serif;font-size:11px" text-anchor="end">${new Date().toLocaleDateString()}</text>`);
 
   // ── Auto-fill string fuses (NEC 690.8: Isc × 1.25 × 1.25, next std size) ──
-  const recFuse1=nextStandardBreaker(Math.ceil(v.isc*1.5625));
-  $('combFuse').value=recFuse1; v.combFuse=recFuse1;
-  if(v.hasArr2){
-    const recFuse2=nextStandardBreaker(Math.ceil(v.a2.isc*1.5625));
-    $('a2combFuse').value=recFuse2; v.a2.combFuse=recFuse2;
-  }
+  v.arrays.forEach(a=>{
+    const recFuse=nextStandardBreaker(Math.ceil(a.isc*1.5625));
+    const el=a$(a.n,'combFuse'); if(el) el.value=recFuse; a.combFuse=recFuse;
+  });
+  v.combFuse=v.arrays[0].combFuse;
 
   // ── PV Array columns ──────────────────────────────────────────────────────
   const PV_START_Y=140;
   const compact=v.hasArr2;
-  const col1=renderArrayColumn({...v, modsLast:arr1ModsLast, colLabel:v.hasArr2?'1':''}, CX1, PV_START_Y, compact);
-  el.push(col1.svg);
-
-  let invBot1=col1.invBotY, invBot2=col1.invBotY, col2InvMidY=col1.invMidY;
-  let col2InvRightX=col1.invRightX;
-  if(v.hasArr2){
-    const col2=renderArrayColumn({...v.a2, modsLast:a2ModsLast, hasRSD:v.hasRSD, rsdMethod:v.rsdMethod, hasSPD:v.hasSPD, colLabel:'2'}, CX2, PV_START_Y, compact);
-    el.push(col2.svg);
-    invBot2=col2.invBotY;
-    col2InvMidY=col2.invMidY;
-    col2InvRightX=col2.invRightX;
-  }
+  const cols=v.arrays.map((a,i)=>{
+    const cfg=i===0?{...v, modsLast:arrCalc[0].modsLast, colLabel:v.hasArr2?'1':''}
+                   :{...a, modsLast:arrCalc[i].modsLast, hasRSD:v.hasRSD, rsdMethod:v.rsdMethod, hasSPD:v.hasSPD, colLabel:String(a.n)};
+    const col=renderArrayColumn(cfg, CXS[i], PV_START_Y, compact);
+    el.push(col.svg);
+    return col;
+  });
+  const col1=cols[0], colL=cols[cols.length-1];
+  const invBot1=col1.invBotY;
+  const col2InvMidY=colL.invMidY;   // last column's inverter (used for comms trunk / monitoring placement)
+  const col2InvRightX=colL.invRightX;
 
   // Critical loads panel — DC-coupled / hybrid: branches right off inverter EPS output
   if(v.hasIslanding && v.hasBatt && v.battCouple==='dc'){
@@ -3044,13 +3166,13 @@ function render(){
   }
 
   // ── AC merge bus ──────────────────────────────────────────────────────────
-  const mergeY=Math.max(invBot1,invBot2);
+  const mergeY=Math.max(...cols.map(c=>c.invBotY));
   let y=mergeY;
   if(v.hasArr2){
-    if(invBot1<mergeY) el.push(wireAC(CX1,invBot1,CX1,mergeY));
-    if(invBot2<mergeY) el.push(wireAC(CX2,invBot2,CX2,mergeY));
-    el.push(wireAC(CX1,mergeY,CX2,mergeY));
-    el.push(wlabel(MCX,mergeY-8,'AC Bus',true));
+    cols.forEach((c,i)=>{ if(c.invBotY<mergeY) el.push(wireAC(CXS[i],c.invBotY,CXS[i],mergeY)); });
+    el.push(wireAC(CX1,mergeY,CXL,mergeY));
+    // Bus label between the first two columns so it never sits on a column's drop wire
+    el.push(wlabel(Math.round((CXS[0]+CXS[1])/2),mergeY-8,'AC Bus',true));
     el.push(wireAC(MCX,mergeY,MCX,mergeY+W)); y=mergeY+W;
   }
 
@@ -3130,21 +3252,80 @@ function render(){
 
   // ── Roof / Electrical Room boundary ─────────────────────────────────────────
   const isFeederMode = v.interconnType === 'radial-feeder';
-  let panelY=0, panelBot=0, acDiscY=0, utilMeterCY=0;
+  let panelY=0, panelBot=0, acDiscY=0, utilMeterCY=0, telStackBot=0;
+  let _monBox=null; // Monitoring/DAS box geometry (curtailment control link target)
+
+  // ── Utility telemetry package ─────────────────────────────────────────────
+  // Signal chain:  CT/PT at the POI → RTU (meter inputs, DNP3) → comm path → utility SCADA.
+  // With remote curtailment the RTU also sends a setpoint down to the plant controller / DAS.
+  // Returns the bottom Y of the stack so the SVG height can include it.
+  function drawTelemetryStack(o){
+    const telC='#2a6e8c', telF='#eef6fb';
+    const rtuX=o.rtuX, rtuW=200, rtuH=70, rtuY=o.anchorY-Math.round(rtuH/2);
+    const rtuCx=rtuX+Math.round(rtuW/2), rtuLY=o.anchorY;
+    const hasModem=v.telCommPath&&v.telCommPath!=='none';
+    el.push(compBox(rtuX,rtuY,rtuW,rtuH,telF,telC,'RTU / Telemetry Gateway',
+      `${v.telemetryProtocol} · kW, kVAR, V, I, PF`,
+      v.telRemoteCurtail?'Curtailment setpoint output':'Breaker status · alarms',
+      'Utility-accessible'));
+    // Measurement input: CT/PT → RTU
+    el.push(`<line x1="${o.srcX}" y1="${o.srcY}" x2="${rtuX}" y2="${rtuLY}" stroke="${telC}" stroke-width="0.8" stroke-dasharray="4 2"/>`);
+    const arrow=(x0,yy,label)=>{
+      const x1=Math.max(x0+24,Math.min(o.scadaLimX-sldTextW(label,9)-8,x0+70));
+      el.push(`<line x1="${x0}" y1="${yy}" x2="${x1}" y2="${yy}" stroke="${telC}" stroke-width="1" stroke-dasharray="5 3"/>`);
+      el.push(`<polygon points="${x1},${yy} ${x1-6},${yy-4} ${x1-6},${yy+4}" fill="${telC}"/>`);
+      el.push(`<text x="${x1+4}" y="${yy+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px">${esc(label)}</text>`);
+    };
+    let bottom=rtuY+rtuH;
+    if(hasModem){
+      // Comm path: RTU → modem/router → utility SCADA (one upstream path)
+      const modH=44, modY=rtuY+rtuH+8;
+      const modLabel=v.telCommPath==='cellular'?'Cellular LTE · private APN / VPN':'Broadband / Ethernet · VPN';
+      el.push(compBox(rtuX,modY,rtuW,modH,telF,telC,'Modem / Router',modLabel,null));
+      el.push(`<line x1="${rtuCx}" y1="${rtuY+rtuH}" x2="${rtuCx}" y2="${modY}" stroke="${telC}" stroke-width="0.8" stroke-dasharray="4 2"/>`);
+      arrow(rtuX+rtuW,modY+Math.round(modH/2),`To Utility SCADA (${v.telemetryProtocol})`);
+      bottom=modY+modH;
+    } else {
+      arrow(rtuX+rtuW,rtuLY,`Utility fiber / radio → SCADA (${v.telemetryProtocol})`);
+    }
+    // Backup power for the whole telemetry package
+    if(v.telUPS){
+      const upsH=56, upsY=bottom+8;
+      el.push(compBox(rtuX,upsY,rtuW,upsH,'#f0f4f8','#6b7fa3','UPS / Battery Backup','120V from house panel','Powers RTU · modem · meter'));
+      el.push(`<line x1="${rtuCx}" y1="${bottom}" x2="${rtuCx}" y2="${upsY}" stroke="#6b7fa3" stroke-width="1.5"/>`);
+      bottom=upsY+upsH;
+    }
+    // Remote curtailment: control link from the RTU up to the plant controller / DAS
+    if(v.telRemoteCurtail){
+      const cx=rtuX+rtuW-14;
+      const lbl=`fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-style:italic`;
+      if(_monBox){
+        const mcx=_monBox.x+Math.round(_monBox.w/2), mb=_monBox.y+_monBox.h, jog=mb+16;
+        el.push(`<path d="M ${cx} ${rtuY} V ${jog} H ${mcx} V ${mb}" stroke="${telC}" stroke-width="1" stroke-dasharray="5 3" fill="none"/>`);
+        el.push(`<polygon points="${mcx},${mb} ${mcx-4},${mb+7} ${mcx+4},${mb+7}" fill="${telC}"/>`);
+        el.push(`<text x="${cx+4}" y="${Math.round((rtuY+jog)/2)}" style="${lbl}" text-anchor="start">Curtailment setpoint → DAS / inverters</text>`);
+      } else {
+        el.push(`<path d="M ${cx} ${rtuY} V ${rtuY-26}" stroke="${telC}" stroke-width="1" stroke-dasharray="5 3" fill="none"/>`);
+        el.push(`<polygon points="${cx},${rtuY-26} ${cx-4},${rtuY-19} ${cx+4},${rtuY-19}" fill="${telC}"/>`);
+        el.push(`<text x="${cx+4}" y="${rtuY-12}" style="${lbl}" text-anchor="start">Curtailment setpoint → inverters (Modbus TCP)</text>`);
+      }
+    }
+    return bottom;
+  }
   const breakY = y + Math.round(W/2);
   const zoneStyle = `font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:600;letter-spacing:.1em;fill:#9aa0b8`;
   el.push(`<line x1="10" y1="${breakY}" x2="${SVG_W-10}" y2="${breakY}" stroke="#b8bfd4" stroke-width="1" stroke-dasharray="8 5"/>`);
   el.push(`<text x="16" y="${breakY-4}" style="${zoneStyle}">ROOF</text>`);
-  el.push(`<text x="16" y="${breakY+11}" style="${zoneStyle}">${isFeederMode?'INVERTER ROOM':'ELECTRICAL ROOM'}</text>`);
+  el.push(`<text x="16" y="${breakY+11}" style="${zoneStyle}">ELECTRICAL ROOM</text>`);
 
-  // AC Disconnect / AC Gen-tie Switchgear
+  // AC Disconnect / LV AC Switchgear (feeder injection)
   const acMainWire=wireForParallel(totalInvAcA*1.25);
   el.push(wireAC(MCX,y,MCX,y+W));
   if(_showWire) el.push(wlabel(MCX-4,gc('hasAcCombiner')?y+W-8:y+W/2-16,wireLbl(acMainWire),true,'end'));
   y+=W;
   if(isFeederMode){
-    // Gen-tie switchgear replaces standard AC disconnect + MSP
-    el.push(compBox(BX,y,BW,64,'#f0eaff','#6b45c0','AC Gen-tie Switchgear',`${v.invV} · ${bkrLabel} OCPD`,'NEC 705 · Utility-grade AC breaker'));
+    // LV AC switchgear with the main PV breaker replaces the standard AC disconnect + MSP
+    el.push(compBox(BX,y,BW,64,'#f0eaff','#6b45c0','LV AC Switchgear',`${v.invV} · ${bkrLabel} main PV bkr`,'NEC 705 · Utility-grade'));
     panelY=y; panelBot=y+64; y=panelBot;
     // Data logger / gateway — same anchor as panel
     if(v.hasMonitoring){
@@ -3158,14 +3339,19 @@ function render(){
       const detMon=detectMonitoring(v.invModel);
       const gwNote=$('monitor-gateway-note');
       if(gwNote) gwNote.textContent=detMon?`Gateway: ${detMon.gateway}`:'';
-      el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS',monPlatform||'In gen-tie room · monitors POI',monPlatform?'In gen-tie room · monitors POI':null));
+      el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS',monPlatform||'In elec. room · monitors POI',monPlatform?'In elec. room · monitors POI':null));
+      _monBox={x:monX,y:panelY+14,w:monW,h:monH};
       const commStyle='stroke="#4a88d4" stroke-width="1" stroke-dasharray="5 3" fill="none"';
       const commLblStyle=`fill:#4a88d4;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px`;
       if(v.hasArr2){
         const trunkX=col2InvRightX+10;
         el.push(`<path d="M ${col1.invLeftX} ${col1.invMidY} H ${trunkX}" ${commStyle}/>`);
         el.push(`<circle cx="${col1.invLeftX}" cy="${col1.invMidY}" r="3" fill="#4a88d4"/>`);
-        el.push(`<circle cx="${col2InvRightX+4}" cy="${col2InvMidY}" r="3" fill="#4a88d4"/>`);
+        cols.slice(1).forEach(c=>{
+          // Columns whose inverter sits at a different height (e.g. microinverter AC combiner) drop to the trunk
+          if(Math.abs(c.invMidY-col1.invMidY)>2) el.push(`<path d="M ${c.invRightX+4} ${c.invMidY} V ${col1.invMidY}" ${commStyle}/>`);
+          el.push(`<circle cx="${c.invRightX+4}" cy="${c.invMidY}" r="3" fill="#4a88d4"/>`);
+        });
         el.push(`<path d="M ${trunkX} ${col1.invMidY} V ${panelY+14} H ${commX}" ${commStyle}/>`);
         {const _my=Math.round((col1.invMidY+panelY+14)/2),_cy=Math.abs(_my-breakY)<14?breakY+16:_my;
         if(_showWire) el.push(`<text x="${trunkX+4}" y="${_cy}" style="${commLblStyle}" text-anchor="start">Cat6</text>`);}
@@ -3183,43 +3369,16 @@ function render(){
     }
     // Protection relay — mandatory for feeder injection
     el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
-    el.push(compBox(BX,y,BW,54,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,'27/59/81/25/67/67N/32/47 · IEEE 1547-2018'));
+    el.push(compBox(MCX-100,y,200,54,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,'27/59/81/25/32/67/67N/47 · Trips main PV bkr'));
     y+=54;
     // Revenue metering package (LV side, before step-up)
     el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
     el.push(compBox(BX,y,BW,54,'#fff8ec','#c07a00','Revenue Metering Package','CT/PT · Class 0.2S · Bidirectional','Utility-accessible · Revenue-grade'));
     utilMeterCY=y+27;
     y+=54;
-    // RTU / Telemetry gateway (feeder mode — anchored to metering package)
+    // RTU / Telemetry gateway (feeder mode — fed from the revenue metering package CT/PT)
     if(v.hasTelemetry){
-      const telC='#2a6e8c', telF='#eef6fb';
-      const rtuX=BX+BW+14, rtuY=utilMeterCY-20, rtuW=170, rtuH=56;
-      el.push(compBox(rtuX,rtuY,rtuW,rtuH,telF,telC,'RTU / Telemetry Gateway',v.telemetryProtocol+' · Utility SCADA',v.telRemoteCurtail?'Remote curtailment enabled':'Near metering pkg. · Utility-accessible'));
-      const rtuLY=rtuY+Math.round(rtuH/2);
-      el.push(`<line x1="${BX+BW}" y1="${utilMeterCY}" x2="${rtuX}" y2="${rtuLY}" stroke="${telC}" stroke-width="0.8" stroke-dasharray="4 2"/>`);
-      const scadaX=rtuX+rtuW, scadaEndX=Math.min(SVG_W-30,scadaX+70);
-      el.push(`<line x1="${scadaX}" y1="${rtuLY}" x2="${scadaEndX}" y2="${rtuLY}" stroke="${telC}" stroke-width="1" stroke-dasharray="5 3"/>`);
-      el.push(`<polygon points="${scadaEndX},${rtuLY} ${scadaEndX-6},${rtuLY-4} ${scadaEndX-6},${rtuLY+4}" fill="${telC}"/>`);
-      el.push(`<text x="${scadaEndX+4}" y="${rtuLY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px">To Utility SCADA</text>`);
-      // Modem / Router for Internet SCADA alternate path
-      const _fModShown=v.telCommPath&&v.telCommPath!=='none';
-      const _fModH=44, _fModY=rtuY+rtuH+8;
-      if(_fModShown){
-        const modLabel=v.telCommPath==='cellular'?'Cellular LTE (wireless)':'Broadband / Ethernet (wired)';
-        el.push(compBox(rtuX,_fModY,rtuW,_fModH,telF,telC,'Modem / Router',modLabel,null));
-        el.push(`<line x1="${rtuX+Math.round(rtuW/2)}" y1="${rtuY+rtuH}" x2="${rtuX+Math.round(rtuW/2)}" y2="${_fModY}" stroke="${telC}" stroke-width="0.8" stroke-dasharray="4 2"/>`);
-        const modLY=_fModY+Math.round(_fModH/2);
-        el.push(`<line x1="${scadaX}" y1="${modLY}" x2="${scadaEndX}" y2="${modLY}" stroke="${telC}" stroke-width="1" stroke-dasharray="5 3"/>`);
-        el.push(`<polygon points="${scadaEndX},${modLY} ${scadaEndX-6},${modLY-4} ${scadaEndX-6},${modLY+4}" fill="${telC}"/>`);
-        el.push(`<text x="${scadaEndX+4}" y="${modLY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px">Internet SCADA (alt.)</text>`);
-      }
-      // UPS / Battery Backup — below telemetry stack, solid power line going up to RTU
-      if(v.telUPS){
-        const upsH=44, upsTopY=_fModShown?_fModY+_fModH+8:rtuY+rtuH+8;
-        const connTopY=_fModShown?_fModY+_fModH:rtuY+rtuH;
-        el.push(compBox(rtuX,upsTopY,rtuW,upsH,'#f0f4f8','#6b7fa3','UPS / Battery Backup','120V · Utility-independent',null));
-        el.push(`<line x1="${rtuX+Math.round(rtuW/2)}" y1="${upsTopY}" x2="${rtuX+Math.round(rtuW/2)}" y2="${connTopY}" stroke="#6b7fa3" stroke-width="1.5"/>`);
-      }
+      telStackBot=drawTelemetryStack({rtuX:MCX+114, anchorY:utilMeterCY, srcX:BX+BW, srcY:utilMeterCY, scadaLimX:SVG_W-30});
     }
     // MV step-up transformer
     const mvLabel=`${v.mvQty>1?v.mvQty+'× ':''}${v.mvKva} kVA Pad-Mount Transformer`;
@@ -3236,7 +3395,7 @@ function render(){
     el.push(`<rect x="${BX}" y="${y}" width="${BW}" height="44" rx="6" fill="#fff3e0" stroke="${mvC}" stroke-width="1.5"/>`);
     el.push(`<text x="${MCX}" y="${y+14}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:11px;font-weight:700" text-anchor="middle">MV Switchgear / Disconnect</text>`);
     el.push(`<text x="${MCX}" y="${y+26}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle">${mvPriKv} kV · ${esc(v.utilityName)}-grade</text>`);
-    el.push(`<text x="${MCX}" y="${y+38}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle">Vacuum interrupter · Lockable · IEEE 1547</text>`);
+    el.push(`<text x="${MCX}" y="${y+38}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle"${sldFitAttr('Vacuum interrupter · Lockable · IEEE 1547',9,BW-10)}>Vacuum interrupter · Lockable · IEEE 1547</text>`);
     y+=44;
     // Recloser drawn as utility-owned symbol on the feeder line (added after feeder line is drawn below)
     // MV vertical wire to feeder tap
@@ -3312,13 +3471,18 @@ function render(){
       el.push(compBox(monX,panelY+14,monW,monH,'#f5f7fc','#a0aac8','Monitoring / DAS',
         monPlatform || 'In elec. room · monitors MSP/POI',
         monPlatform ? 'In elec. room · monitors MSP/POI' : null));
+      _monBox={x:monX,y:panelY+14,w:monW,h:monH};
       const commStyle='stroke="#4a88d4" stroke-width="1" stroke-dasharray="5 3" fill="none"';
       const commLblStyle=`fill:#4a88d4;font-family:'Avenir Next','Avenir',sans-serif;font-size:9px`;
       if(v.hasArr2){
         const trunkX = col2InvRightX + 10;
         el.push(`<path d="M ${col1.invLeftX} ${col1.invMidY} H ${trunkX}" ${commStyle}/>`);
         el.push(`<circle cx="${col1.invLeftX}" cy="${col1.invMidY}" r="3" fill="#4a88d4"/>`);
-        el.push(`<circle cx="${col2InvRightX+4}" cy="${col2InvMidY}" r="3" fill="#4a88d4"/>`);
+        cols.slice(1).forEach(c=>{
+          // Columns whose inverter sits at a different height (e.g. microinverter AC combiner) drop to the trunk
+          if(Math.abs(c.invMidY-col1.invMidY)>2) el.push(`<path d="M ${c.invRightX+4} ${c.invMidY} V ${col1.invMidY}" ${commStyle}/>`);
+          el.push(`<circle cx="${c.invRightX+4}" cy="${c.invMidY}" r="3" fill="#4a88d4"/>`);
+        });
         el.push(`<path d="M ${trunkX} ${col1.invMidY} V ${panelY+14} H ${commX}" ${commStyle}/>`);
         {const _my=Math.round((col1.invMidY+panelY+14)/2),_cy=Math.abs(_my-breakY)<14?breakY+16:_my;
         if(_showWire) el.push(`<text x="${trunkX+4}" y="${_cy}" style="${commLblStyle}" text-anchor="start">Cat6</text>`);}
@@ -3350,6 +3514,24 @@ function render(){
       el.push(`<text x="${BX-47}" y="${atsY+24}" class="sld-note" text-anchor="end" style="fill:#c07a00;font-style:italic">dry contact (24VDC)</text>`);
       el.push(`<text x="${BX-47}" y="${atsY+36}" class="sld-note" text-anchor="end" style="fill:#c07a00">← BESS inverter ctrl.</text>`);
     }
+    // Interconnection protection relay — customer side, in the electrical room. Senses V/I at the
+    // POI (CT/PT) and shunt-trips the PV AC disconnect; on secondary networks adds reverse-power (32).
+    if(v.hasProtRelay){
+      const isNet=v.gridNetwork==='san'||v.gridNetwork==='ssn';
+      el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
+      const relH=isNet?58:44;
+      el.push(compBox(MCX-100,y,200,relH,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,
+        isNet?'27/59/81/25/32 · UV/OV/UF/OF/Sync/RevPwr':'27/59/81/25 · UV/OV/UF/OF/Sync',
+        isNet?'Trips PV AC disconnect (32 rev. power)':null));
+      // Trip output back up to the AC disconnect
+      if(acDiscY>0){
+        const tY=acDiscY+27, tX=MCX-96, vX=MCX-152; // runs left of the GND symbol; AC disconnect box is 130–190 wide
+        el.push(`<path d="M ${MCX-100} ${y+Math.round(relH/2)} H ${vX} V ${tY} H ${tX}" stroke="#c07a00" stroke-width="1" stroke-dasharray="4 2" fill="none"/>`);
+        el.push(`<polygon points="${tX},${tY} ${tX-7},${tY-4} ${tX-7},${tY+4}" fill="#c07a00"/>`);
+        el.push(`<text x="${vX-4}" y="${Math.round((y+acDiscY)/2)}" class="sld-note" text-anchor="end" style="fill:#c07a00;font-style:italic">trip</text>`);
+      }
+      y+=relH;
+    }
     // Exterior zone boundary — always shown (physical transition exists regardless of disconnect device)
     const extBreakY=y+Math.round(W/2);
     el.push(`<line x1="10" y1="${extBreakY}" x2="${SVG_W-10}" y2="${extBreakY}" stroke="#b8bfd4" stroke-width="1" stroke-dasharray="8 5"/>`);
@@ -3358,8 +3540,8 @@ function render(){
     el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
     // Utility visible disconnect — exterior wall; shown before NEM meter (utility side of customer service)
     if(v.hasUtilDisc){
-      el.push(discBox(MCX-65,y,130,54,'#edf2ff','#3a6bc0','Utility Visible Disconnect',`${v.invV} · ${bkrLabel}`,'NEC 705.22 · Lockable · SCCR req.'));
-      y+=54;
+      el.push(discBox(MCX-90,y,180,62,'#edf2ff','#3a6bc0','Utility Visible Disconnect',`${v.invV} · ${bkrLabel}`,'Lockable · SCCR req. · NEC 705.22'));
+      y+=62;
     }
     // Utility meter — after utility visible disconnect (at meter base, utility side)
     el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
@@ -3384,10 +3566,6 @@ function render(){
       el.push(`<text x="${MCX+46}" y="${ptY+5}" style="fill:#c07a00;font-family:'Avenir Next','Avenir',sans-serif;font-size:7px;font-weight:700" text-anchor="middle">PT</text>`);
     }
     y+=W;
-    if(v.hasProtRelay){
-      el.push(compBox(MCX-100,y,200,44,'#f5f7fc','#a0aac8','Interconnection Protection Relay',v.interconnStd,'27/59/81/25 · UV/OV/UF/OF/Sync'));
-      y+=44;
-    }
 
     // MV step-up transformer
     if(v.hasMvXfmr){
@@ -3408,8 +3586,8 @@ function render(){
     if(v.gridNetwork==='san'||v.gridNetwork==='ssn'){
     const isSsn=v.gridNetwork==='ssn';
     const netC='#6b7a9c', netF='#f0f2f8';
-    const npW=110, npH=32, xfW=110, xfH=44;
-    const lCX=MCX-65, rCX=MCX+65;
+    const npW=130, npH=32, xfW=130, xfH=44;
+    const lCX=MCX-75, rCX=MCX+75;
     const sbusX1=lCX-npW/2-6, sbusX2=rCX+npW/2+6;
     // Secondary bus bar (connects to GRID box bottom)
     el.push(`<line x1="${sbusX1}" y1="${y}" x2="${sbusX2}" y2="${y}" stroke="${netC}" stroke-width="3"/>`);
@@ -3422,19 +3600,24 @@ function render(){
     const xfY=npY+npH+8;
     el.push(`<line x1="${lCX}" y1="${npY+npH}" x2="${lCX}" y2="${xfY}" stroke="${netC}" stroke-width="1.5"/>`);
     el.push(`<line x1="${rCX}" y1="${npY+npH}" x2="${rCX}" y2="${xfY}" stroke="${netC}" stroke-width="1.5"/>`);
-    // Transformer boxes
-    const xfLabel=isSsn?'Spot Network Xfmr':'Distribution Xfmr';
-    const xfVSub=v.poiKv>=1?`${v.poiKv} kV primary`:`${(v.poiKv*1000).toFixed(0)}V primary`;
-    el.push(compBox(lCX-xfW/2,xfY,xfW,xfH,netF,netC,xfLabel,xfVSub,'Utility-owned · NEMA 3R'));
-    el.push(compBox(rCX-xfW/2,xfY,xfW,xfH,netF,netC,xfLabel,xfVSub,'Utility-owned · NEMA 3R'));
-    // Primary feeder bus
-    const primY=xfY+xfH+8;
-    el.push(`<line x1="${lCX}" y1="${xfY+xfH}" x2="${lCX}" y2="${primY}" stroke="${netC}" stroke-width="1.5"/>`);
-    el.push(`<line x1="${rCX}" y1="${xfY+xfH}" x2="${rCX}" y2="${primY}" stroke="${netC}" stroke-width="1.5"/>`);
-    el.push(`<line x1="${sbusX1}" y1="${primY}" x2="${sbusX2}" y2="${primY}" stroke="${netC}" stroke-width="2"/>`);
-    const pvKvLabel=v.poiKv>=1?`${v.poiKv} kV`:`${(v.poiKv*1000).toFixed(0)}V`;
-    el.push(`<text x="${MCX}" y="${primY+12}" style="fill:${netC};font-family:'Avenir Next','Avenir',sans-serif;font-size:8px;font-weight:600" text-anchor="middle">Utility Primary Feeder · ${pvKvLabel}</text>`);
-    y=primY+22;
+    // Network transformers: MV primary (utility network feeder) → LV secondary (the POI voltage)
+    const xfLabel=isSsn?'Spot Network Xfmr':'Network Xfmr';
+    const priKv=v.mvPriKv||13.8;
+    const secLabel=v.poiKv>=1?`${v.poiKv} kV`:`${(v.poiKv*1000).toFixed(0)}V`;
+    const xfVSub=`${priKv} kV / ${secLabel} · 3Φ`;
+    el.push(compBox(lCX-xfW/2,xfY,xfW,xfH,netF,netC,xfLabel,xfVSub,'Utility-owned'));
+    el.push(compBox(rCX-xfW/2,xfY,xfW,xfH,netF,netC,xfLabel,xfVSub,'Utility-owned'));
+    // A secondary network is fed by 2+ network units in parallel, each from a different primary feeder
+    const primY=xfY+xfH+16;
+    [[lCX,'A'],[rCX,'B']].forEach(([cx,tag])=>{
+      el.push(`<line x1="${cx}" y1="${xfY+xfH}" x2="${cx}" y2="${primY}" stroke="${netC}" stroke-width="1.5"/>`);
+      el.push(`<line x1="${cx-30}" y1="${primY}" x2="${cx+30}" y2="${primY}" stroke="${netC}" stroke-width="2.5"/>`);
+      el.push(`<polygon points="${cx-30},${primY} ${cx-23},${primY-4} ${cx-23},${primY+4}" fill="${netC}"/>`);
+      el.push(`<polygon points="${cx+30},${primY} ${cx+23},${primY-4} ${cx+23},${primY+4}" fill="${netC}"/>`);
+      el.push(`<text x="${cx}" y="${primY+12}" style="fill:${netC};font-family:'Avenir Next','Avenir',sans-serif;font-size:8px;font-weight:600" text-anchor="middle">Primary Feeder ${tag} · ${priKv} kV</text>`);
+    });
+    el.push(`<text x="${MCX}" y="${primY+26}" style="fill:${netC};font-family:'Avenir Next','Avenir',sans-serif;font-size:7.5px;font-style:italic" text-anchor="middle">${isSsn?'Spot':'Area'} network: 2+ network units in parallel (typical shown) · utility-owned</text>`);
+    y=primY+34;
     }
   } // end behind-meter else
 
@@ -3503,23 +3686,22 @@ function render(){
   const commRuns = c1.invCount;
   const commConduit = c1.commCond;
   const hasAcCombiner = gc('hasAcCombiner');
-  const c2roof = v.hasArr2 ? conduitRows(v.a2) : null;
-  const roofTotalAcA = v.hasArr2 ? (c1.perInvAcA*c1.invCount + c2roof.perInvAcA*c2roof.invCount) : totalAcA;
-  const roofTotalAcW = v.hasArr2 ? wireForParallel(roofTotalAcA) : totalAcW;
-  const roofCommRuns = v.hasArr2 ? c1.invCount + c2roof.invCount : commRuns;
+  const cArr = v.arrays.map(conduitRows);            // per-array conduit calcs (cArr[0] === Array 1)
+  const roofTotalAcA = cArr.reduce((t,c)=>t+c.perInvAcA*c.invCount,0);
+  const roofTotalAcW = wireForParallel(roofTotalAcA);
+  const roofCommRuns = cArr.reduce((t,c)=>t+c.invCount,0);
   const roofCommCond = conduitFor(roofCommRuns, CAT6_AREA);
   // Compact roof conduit line for the NEC SVG box
   function roofConduitSvgLine(){
     if(v.hasArr2 && !hasAcCombiner){
-      const r1=c1.invCount>1?` ×${c1.invCount}`:'';
-      const r2=c2roof.invCount>1?` ×${c2roof.invCount}`:'';
-      return `A1:#${c1.perInvAcW.awg}${r1}  A2:#${c2roof.perInvAcW.awg}${r2}  (${roofTotalAcA.toFixed(1)} A)`;
+      const parts=cArr.map((c,i)=>{const r=c.invCount>1?` ×${c.invCount}`:''; return `A${i+1}:${awgStr(c.perInvAcW).replace(" AWG","")}${r}`;});
+      return `${parts.join('  ')}  (${roofTotalAcA.toFixed(1)} A)`;
     }
-    const runs=c1.invCount>1&&!v.hasArr2?` ×${c1.invCount}`:'';
+    const runs=c1.invCount>1&&!v.hasArr2?` ×${c1.invCount}`:((roofTotalAcW.sets||1)>1?` ×${roofTotalAcW.sets}`:'');
     const tag=hasAcCombiner?'combined':'direct';
-    return `#${roofTotalAcW.awg} AWG · ${conduitFor(acConductors,roofTotalAcW.area)} EMT${runs}  (${tag})`;
+    return `${wireLbl(roofTotalAcW).replace(' THWN-2','')} · ${conduitFor(acConductors,roofTotalAcW.area)} EMT${runs}  (${tag})`;
   }
-  const totalAcKw = (v.invKw*v.invCount) + (v.hasArr2 ? v.a2.invKw*v.a2.invCount : 0);
+  const totalAcKw = arrCalc.reduce((t,c)=>t+c.invAcKw,0);
 
   // NEC calcs box — starts just below legend with a small gap
   const NY=LY+legH+12;
@@ -3570,15 +3752,14 @@ function render(){
     necItems.push(necBold(67, `${totalAcKw.toFixed(1)} kW AC`));
     necItems.push(necLine(79, `PV breaker: ${bkrLabel}`));
     necItems.push(necLine(91, `Panel: ${activePanel}A`));
-    necItems.push(necDiv(100));
-    necItems.push(necHead(111, 'ARRAY 1'));
-    necItems.push(necLine(123, `Array Voc: ${stringVoc} V  (max ${necVoc} V)`));
-    necItems.push(necLine(135, `Array Isc: ${arrayIsc} A`));
-    necItems.push(necDiv(143));
-    necItems.push(necHead(154, 'ARRAY 2'));
-    necItems.push(necLine(166, `Array Voc: ${a2StrVoc.toFixed(1)} V  (max ${(a2StrVoc*1.25).toFixed(0)} V)`));
-    necItems.push(necLine(178, `Array Isc: ${a2ArrIsc.toFixed(1)} A`));
-    necY = 178;
+    let ay=100;
+    arrCalc.forEach(c=>{
+      necItems.push(necDiv(ay));
+      necItems.push(necHead(ay+11, `ARRAY ${c.n}`));
+      necItems.push(necLine(ay+23, `${c.kwDc.toFixed(2)} kW DC · Voc: ${c.strVoc.toFixed(1)} V  (max ${(c.strVoc*1.25).toFixed(0)} V) · Isc: ${c.arrIsc.toFixed(1)} A`));
+      ay+=31;
+    });
+    necY = ay-8;
   } else {
     necItems.push(necDiv(30));
     necItems.push(necHead(41, 'SYSTEM INFORMATION'));
@@ -3608,7 +3789,7 @@ function render(){
     let nY = dY+11, nN = 0;
     const nLine = txt => { nN++; wrapNecText(`${nN}.  ${txt}`, _nwAvail).forEach(l => { nY+=12; necItems.push(necLine(nY, l)); }); };
     nLine('AFCI: Integral arc-fault protection per NEC 690.11');
-    nLine('GFPD: Ground-fault protection per NEC 690.5');
+    nLine('GFPD: DC ground-fault protection per NEC 690.41(B)');
     nLine(`SPD: ${v.hasSPD?'Surge protection per NEC 230.67 (AC) · NEC 242 (DC)':'not shown — verify AHJ requirements'}`);
     nLine('Grounding: Equipment grounded per NEC 690.43 · EGC per Table 250.122');
     if(v.hasRSD) nLine(rsdCompNote);
@@ -3618,12 +3799,12 @@ function render(){
     }
     nLine('DC disconnect required field label: "PHOTOVOLTAIC SYSTEM DISCONNECTING MEANS" — NEC 690.13(E)');
     nLine('System Voc: NEC 690.7(A) ×1.25 method used — if module temp. coeff. (Ct) is marked, use 690.7(A)(2) or Table 690.7 with local min. ambient temp.');
-    nLine('Inverters: UL 1741-SA listing required for advanced grid support per IEEE 1547-2018 / utility SGIP');
+    nLine('Inverters: UL 1741 SB listing (IEEE 1547-2018 / 1547.1-2020) required for advanced grid support per utility SGIP');
     nLine('Utility disconnect: SCCR must be ≥ available fault current at POI — confirm with utility');
     nLine('Service entrance conductors: specify gauge, conduit size, and length on permit drawings per utility SGIP');
     if(v.hasMeter) nLine('PV production meter: if required for incentive metering, specify ANSI C12.20 Class 0.5 (or Class 0.2 if revenue-grade required)');
-    if(v.hasArr2) nLine(`Dual-array: Combined backfeed via single ${bkrLabel} PV breaker — if separate breakers per array, each must independently satisfy NEC 705.12(D)(2)`);
-    if(v.hasArr2 && hasAcCombiner) nLine('Dual-array: AC Roof Combiner OCPD satisfies per-inverter AC disconnecting means — NEC 690.15');
+    if(v.hasArr2) nLine(`Multi-array (${v.arrays.length}): Combined backfeed via single ${bkrLabel} PV breaker — if separate breakers per array, each must independently satisfy NEC 705.12(D)(2)`);
+    if(v.hasArr2 && hasAcCombiner) nLine('Multi-array: AC Roof Combiner OCPD satisfies per-inverter AC disconnecting means — NEC 690.15');
     necY = nY;
   }
 
@@ -3633,11 +3814,11 @@ function render(){
     necItems.push(necHead(dY+11, 'ISLANDING / BACKUP NOTES'));
     const isDcIsland = v.battCouple === 'dc';
     necItems.push(necLine(dY+23, isDcIsland
-      ? '1.  Hybrid inverter: integral ATS · grid-forming · UL 1741 SA · NEC 706.15'
+      ? '1.  Hybrid inverter: integral ATS · grid-forming · UL 1741 SB · NEC 706.15'
       : '1.  External ATS (UL 1008) · static transfer switch · NEC 706.15 · UL 9540'));
     necItems.push(necLine(dY+35, '2.  Critical loads panel: NEC 702 (optional standby) or NEC 700 (emergency)'));
-    necItems.push(necLine(dY+47, '3.  Anti-islanding: IEEE 1547-2018 · 2-cycle detection · Category B inverter req.'));
-    necItems.push(necLine(dY+59, '4.  ESS: NEC 706 · rapid shutdown NEC 706.31 · grounding NEC 706.40'));
+    necItems.push(necLine(dY+47, '3.  Anti-islanding: IEEE 1547-2018 · unintentional-island trip ≤ 2 s · Category B ride-through'));
+    necItems.push(necLine(dY+59, '4.  ESS: NEC 706 · disconnecting means NEC 706.15 · UL 9540 listed system'));
     necY = dY + 59;
   }
 
@@ -3696,7 +3877,7 @@ function render(){
       gLines.push({bold:true,  text:`${nwName} — Export Control Required`});
       gLines.push({bold:false, text:protNote});
       gLines.push({bold:false, text:stratNote});
-      gLines.push({bold:false, text:'Anti-islanding relay required · Telemetry required'});
+      gLines.push({bold:false, text:'Reverse-power (32) relay + anti-islanding + telemetry required — network protectors trip on backfeed'});
     }
     if(v.exportLimit>0){
       gLines.push({bold:true,  text:`Export limit: ${v.exportLimit} kW ${v.exportLimitType}`});
@@ -3712,14 +3893,12 @@ function render(){
     if(v.hasTelemetry){
       gLines.push({bold:true,  text:'TELEMETRY REQUIRED'});
       gLines.push({bold:false, text:`Protocol: ${v.telemetryProtocol} to utility SCADA`});
-      gLines.push({bold:false, text:'Monitoring: Real-time kW, kVAR, V, I, PF'});
-      if(v.telCommPath && v.telCommPath!=='none'){
-        const pathLabel=v.telCommPath==='cellular'?'Cellular LTE':'Broadband / Ethernet';
-        gLines.push({bold:false, text:`Alt. comm. path: ${pathLabel} → Internet SCADA`});
-      }
-      if(v.telUPS) gLines.push({bold:false, text:'UPS: Battery backup for RTU/modem — maintains telemetry during grid events'});
+      gLines.push({bold:false, text:'RTU points: kW, kVAR, V, I, PF at POI · PV breaker / relay status'});
+      const pathLabel=v.telCommPath==='cellular'?'Cellular LTE (private APN / VPN)':v.telCommPath==='broadband'?'Broadband / Ethernet (VPN)':'Utility-provided fiber / radio';
+      gLines.push({bold:false, text:`Comm. path: ${pathLabel} → Utility SCADA`});
+      if(v.telUPS) gLines.push({bold:false, text:'UPS: Battery backup for RTU / modem / meter — maintains telemetry during grid events'});
       if(v.telRevMeter) gLines.push({bold:false, text:'Metering: Revenue-grade (Class 0.2S) · Utility-accessible'});
-      if(v.telRemoteCurtail) gLines.push({bold:false, text:'Remote curtailment: Required — utility dispatch interface'});
+      if(v.telRemoteCurtail) gLines.push({bold:false, text:'Remote curtailment: RTU setpoint to plant controller / inverters (Modbus TCP) — utility dispatch'});
       if(v.telNotes) gLines.push({bold:false, text:v.telNotes});
     }
     // Expand any long grid-note lines with word wrapping
@@ -3740,48 +3919,20 @@ function render(){
   }
   // ── Telemetry devices on diagram (behind-meter only; feeder mode renders its own RTU) ──
   if(v.hasTelemetry && !isFeederMode){
-    const telC='#2a6e8c', telF='#eef6fb';
-    // CT (and PT if revenue metering) on AC conductor just below NEM
+    const telC='#2a6e8c';
+    // CT (and PT if revenue metering) on the service conductor at the POI, just below the utility meter
     const ctY = utilMeterCY + 22;
     el.push(`<circle cx="${MCX}" cy="${ctY}" r="8" fill="white" stroke="${telC}" stroke-width="1.2"/>`);
     el.push(`<text x="${MCX}" y="${ctY+3}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:6px;font-weight:700" text-anchor="middle">CT</text>`);
-    el.push(`<text x="${MCX+12}" y="${ctY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="start">3Ø CT${v.telRevMeter?' / PT':''}</text>`);
-    // RTU / Telemetry Gateway box to the right of the main column
-    const rtuX=BX+BW+14, rtuY=utilMeterCY-20, rtuW=170, rtuH=56;
-    el.push(compBox(rtuX,rtuY,rtuW,rtuH,telF,telC,'RTU / Telemetry Gateway',
-      v.telemetryProtocol+' · Utility SCADA',
-      v.telRemoteCurtail?'Remote curtailment enabled':'Near revenue meter · Utility-accessible'));
-    // Dashed connection from CT to RTU
-    const rtuLY=rtuY+Math.round(rtuH/2);
-    el.push(`<line x1="${MCX+8}" y1="${ctY}" x2="${rtuX}" y2="${rtuLY}" stroke="${telC}" stroke-width="0.8" stroke-dasharray="4 2"/>`);
-    // SCADA communication link going right off-diagram
-    const scadaX=rtuX+rtuW, scadaEndX=Math.min(LX-10,scadaX+70);
-    el.push(`<line x1="${scadaX}" y1="${rtuLY}" x2="${scadaEndX}" y2="${rtuLY}" stroke="${telC}" stroke-width="1" stroke-dasharray="5 3"/>`);
-    el.push(`<polygon points="${scadaEndX},${rtuLY} ${scadaEndX-6},${rtuLY-4} ${scadaEndX-6},${rtuLY+4}" fill="${telC}"/>`);
-    el.push(`<text x="${scadaEndX+4}" y="${rtuLY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px">To Utility SCADA</text>`);
-    // Modem / Router for Internet SCADA alternate path
-    const _modShown=v.telCommPath&&v.telCommPath!=='none';
-    const _modH=44, _modY=rtuY+rtuH+8;
-    if(_modShown){
-      const modLabel=v.telCommPath==='cellular'?'Cellular LTE (wireless)':'Broadband / Ethernet (wired)';
-      el.push(compBox(rtuX,_modY,rtuW,_modH,telF,telC,'Modem / Router',modLabel,null));
-      el.push(`<line x1="${rtuX+Math.round(rtuW/2)}" y1="${rtuY+rtuH}" x2="${rtuX+Math.round(rtuW/2)}" y2="${_modY}" stroke="${telC}" stroke-width="0.8" stroke-dasharray="4 2"/>`);
-      const modLY=_modY+Math.round(_modH/2);
-      el.push(`<line x1="${scadaX}" y1="${modLY}" x2="${scadaEndX}" y2="${modLY}" stroke="${telC}" stroke-width="1" stroke-dasharray="5 3"/>`);
-      el.push(`<polygon points="${scadaEndX},${modLY} ${scadaEndX-6},${modLY-4} ${scadaEndX-6},${modLY+4}" fill="${telC}"/>`);
-      el.push(`<text x="${scadaEndX+4}" y="${modLY+4}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px">Internet SCADA (alt.)</text>`);
-    }
-    // UPS / Battery Backup — below telemetry stack, solid power line going up to RTU
-    if(v.telUPS){
-      const upsH=44, upsTopY=_modShown?_modY+_modH+8:rtuY+rtuH+8;
-      const connTopY=_modShown?_modY+_modH:rtuY+rtuH;
-      el.push(compBox(rtuX,upsTopY,rtuW,upsH,'#f0f4f8','#6b7fa3','UPS / Battery Backup','120V · Utility-independent',null));
-      el.push(`<line x1="${rtuX+Math.round(rtuW/2)}" y1="${upsTopY}" x2="${rtuX+Math.round(rtuW/2)}" y2="${connTopY}" stroke="#6b7fa3" stroke-width="1.5"/>`);
-    }
+    // CT label sits below the tap so the dashed CT→RTU link (which leaves upward) doesn't cross it
+    el.push(`<text x="${MCX+12}" y="${ctY+15}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="start">3Ø CT${v.telRevMeter?' / PT':''} @ POI</text>`);
+    const isNetGrid=v.gridNetwork==='san'||v.gridNetwork==='ssn';
+    telStackBot=drawTelemetryStack({rtuX:isNetGrid?MCX+156:BX+BW+14, anchorY:utilMeterCY, srcX:MCX+8, srcY:ctY, scadaLimX:LX-10});
+    // Relay sensing input: the POI CT/PT also feed the protection relay
+    if(v.hasProtRelay) el.push(`<text x="${MCX+12}" y="${ctY+26}" style="fill:${telC};font-family:'Avenir Next','Avenir',sans-serif;font-size:8px;font-style:italic" text-anchor="start">→ RTU · protection relay</text>`);
   }
 
   const overlayBottom=NY+necH+(showGridBox?gridBoxH+18:8)+210;
-  const telStackBot=v.hasTelemetry?(utilMeterCY-20+56+(v.telCommPath&&v.telCommPath!=='none'?52:0)+(v.telUPS?52:0)):0;
   const totalH=Math.max(y+30, battBotY+30, 620, overlayBottom+20, telStackBot+30);
   const svg=$('sld-svg');
   svg.setAttribute('width',SVG_W);
@@ -3798,53 +3949,48 @@ function render(){
     function crow(lbl,val){return `<div class="crow">${lbl}</div><div class="cval">${val}</div>`;}
     function arrBlock(c){
       const rinv=c.invCount>1?` · ×${c.invCount} runs`:'';
-      return crow('String / source circuit (per string)',`#${c.strW.awg} AWG · ${conduitFor(3,c.strW.area)} EMT  (${c.strA.toFixed(1)} A req.)`)
-        +crow('DC output (combiner → inverter)',`#${c.dcW.awg} AWG · ${conduitFor(3,c.dcW.area)} EMT  (${c.dcA.toFixed(1)} A req.)`)
-        +crow('AC output (inverter → panel)',`#${c.perInvAcW.awg} AWG · ${conduitFor(c.acConds,c.perInvAcW.area)} EMT${rinv}  (${c.perInvAcA.toFixed(1)} A req.)`)
+      return crow('String / source circuit (per string)',`${awgStr(c.strW)} · ${conduitFor(3,c.strW.area)} EMT  (${c.strA.toFixed(1)} A req.)`)
+        +crow(`DC output (combiner → inverter${c.invCount>1?', per inverter':''})`,`${awgStr(c.dcW)} · ${conduitFor(3,c.dcW.area)} EMT${rinv}  (${c.strPerInv} str · ${c.dcA.toFixed(1)} A req.)`)
+        +crow('AC output (inverter → panel)',`${awgStr(c.perInvAcW)} · ${conduitFor(c.acConds,c.perInvAcW.area)} EMT${rinv}  (${c.perInvAcA.toFixed(1)} A req.)`)
         +crow('PV comms (inverter → DAS)',`Cat6 · ×${c.invCount} cable${c.invCount>1?'s':''} · ${c.commCond} EMT`);
     }
     let ch = '';
-    if(v.hasArr2) ch += `<div class="stitle" style="${SH};color:var(--accent2)">ARRAY 1</div>`;
-    ch += arrBlock(c1);
-    if(v.hasArr2){
-      const c2=conduitRows(v.a2);
-      ch += `<div class="stitle" style="${SH};color:var(--accent2)">ARRAY 2</div>`;
-      ch += arrBlock(c2);
-      const totAcA=c1.perInvAcA*c1.invCount+c2.perInvAcA*c2.invCount;
-      const totAcW=wireForParallel(totAcA);
-      const totComm=c1.invCount+c2.invCount;
+    if(!v.hasArr2) ch += arrBlock(c1);
+    else {
+      cArr.forEach((c,i)=>{
+        ch += `<div class="stitle" style="${SH};color:var(--accent2)">${esc(v.arrays[i].name.toUpperCase())}</div>`;
+        ch += arrBlock(c);
+      });
+      const totAcA=roofTotalAcA, totAcW=roofTotalAcW, totComm=roofCommRuns;
       ch += `<div class="stitle" style="${SH};color:var(--green)">TOTALS</div>`;
-      ch += crow('Combined AC to panel',`#${totAcW.awg} AWG · ${conduitFor(c1.acConds,totAcW.area)} EMT  (${totAcA.toFixed(1)} A req.)`);
+      ch += crow('Combined AC to panel',`${wireLbl(totAcW)} · ${Math.max(1,totAcW.sets||1)}× ${conduitFor(c1.acConds,totAcW.area)} EMT  (${totAcA.toFixed(1)} A req.)`);
       ch += crow('Combined PV comms',`Cat6 · ×${totComm} cables · ${conduitFor(totComm,CAT6_AREA)} EMT`);
     }
     $('conduit-content').innerHTML = ch;
   }
 
   // ── Roof → Electrical Room conduit ───────────────────────────────────────
-  // (hasAcCombiner, c2roof, roofTotalAcA/W, roofCommRuns/Cond computed above before NEC box)
+  // (hasAcCombiner, cArr, roofTotalAcA/W, roofCommRuns/Cond computed above before NEC box)
   const roofBranchRow = $('roof-branch-row');
   const roofMainLbl = $('c-roof-main-lbl');
   if(hasAcCombiner){
     roofBranchRow.style.display = 'block';
     if(v.hasArr2){
-      const r1=c1.invCount>1?` ×${c1.invCount} runs`:'';
-      const r2=c2roof.invCount>1?` ×${c2roof.invCount} runs`:'';
-      $('c-roof-branch').textContent = `Arr1: #${c1.perInvAcW.awg} AWG${r1}  (${(c1.perInvAcA*c1.invCount).toFixed(1)} A) · Arr2: #${c2roof.perInvAcW.awg} AWG${r2}  (${(c2roof.perInvAcA*c2roof.invCount).toFixed(1)} A)`;
+      $('c-roof-branch').textContent = cArr.map((c,i)=>{const r=c.invCount>1?` ×${c.invCount} runs`:''; return `Arr${i+1}: ${awgStr(c.perInvAcW)}${r}  (${c.perInvAcA.toFixed(1)} A ea.)`;}).join(' · ');
     } else {
-      $('c-roof-branch').textContent = `#${perInvAcW.awg} AWG · ${conduitFor(acConductors, perInvAcW.area)} EMT · ×${v.invCount} runs  (${perInvAcA.toFixed(1)} A req.)`;
+      $('c-roof-branch').textContent = `${awgStr(perInvAcW)} · ${conduitFor(acConductors, perInvAcW.area)} EMT · ×${v.invCount} runs  (${perInvAcA.toFixed(1)} A req.)`;
     }
     roofMainLbl.textContent = v.hasArr2 ? 'AC combiner → elec. room (combined run)' : 'Combiner → elec. room (single run)';
-    $('c-roof-main').textContent = `#${roofTotalAcW.awg} AWG · ${mPfx}${conduitFor(acConductors, roofTotalAcW.area)} EMT  (${roofTotalAcA.toFixed(1)} A req.)`;
+    const roofRuns=Math.max(acMult,roofTotalAcW.sets||1);
+    $('c-roof-main').textContent = `${wireLbl(roofTotalAcW)} · ${roofRuns}× ${conduitFor(acConductors, roofTotalAcW.area)} EMT${(roofTotalAcW.sets||1)>1?' (one per set)':''}  (${roofTotalAcA.toFixed(1)} A req.)`;
   } else {
     roofBranchRow.style.display = 'none';
     if(v.hasArr2){
-      const r1=c1.invCount>1?` ×${c1.invCount} runs`:'';
-      const r2=c2roof.invCount>1?` ×${c2roof.invCount} runs`:'';
       roofMainLbl.textContent = 'Direct runs (all inverters → elec. room)';
-      $('c-roof-main').textContent = `Arr1: ${mPfx}#${c1.perInvAcW.awg} AWG${r1}  (${(c1.perInvAcA*c1.invCount).toFixed(1)} A) · Arr2: ${mPfx}#${c2roof.perInvAcW.awg} AWG${r2}  (${(c2roof.perInvAcA*c2roof.invCount).toFixed(1)} A)`;
+      $('c-roof-main').textContent = cArr.map((c,i)=>{const r=c.invCount>1?` ×${c.invCount} runs`:''; return `Arr${i+1}: ${mPfx}${awgStr(c.perInvAcW)}${r}  (${c.perInvAcA.toFixed(1)} A ea.)`;}).join(' · ');
     } else {
       roofMainLbl.textContent = v.invCount > 1 ? `Direct runs (×${v.invCount} inverters → elec. room)` : 'Direct run (inverter → elec. room)';
-      $('c-roof-main').textContent = `#${perInvAcW.awg} AWG · ${mPfx}${conduitFor(acConductors, perInvAcW.area)} EMT${perInvLabel}  (${perInvAcA.toFixed(1)} A req.)`;
+      $('c-roof-main').textContent = `${awgStr(perInvAcW)} · ${mPfx}${conduitFor(acConductors, perInvAcW.area)} EMT${perInvLabel}  (${perInvAcA.toFixed(1)} A req.)`;
     }
   }
   $('c-roof-comm').textContent = `Cat6 · ×${roofCommRuns} cable${roofCommRuns>1?'s':''} · ${roofCommCond} EMT  (NEC 800/725 Cl.2)`;
@@ -3857,7 +4003,9 @@ function render(){
   const bfEl = $('backfeed-check');
   if(activeBreaker > maxBackfeed){
     bcEl.className='cwarn'; bcEl.textContent=`⚠ Max per NEC 705.12(D)(2): ${maxBackfeed}A`;
-    bfEl.className='cwarn'; bfEl.textContent=`⚠ Solar breaker ${activeBreaker}A exceeds 120% rule (max ${maxBackfeed}A: ${activeBusbar}A busbar × 120% − ${activePanel}A main)`;
+    const atMax=activePanel>=PANEL_SIZES[PANEL_SIZES.length-1];
+    bfEl.className='cwarn'; bfEl.textContent=`⚠ Solar breaker ${activeBreaker}A exceeds 120% rule (max ${maxBackfeed}A: ${activeBusbar}A busbar × 120% − ${activePanel}A main)`
+      +(atMax?' — use a supply-side (line-side) connection per NEC 705.11/705.12(A) or dedicated PV switchgear':'');
   } else {
     bcEl.className='cok'; bcEl.textContent=`✓ NEC 705.12(D)(2): max ${maxBackfeed}A`;
     bfEl.textContent='';
@@ -3868,7 +4016,7 @@ function render(){
   if(v.hasCombiner){
     const minFuseRaw=(v.isc*1.5625).toFixed(1);
     fuseEl.style.color='#1e8a60';
-    fuseEl.textContent=`NEC 690.8: ${v.isc}A × 1.25 × 1.25 = ${minFuseRaw}A → ${recFuse1}A std. ✓`;
+    fuseEl.textContent=`NEC 690.8: ${v.isc}A × 1.25 × 1.25 = ${minFuseRaw}A → ${v.combFuse}A std. ✓`;
   } else { fuseEl.textContent=''; }
   // Keep report tab live when inputs change
   if($('tab-report')&&$('tab-report').classList.contains('active')) renderReport();
@@ -4246,37 +4394,19 @@ function renderReport(){
   const projName=gv('projName')||'Project Name';
   const projAddr=(gv('projAddr')||gv('rptAddress')||'').trim();
 
-  // Array 1
-  const a1Strings=Math.max(1,+gv('strings')||1);
-  const a1ModsPerStr=Math.max(1,+gv('mods')||1);
-  const a1ModW=+gv('modW')||550;
   const a1InvKw=+gv('invKw')||10;
   const a1InvCount=Math.max(1,+gv('invCount')||1);
-  const a1Panels=a1Strings*a1ModsPerStr;
-  const a1DcKw=a1Panels*a1ModW/1000;
-  const a1AcKw=a1InvKw*a1InvCount;
-  const a1ModModel=gv('modModel')||'';
 
-  // Array 2
-  const hasArr2=gc('hasArr2');
-  let totalPanels=a1Panels, totalDcKw=a1DcKw, totalAcKw=a1AcKw;
-  let a2Lines='';
-  if(hasArr2){
-    const a2Strings=Math.max(1,+gv('a2strings')||1);
-    const a2ModsPerStr=Math.max(1,+gv('a2mods')||1);
-    const a2ModW=+gv('a2modW')||550;
-    const a2InvKw=+gv('a2invKw')||10;
-    const a2InvCount=Math.max(1,+gv('a2invCount')||1);
-    const a2Panels=a2Strings*a2ModsPerStr;
-    const a2DcKw=a2Panels*a2ModW/1000;
-    const a2AcKw=a2InvKw*a2InvCount;
-    const a2Name=gv('rptArr2Name')||'Parking Canopy';
-    totalPanels+=a2Panels; totalDcKw+=a2DcKw; totalAcKw+=a2AcKw;
-    a2Lines=`<div>${a2Name}: ${a2Panels.toLocaleString()}&#215; panels, ${a2DcKw.toFixed(1)} kW DC</div>`;
-    const r=$('rpt-arr2-name-row'); if(r) r.style.display='';
-  } else {
-    const r=$('rpt-arr2-name-row'); if(r) r.style.display='none';
-  }
+  // All arrays (Array 1 + any added arrays)
+  const rArrays=arrNs().map(n=>{
+    const panels=arrActualMods(n), dcKw=arrActualKwDc(n); // same partial-string rule as the SLD
+    const invKw=+agv(n,'invKw')||10, invCount=Math.max(1,+agv(n,'invCount')||1);
+    return {n,name:arrName(n),panels,dcKw,acKw:invKw*invCount,invKw,invCount,invModel:agv(n,'invModel')||'—',invV:agv(n,'invV')||'480VAC 3ph'};
+  });
+  const hasArr2=rArrays.length>1;
+  const totalPanels=rArrays.reduce((t,a)=>t+a.panels,0);
+  const totalDcKw=rArrays.reduce((t,a)=>t+a.dcKw,0);
+  const totalAcKw=rArrays.reduce((t,a)=>t+a.acKw,0);
 
   // Mount type breakdown (Roof auto-computed; Canopy/BI optional)
   const roofChk=gc('rptMtRoofChk');
@@ -4295,13 +4425,7 @@ function renderReport(){
   const a1VStr=gv('invV')||'480VAC 3ph';
   const a1Volts=_pv(a1VStr);
   const a1is3ph=a1VStr.includes('3ph');
-  let totalDispA=(a1InvKw*1000)/(a1Volts*(a1is3ph?1.732:1))*a1InvCount;
-  if(hasArr2){
-    const a2VStr=gv('a2invV')||'480VAC 3ph';
-    const a2Volts=_pv(a2VStr); const a2is3ph=a2VStr.includes('3ph');
-    const a2IKw=+gv('a2invKw')||10, a2ICnt=Math.max(1,+gv('a2invCount')||1);
-    totalDispA+=(a2IKw*1000)/(a2Volts*(a2is3ph?1.732:1))*a2ICnt;
-  }
+  const totalDispA=rArrays.reduce((t,a)=>t+(a.invKw*1000)/(_pv(a.invV)*(a.invV.includes('3ph')?1.732:1))*a.invCount,0);
   const phaseLabel=a1is3ph?`3-phase ${a1Volts}V`:`1-phase ${a1Volts}V`;
 
   // Annual production from PVWatts hourly data
@@ -4310,11 +4434,10 @@ function renderReport(){
   const nze=+gv('rptNzeTarget')||0;
 
   // Build system info block
-  const modLabel=a1ModModel||'—';
-  let info=`<div>Basis of Design Module: ${modLabel}</div>`;
+  const modLabel=[...new Set(arrNs().map(n=>(agv(n,'modModel')||'').trim()).filter(Boolean))].join(' / ')||'—';
+  let info=`<div>Basis of Design Module: ${esc(modLabel)}</div>`;
   if(hasArr2){
-    info+=`<div>Array 1: ${a1Panels.toLocaleString()}&#215; panels, ${a1DcKw.toFixed(1)} kW DC</div>`;
-    info+=a2Lines;
+    rArrays.forEach(a=>{ info+=`<div>${esc(a.name)}: ${a.panels.toLocaleString()}&#215; panels, ${a.dcKw.toFixed(1)} kW DC</div>`; });
   } else {
     info+=`<div>Module count: ${totalPanels.toLocaleString()}&#215; panels</div>`;
   }
@@ -4352,22 +4475,9 @@ function renderReport(){
     const a1Volts=parseVolts(a1VStr);
     const a1is3ph=a1VStr.includes('3ph');
     const a1PhaseLabel=a1is3ph?`3-phase ${a1Volts}V`:`1-phase ${a1Volts}V`;
-    const a1DispA=(a1InvKw*1000)/(a1Volts*(a1is3ph?1.732:1))*a1InvCount;
-    const a1NecA=a1DispA*1.25;
-    const a1InvModelR=gv('invModel')||'—';
-    let totalDispA=a1DispA, totalNecA=a1NecA;
-    let invLine=`${a1InvCount}× ${a1InvModelR} (${a1InvKw} kW)`;
-    if(hasArr2){
-      const a2VStr=gv('a2invV')||'480VAC 3ph';
-      const a2Volts=parseVolts(a2VStr);
-      const a2is3ph=a2VStr.includes('3ph');
-      const a2InvKwR=+gv('a2invKw')||10;
-      const a2InvCountR=Math.max(1,+gv('a2invCount')||1);
-      const a2InvModelR=gv('a2invModel')||'—';
-      const a2DispA=(a2InvKwR*1000)/(a2Volts*(a2is3ph?1.732:1))*a2InvCountR;
-      totalDispA+=a2DispA; totalNecA+=a2DispA*1.25;
-      invLine=`Arr1: ${a1InvCount}× ${a1InvModelR} (${a1InvKw} kW) · Arr2: ${a2InvCountR}× ${a2InvModelR} (${a2InvKwR} kW)`;
-    }
+    const invLine=hasArr2
+      ?rArrays.map(a=>`Arr${a.n}: ${a.invCount}× ${esc(a.invModel)} (${a.invKw} kW)`).join(' · ')
+      :`${a1InvCount}× ${esc(gv('invModel')||'—')} (${a1InvKw} kW)`;
     let elecHtml='';
     elecHtml+=`<div>Est. AC output: ${totalDispA.toFixed(1)} A total (${a1PhaseLabel})</div>`;
     elecHtml+=`<div>Inverters: ${invLine}</div>`;
@@ -4510,6 +4620,18 @@ let _anHeatmapView='year';
 let _anSweepResults=[],_anPeakCurtDay=0,_anPeakDayIsExport=false,_anPvSrc='',_anCsvData=null,_anSimBase=null,_anSimParams=null,_anKneePct=null,_anKneeIdx=null;
 let _chartMonthly=null,_chartSizing=null,_chartDispatch=null;
 let _anPvWattsData=null; // hourly kW array fetched from NREL PVWatts API
+let _anPvWattsParams=null; // input snapshot the PVWatts data corresponds to (stale-check)
+function anPvWattsParamKey(){
+  return ['an-pvKw','an-dcAc','an-losses','an-lat','an-lon','an-tilt','an-azimuth','an-array-type'].map(id=>(gv(id)||'').trim()).join('|');
+}
+// Drop cached PVWatts data when any input it depends on has changed since the fetch
+function anCheckPvWattsStale(){
+  if(!_anPvWattsData||_anPvWattsParams===null) return;
+  if(anPvWattsParamKey()!==_anPvWattsParams){
+    _anPvWattsData=null;
+    const st=$('an-pvw-status'); if(st){ st.style.color='#f5a742'; st.textContent='⚠ Inputs changed — re-fetch PVWatts data'; }
+  }
+}
 let _anYieldTarget=null; // {scale,modeledYield,targetYield} from last runAnalysis
 
 function switchTab(name){
@@ -4526,15 +4648,13 @@ function switchTab(name){
 }
 
 function syncAnalysisFromSLD(){
-  // PV — weighted DC/AC ratio across both arrays when Array 2 is present
-  const pvKw1=parseFloat(gv('systemKw'))||0;
-  const pvKw2=gc('hasArr2')?(parseFloat(gv('a2systemKw'))||0):0;
-  const pvKw=pvKw1+pvKw2;
+  // PV — total DC across all arrays; DC/AC ratio weighted by each array's DC size
+  let pvKw=0,totalAcKw=0;
+  arrNs().forEach(n=>{
+    const kw=(parseFloat(agv(n,'systemKw'))||0)>0?arrActualKwDc(n):0, r=parseFloat(agv(n,'dcAcRatio'))||1.20;
+    pvKw+=kw; if(kw>0&&r>0) totalAcKw+=kw/r;
+  });
   const r1=parseFloat(gv('dcAcRatio'))||1.20;
-  const r2=parseFloat(gv('a2dcAcRatio'))||1.20;
-  const acKw1=r1>0?pvKw1/r1:0;
-  const acKw2=pvKw2>0&&r2>0?pvKw2/r2:0;
-  const totalAcKw=acKw1+acKw2;
   const dcAcRatio=totalAcKw>0?Math.round(pvKw/totalAcKw*100)/100:r1;
 
   // Invalidate PVWatts cache if the system params it was fetched for have changed
@@ -4719,7 +4839,7 @@ async function fetchPVWatts(){
   try{
     const params=new URLSearchParams({
       system_capacity:gv('an-pvKw'),
-      azimuth:180,
+      azimuth:parseFloat(gv('an-azimuth'))||180,
       tilt:gv('an-tilt'),
       array_type:gv('an-array-type'),
       module_type:0,
@@ -4736,6 +4856,7 @@ async function fetchPVWatts(){
     const ac=data.outputs&&data.outputs.ac;
     if(!ac||ac.length<8760) throw new Error('Incomplete hourly data in response');
     _anPvWattsData=new Float32Array(ac.slice(0,8760).map(v=>v/1000)); // W → kW
+    _anPvWattsParams=anPvWattsParamKey();
     const si=data.station_info||{};
     const annualMwh=(ac.reduce((a,b)=>a+b,0)/1e6).toFixed(2);
     statusEl.style.color='var(--green)';
@@ -4756,8 +4877,9 @@ async function fetchPVWatts(){
 function anToRad(d){return d*Math.PI/180;}
 function anSum(arr){let s=0;for(let i=0;i<arr.length;i++)s+=arr[i];return s;}
 
-function makeSolarProfile(systemKwDC,dcAcRatio,lossesP,latDeg,tiltDeg){
+function makeSolarProfile(systemKwDC,dcAcRatio,lossesP,latDeg,tiltDeg,azimuthDeg=180){
   const systemKwAC=systemKwDC/dcAcRatio, eta=1-lossesP/100;
+  const GAM=anToRad(azimuthDeg-180); // surface azimuth: 0 = due south, west positive
   // Cloud/weather derate: real TMY irradiance is ~65% of clear-sky for mid-Atlantic.
   // Fetch PVWatts for TMY accuracy; this factor only applies to the fallback model.
   const WEATHER=0.65;
@@ -4776,9 +4898,10 @@ function makeSolarProfile(systemKwDC,dcAcRatio,lossesP,latDeg,tiltDeg){
     const DNI=1353*Math.pow(0.7,Math.pow(am,0.678));
     const GHI=DNI*cosZ, DHI=GHI*0.15;
     const cosInc=Math.sin(decl)*Math.sin(LAT)*Math.cos(TILT)
-                -Math.sin(decl)*Math.cos(LAT)*Math.sin(TILT)
+                -Math.sin(decl)*Math.cos(LAT)*Math.sin(TILT)*Math.cos(GAM)
                 +Math.cos(decl)*Math.cos(omega)*Math.cos(LAT)*Math.cos(TILT)
-                +Math.cos(decl)*Math.cos(omega)*Math.sin(LAT)*Math.sin(TILT);
+                +Math.cos(decl)*Math.cos(omega)*Math.sin(LAT)*Math.sin(TILT)*Math.cos(GAM)
+                +Math.cos(decl)*Math.sin(TILT)*Math.sin(GAM)*Math.sin(omega);
     const G_poa=Math.max(0,cosInc)*DNI + DHI*(1+Math.cos(TILT))/2 + GHI*0.2*(1-Math.cos(TILT))/2;
     pv[h]=Math.max(0,Math.min(systemKwAC,G_poa/1000*systemKwDC*eta*WEATHER));
   }
@@ -5064,7 +5187,9 @@ async function runAnalysis(){
     const rate=parseFloat(gv('an-rate'))/100||0.15;
     const loadType=gv('an-loadType');
 
-    const pvRaw=_anPvWattsData||makeSolarProfile(pvKw,dcAcRatio,losses,lat,tilt);
+    anCheckPvWattsStale();
+    const azimuth=parseFloat(gv('an-azimuth'))||180;
+    const pvRaw=_anPvWattsData||makeSolarProfile(pvKw,dcAcRatio,losses,lat,tilt,azimuth);
     const yt=applyYieldTarget(pvRaw,pvKw);
     const pv=yt.pv;
     const pvSrc=(_anPvWattsData?'PVWatts TMY':'Clear-sky model')+(yt.targetYield>0?` · scaled to ${yt.targetYield.toFixed(0)} kWh/kW (×${yt.scale.toFixed(3)})`:'');
@@ -5703,39 +5828,26 @@ function buildDebugReport(){
   row('Name',gs('projName'));
   row('Designer',gs('designer'));
 
-  sec('ARRAY 1');
-  row('System size (kW DC)',gn('systemKw'));
-  row('Total modules',gn('numMods'));
-  row('Strings',gn('strings'));
-  row('Mods/string',gn('mods'));
-  row('Module Wp',gn('modW'));
-  row('Module model',gs('modModel'));
-  row('Voc (V)',gn('voc'));
-  row('Isc (A)',gn('isc'));
-  row('DC/AC ratio',gn('dcAcRatio'));
-  row('Inverter type',gs('invType'));
-  row('Inverter kW',gn('invKw'));
-  row('Inverter qty',gn('invCount'));
-  row('Inverter model',gs('invModel'));
-  row('Combiner box',gb('hasCombiner'));
-  row('Combiner voltage (V)',gn('combV'));
-  row('Combiner fuse (A)',gn('combFuse'));
-
-  if(gc('hasArr2')){
-    sec('ARRAY 2');
-    row('System size (kW DC)',gn('a2systemKw'));
-    row('Total modules',gn('a2numMods'));
-    row('Strings',gn('a2strings'));
-    row('Mods/string',gn('a2mods'));
-    row('Module Wp',gn('a2modW'));
-    row('Module model',gs('a2modModel'));
-    row('Voc (V)',gn('a2voc'));
-    row('Isc (A)',gn('a2isc'));
-    row('DC/AC ratio',gn('a2dcAcRatio'));
-    row('Inverter kW',gn('a2invKw'));
-    row('Inverter qty',gn('a2invCount'));
-    row('Inverter model',gs('a2invModel'));
-  }
+  arrNs().forEach(n=>{
+    sec(n===1?'ARRAY 1':`ARRAY ${n} — ${arrName(n)}${arrMirrored(n)?' (mirrors Array 1)':''}`);
+    const g=f=>gn(aid(n,f)), t=f=>gs(aid(n,f));
+    row('System size (kW DC)',g('systemKw'));
+    row('Total modules',g('numMods'));
+    row('Strings',g('strings'));
+    row('Mods/string',g('mods'));
+    row('Module Wp',g('modW'));
+    row('Module model',t('modModel'));
+    row('Voc (V)',g('voc'));
+    row('Isc (A)',g('isc'));
+    row('DC/AC ratio',g('dcAcRatio'));
+    row('Inverter type',t('invType'));
+    row('Inverter kW',g('invKw'));
+    row('Inverter qty',g('invCount'));
+    row('Inverter model',t('invModel'));
+    row('Combiner box',a$(n,'hasCombiner')&&a$(n,'hasCombiner').checked?'yes':'no');
+    row('Combiner voltage (V)',g('combV'));
+    row('Combiner fuse (A)',g('combFuse'));
+  });
 
   sec('BATTERY (SLD)');
   row('Include battery',gb('hasBatt'));
@@ -5768,6 +5880,7 @@ function buildDebugReport(){
   row('Latitude',gn('an-lat'));
   row('Longitude',gn('an-lon'));
   row('Tilt (°)',gn('an-tilt'));
+  row('Azimuth (°)',gn('an-azimuth'));
   row('Export limit (kW)',anExportLimitKw()===Infinity?'None (net metering)':gn('an-export'));
   row('Array type',gs('an-array-type'));
   const tyv=gv('an-targetYield');
@@ -5952,7 +6065,6 @@ setTimeout(function(){
 </script>
 <div id="display-panel" class="visible">
   <div class="dp-title">Display</div>
-  <div class="dp-row"><span>Show grounding</span><label class="tog"><input type="checkbox" id="hasGnd" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
   <div class="dp-row"><span>NEC section labels</span><label class="tog"><input type="checkbox" id="showNecLabels" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
   <div class="dp-row"><span>Wire sizing labels</span><label class="tog"><input type="checkbox" id="showWireLabels" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
   <div class="dp-row"><span>Conduit notes</span><label class="tog"><input type="checkbox" id="showConduitNotes" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
