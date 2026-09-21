@@ -1994,6 +1994,14 @@ function _stripNec(t){
   return t.replace(/\s*·?\s*NEC\s+(?:Art\.?\s+)?\d[\w.()]*(?:\s*\([A-Z]+\))?(?:\s*[/·]\s*(?:NEC\s+)?\d[\w.()]*(?:\s*\([A-Z]+\))?)*/g,'')
           .replace(/^\s*·\s*/,'').replace(/\s*·\s*$/,'').replace(/\s*·\s*·\s*/g,' · ').trim();
 }
+// With "Code & listing labels" off, also drop listing / rating tokens (UL, IEEE, NEMA, ANSI, SCCR,
+// Lockable, SPD Type n, meter Class n) so boxes show only functional information.
+const _SPEC_TOKEN=/^(UL\b|IEEE\b|NEMA\b|ANSI\b|SCCR\b|Lockable\b|Type\s*[12]\b|Class\s*0?\.?\d|Cl\.\s*2|Listed\b)/i;
+function _stripSpec(t){
+  const base=_stripNec(t||'');
+  if(!base) return '';
+  return base.split(/\s*·\s*/).filter(tok=>tok&&!_SPEC_TOKEN.test(tok.trim())).join(' · ');
+}
 // Measure SVG label text with the diagram font (canvas fallback estimate if unavailable)
 const _sldMeasureCtx=(()=>{try{return document.createElement('canvas').getContext('2d');}catch(_){return null;}})();
 function sldTextW(txt,px,weight){
@@ -2009,7 +2017,7 @@ const _SLD_PX={'sld-lbl':13,'sld-sub':11,'sld-note':10};
 function compBox(x,y,w,h,fill,stroke,title,sub1,sub2,sub3){
   let s=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
   let subs=[sub1,sub2,sub3].filter(Boolean);
-  if(!_showNec) subs=subs.map(_stripNec).filter(Boolean);
+  if(!_showNec) subs=subs.map(_stripSpec).filter(Boolean);
   const lines=[title,...subs];
   const lh=14,total=lines.length*lh, maxW=w-12;
   let ty=y+h/2-total/2+lh*0.75;
@@ -2037,7 +2045,8 @@ function spdSym(cx,y,isAc,side,info,armLen){
   const anchor=side==='left'?'end':'start';
   s+=`<text x="${lbx}" y="${y+3}" style="fill:${col};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px;font-weight:700" text-anchor="${anchor}">SPD</text>`;
   if(_showNec) s+=`<text x="${lbx}" y="${y+14}" style="fill:#909090;font-family:'Avenir Next','Avenir',sans-serif;font-size:7.5px" text-anchor="${anchor}">${isAc?'NEC 230.67':'NEC 242'}</text>`;
-  if(info) s+=`<text x="${lbx}" y="${y+24}" style="fill:#909090;font-family:'Avenir Next','Avenir',sans-serif;font-size:7.5px" text-anchor="${anchor}">${esc(info)}</text>`;
+  const infoTxt=_showNec?info:_stripSpec(info||'');
+  if(infoTxt) s+=`<text x="${lbx}" y="${_showNec?y+24:y+14}" style="fill:#909090;font-family:'Avenir Next','Avenir',sans-serif;font-size:7.5px" text-anchor="${anchor}">${esc(infoTxt)}</text>`;
   return s;
 }
 function egcAwg(ocpdA){
@@ -2052,7 +2061,7 @@ function discBox(x,y,w,h,fill,stroke,label,sub,sub2){
   s+=`<circle cx="${mx+8}" cy="${my-5}" r="2" fill="${stroke}"/>`;
   const fit=t=>sldFitAttr(t,10,w-10);
   s+=`<text x="${mx}" y="${y+10}" class="sld-note" text-anchor="middle"${fit(label)}>${esc(label)}</text>`;
-  const showSub2=_showNec?sub2:(_stripNec(sub2||'')||null);
+  const showSub2=_showNec?sub2:(_stripSpec(sub2||'')||null);
   if(showSub2){
     s+=`<text x="${mx}" y="${y+h-13}" class="sld-note" text-anchor="middle"${fit(sub)}>${esc(sub)}</text>`;
     s+=`<text x="${mx}" y="${y+h-4}" class="sld-note" text-anchor="middle"${fit(showSub2)}>${esc(showSub2)}</text>`;
@@ -2942,7 +2951,7 @@ function renderArrayColumn(cfg, cx, startY, compact=false) {
   const invBX=cx-invBW/2;
 
   // Layout constants
-  const topPad=8, titleH=14, symGap=5, botPad=8, necH=11, subLH=11;
+  const topPad=8, titleH=14, symGap=5, botPad=8, necH=_showNec?11:0, subLH=11;
   const invH=topPad+titleH+symGap+invSymH+symGap+subLines.length*subLH+necH+botPad;
 
   // Outer box
@@ -2980,10 +2989,12 @@ function renderArrayColumn(cfg, cx, startY, compact=false) {
   });
 
   // NEC compliance note at bottom
-  const afciLine=cfg.invType==='hybrid'&&cfg.hasIslanding
-    ?'Int. AFCI · GFPD · Int. ATS · UL 1741 SB'
-    :_showNec?'Int. AFCI · NEC 690.11  ·  GFPD · NEC 690.41(B)  ·  UL 1741 SB':'Int. AFCI · GFPD · UL 1741 SB';
-  s.push(`<text x="${cx}" y="${y+invH-botPad}" style="fill:#8090a8;font-family:'Avenir Next','Avenir',sans-serif;font-size:7.5px;font-style:italic" text-anchor="middle">${afciLine}</text>`);
+  if(_showNec){
+    const afciLine=cfg.invType==='hybrid'&&cfg.hasIslanding
+      ?'Int. AFCI · GFPD · Int. ATS · UL 1741 SB'
+      :'Int. AFCI · NEC 690.11  ·  GFPD · NEC 690.41(B)  ·  UL 1741 SB';
+    s.push(`<text x="${cx}" y="${y+invH-botPad}" style="fill:#8090a8;font-family:'Avenir Next','Avenir',sans-serif;font-size:7.5px;font-style:italic" text-anchor="middle">${afciLine}</text>`);
+  }
 
   const invBotY=y+invH;
   const invMidY=y+Math.round(invH/2);
@@ -3395,7 +3406,8 @@ function render(){
     el.push(`<rect x="${BX}" y="${y}" width="${BW}" height="44" rx="6" fill="#fff3e0" stroke="${mvC}" stroke-width="1.5"/>`);
     el.push(`<text x="${MCX}" y="${y+14}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:11px;font-weight:700" text-anchor="middle">MV Switchgear / Disconnect</text>`);
     el.push(`<text x="${MCX}" y="${y+26}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle">${mvPriKv} kV · ${esc(v.utilityName)}-grade</text>`);
-    el.push(`<text x="${MCX}" y="${y+38}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle"${sldFitAttr('Vacuum interrupter · Lockable · IEEE 1547',9,BW-10)}>Vacuum interrupter · Lockable · IEEE 1547</text>`);
+    const mvSwNote=_showNec?'Vacuum interrupter · Lockable · IEEE 1547':_stripSpec('Vacuum interrupter · Lockable · IEEE 1547');
+    el.push(`<text x="${MCX}" y="${y+38}" style="fill:${mvC};font-family:'Avenir Next','Avenir',sans-serif;font-size:9px" text-anchor="middle"${sldFitAttr(mvSwNote,9,BW-10)}>${mvSwNote}</text>`);
     y+=44;
     // Recloser drawn as utility-owned symbol on the feeder line (added after feeder line is drawn below)
     // MV vertical wire to feeder tap
@@ -3549,7 +3561,7 @@ function render(){
     utilMeterCY = y+14;
     const nemLabel = v.hasNetMeter ? 'Net Energy Meter (NEM)' : 'Utility Revenue Meter';
     const nemSub   = v.hasNetMeter ? 'Bidirectional · Utility-supplied' : 'Utility-supplied';
-    const nemTelSub = v.hasTelemetry && v.telRevMeter ? 'Revenue-grade · Class 0.2S' : null;
+    const nemTelSub = v.hasTelemetry && v.telRevMeter ? (_showNec?'Revenue-grade · Class 0.2S':'Revenue-grade') : null;
     const nemLX=v.hasTelemetry?MCX-28:MCX+22, nemAnc=v.hasTelemetry?'end':'start';
     el.push(wlabel(nemLX,y+15,nemLabel,true,nemAnc));
     el.push(wlabel(nemLX,y+27,nemSub,true,nemAnc));
@@ -3862,7 +3874,7 @@ function render(){
   }
 
   // ── Grid & Telemetry notes box ───────────────────────────────────────────
-  const showGridBox = v.hasTelemetry || v.gridNetwork!=='radial' || v.exportLimit!==null || v.pfRequirement;
+  const showGridBox = gc('showGridNotes') && (v.hasTelemetry || v.gridNetwork!=='radial' || v.exportLimit!==null || v.pfRequirement);
   let gridBoxH = 0;
   if(showGridBox){
     const GY = NY + necH + 10;
@@ -3906,11 +3918,12 @@ function render(){
     gLines.forEach(ln=>{
       wrapNecText(ln.text, _nwAvail).forEach((l,i)=>gLinesExp.push({bold:i===0&&ln.bold,text:l}));
     });
-    const hdrH=28, lineH=12, pad=8;
+    const hdrH=36, lineH=12, pad=8;
     gridBoxH = hdrH + gLinesExp.length*lineH + pad;
     el.push(`<rect x="${LX}" y="${GY}" width="${NW}" height="${gridBoxH}" rx="6" fill="#f8f9fd" stroke="#d0d5e8" stroke-width="0.8"/>`);
     el.push(`<text x="${LX+NW/2}" y="${GY+13}" class="sld-head" text-anchor="middle">Grid &amp; Interconnection Notes</text>`);
-    el.push(`<line x1="${LX+6}" y1="${GY+18}" x2="${LX+NW-6}" y2="${GY+18}" stroke="#d0d5e8" stroke-width="0.7"/>`);
+    el.push(`<text x="${LX+NW/2}" y="${GY+22}" style="${italicNote}" text-anchor="middle">Preliminary — verify requirements with the utility and/or PV installer.</text>`);
+    el.push(`<line x1="${LX+6}" y1="${GY+26}" x2="${LX+NW-6}" y2="${GY+26}" stroke="#d0d5e8" stroke-width="0.7"/>`);
     gLinesExp.forEach((ln,i)=>{
       const ty=GY+hdrH+i*lineH;
       if(ln.bold) el.push(`<text x="${LX+10}" y="${ty}" style="${boldStyle}">${esc(ln.text)}</text>`);
@@ -6065,10 +6078,11 @@ setTimeout(function(){
 </script>
 <div id="display-panel" class="visible">
   <div class="dp-title">Display</div>
-  <div class="dp-row"><span>NEC section labels</span><label class="tog"><input type="checkbox" id="showNecLabels" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+  <div class="dp-row"><span>Code &amp; listing labels <span style="font-size:9px;color:var(--muted)">NEC · UL · NEMA · SCCR</span></span><label class="tog"><input type="checkbox" id="showNecLabels" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
   <div class="dp-row"><span>Wire sizing labels</span><label class="tog"><input type="checkbox" id="showWireLabels" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
   <div class="dp-row"><span>Conduit notes</span><label class="tog"><input type="checkbox" id="showConduitNotes" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
   <div class="dp-row"><span>NEC compliance notes</span><label class="tog"><input type="checkbox" id="showNecNotes" onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
+  <div class="dp-row"><span>Grid &amp; interconnection notes</span><label class="tog"><input type="checkbox" id="showGridNotes" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
   <div class="dp-row"><span>Additional notes</span><label class="tog"><input type="checkbox" id="showCustomNotes" onchange="toggleCustomNotes(this.checked)"><div class="ttrack"><div class="tthumb"></div></div></label></div>
   <div id="customNotesWrap" style="display:none;margin-top:6px">
     <textarea id="customNotesText" placeholder="Notes to display on diagram (one per line)…" rows="3" oninput="render()"></textarea>
