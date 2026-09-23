@@ -181,6 +181,10 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-page.rpt-land .rpt-sys-body{font-size:9.5px;line-height:1.7}
 .rpt-page.rpt-land .rpt-spacer{display:none}
 /* Notes blocks may shrink (text wraps) so the brand group always stays on the page */
+.rpt-line-muted{color:#aaa;font-style:italic}
+.rpt-line-italic{font-style:italic}
+.rpt-line-custom:empty::before{content:'New note line…';color:#b5bcc9}
+.rpt-page.rpt-exporting .rpt-line-custom:empty{display:none}
 .rpt-note-head{margin-top:5px}
 .rpt-note-line{padding-left:12px;text-indent:-12px} /* flush with the lines above; wrapped continuations hang */
 .rpt-page.rpt-land .rpt-grp-sys{max-width:420px}
@@ -627,8 +631,10 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   <div id="tab-report" class="tab-panel">
     <div class="rpt-toolbar">
       <button class="rpt-dl-btn" id="rpt-dl-btn" onclick="downloadRptPDF()">&#8595; Download PDF</button>
+      <button class="hbtn" onclick="rptAddLine()" title="Add a note line at the end of PV System Information (or press Enter while editing a line)"
+        style="padding:5px 12px;font-size:11px">+ Add note line</button>
       <button class="hbtn" id="rpt-reset-btn" onclick="rptResetEdits()" disabled
-        title="Discard manual text edits and restore the auto-generated content"
+        title="Discard manual text edits and added lines, restoring the auto-generated content"
         style="padding:5px 12px;font-size:11px">&#8635; Reset text edits</button>
       <select id="rptOrientation" onchange="renderReport()" style="font-size:11px;padding:4px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;font-family:var(--mono)">
         <option value="portrait">Portrait layout</option>
@@ -1027,6 +1033,7 @@ function collectInputState(){
   state.__pvWattsFetched = !!_anPvWattsData;
   state.__anCsvData      = _anCsvData ? Array.from(_anCsvData) : null;
   state.__rptEdits = {..._rptEdits};
+  state.__rptCustom = _rptCustom.map(c=>({...c}));
   // Persist report image crop/pad state (image data itself stored in IDB)
   state.__hasPvLayout = !!_rptLayoutImgOrig;
   state.__cropRect    = _cropRect || null;
@@ -1110,6 +1117,9 @@ function restoreInputState(state){
   }
 
   _rptEdits = state.__rptEdits ? {...state.__rptEdits} : {};
+  _rptCustom = Array.isArray(state.__rptCustom) ? state.__rptCustom.map(c=>({...c})) : [];
+  _rptCustomSeq = _rptCustom.reduce((m,c)=>Math.max(m,+String(c.k).replace(/\D/g,'')||0),0);
+  _rptJustAdded = null;
   // Restore report image crop/pad state
   _cropRect = state.__cropRect || null;
   if(state.__rptPad) _rptPad = {...state.__rptPad};
@@ -1287,6 +1297,7 @@ function startupNewProject(fromHeader){
   _rptCropImg = null;
   _rptLayoutImgOrig = null;
   _rptEdits = {};
+  _rptCustom = []; _rptCustomSeq = 0; _rptJustAdded = null;
   _cropRect = null;
   _rptPad = {t:20,r:28,b:20,l:28};
   const _nlbl=$('pvlayout-drop-label');
@@ -4412,12 +4423,107 @@ function _rptHitTest(mx,my,W,H,b){
 // Every .rpt-edit block is contenteditable. Once edited, its HTML is stored in _rptEdits and
 // renderReport() stops overwriting that block, so manual wording survives input changes.
 // Reset (per block or all) drops the override and the block goes back to auto-generated text.
-const RPT_EDIT_IDS=['rpt-pv-label','rpt-proj-name','rpt-proj-addr','rpt-sys-head','rpt-sys-body','rpt-date'];
+const RPT_EDIT_IDS=['rpt-pv-label','rpt-proj-name','rpt-proj-addr','rpt-sys-head','rpt-date'];
 let _rptEdits={};
+// User-added note lines: {k, html, after, cls} — `after` is the key of the generated line this
+// one follows ('' = end of the block). They render and edit exactly like generated lines.
+let _rptCustom=[];
+let _rptCustomSeq=0;
+let _rptJustAdded=null; // key of the line just added — kept even while still blank
 let _rptEditInit=false;
 
 function _rptEditEls(){ return RPT_EDIT_IDS.map(id=>$(id)).filter(Boolean); }
-// Apply generated HTML to a block unless the user has overridden it
+function _rptTxt(html){ return String(html||'').replace(/<[^>]*>/g,'').replace(/&nbsp;/gi,' ').trim(); }
+function _rptNewCustomKey(){ return 'x'+(++_rptCustomSeq); }
+// Style classes of a rendered row, minus the editing-state ones — so an added line can match it
+function _rptRowCls(k){
+  const el=k?document.querySelector(`#rpt-sys-body [data-k="${k}"]`):document.querySelector('#rpt-sys-body [data-k]:last-child');
+  if(!el) return 'rpt-note-line';
+  const keep=[...el.classList].filter(c=>!['rpt-line','rpt-edit','rpt-edited','rpt-line-custom'].includes(c));
+  // A heading's own style would make the new line bold; use the note style that follows it
+  return keep.map(c=>c==='rpt-note-head'?'rpt-note-line':c).join(' ')||'';
+}
+// Blank added lines disappear on the next render, except the one being typed in (or just added)
+function _rptPruneEmptyCustom(force){
+  const ae=document.activeElement;
+  const focusedK=(!force&&ae&&ae.dataset)?ae.dataset.k:null;
+  const n=_rptCustom.length;
+  _rptCustom=_rptCustom.filter(c=>(!force&&(c.k===focusedK||c.k===_rptJustAdded))||_rptTxt(c.html).length>0);
+  return n!==_rptCustom.length;
+}
+// Clear the grace period and drop blank added lines (leaving the tab / exporting)
+function rptFlushBlankLines(){
+  _rptJustAdded=null;
+  // An explicit flush ignores focus — a placeholder must never reach the PDF
+  const ae=document.activeElement;
+  if(ae&&ae.dataset&&ae.dataset.custom&&ae.blur) ae.blur();
+  if(_rptPruneEmptyCustom(true)){ renderReport(); _rptRefreshEditUI(); saveState(); }
+}
+// Weave user-added lines into the generated list at their anchors
+function _rptWeaveCustom(lines){
+  const out=[]; const keys=new Set(lines.map(l=>l.k));
+  lines.forEach(l=>{
+    out.push(l);
+    _rptCustom.filter(c=>(c.after||'')===l.k).forEach(c=>out.push({k:c.k,html:c.html,cls:c.cls||'',custom:true}));
+  });
+  // Anchored to the end, or to a generated line that no longer exists
+  _rptCustom.filter(c=>!c.after||!keys.has(c.after)).forEach(c=>out.push({k:c.k,html:c.html,cls:c.cls||'',custom:true}));
+  return out;
+}
+// Add a note line after `afterKey` (default: end of the block) and focus it
+function rptAddLine(afterKey){
+  const entry={k:_rptNewCustomKey(),html:'',after:afterKey||'',cls:_rptRowCls(afterKey)};
+  _rptCustom.push(entry);
+  _rptJustAdded=entry.k;
+  renderReport(); saveState();
+  const el=document.querySelector(`#rpt-sys-body [data-k="${entry.k}"]`);
+  if(el){ el.focus(); const r=document.createRange(); r.selectNodeContents(el); r.collapse(false);
+          const sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+  _rptRefreshEditUI();
+  return entry.k;
+}
+function rptRemoveLine(k){
+  const i=_rptCustom.findIndex(c=>c.k===k); if(i<0) return;
+  if(_rptJustAdded===k) _rptJustAdded=null;
+  _rptCustom.splice(i,1);
+  const badge=$('rpt-edit-badge'); if(badge) badge.style.display='none';
+  renderReport(); saveState(); _rptRefreshEditUI();
+}
+// Render keyed lines into a container, each line independently editable. A line the user has
+// edited keeps its text; its siblings keep updating from the inputs.
+function rptSetAutoLines(id,genLines){
+  const el=$(id); if(!el) return;
+  _rptPruneEmptyCustom();
+  const lines=_rptWeaveCustom(genLines);
+  let focusedK=(document.activeElement&&el.contains(document.activeElement))?document.activeElement.dataset.k:null;
+  const kids=[...el.children];
+  const sameShape=kids.length===lines.length&&kids.every((c,i)=>c.dataset.k===lines[i].k);
+  // A rebuild replaces every node, so the "don't clobber the focused line" guard no longer applies
+  if(!sameShape){
+    focusedK=null;
+    el.innerHTML=lines.map(l=>`<div class="rpt-line rpt-edit${l.cls?' '+l.cls:''}${l.custom?' rpt-line-custom':''}" data-k="${l.k}"${l.custom?' data-custom="1"':''} contenteditable="true" spellcheck="false"></div>`).join('');
+  }
+  [...el.children].forEach((c,i)=>{
+    const l=lines[i]; if(!l) return;
+    c.className=`rpt-line rpt-edit${l.cls?' '+l.cls:''}${l.custom?' rpt-line-custom':''}`;
+    if(l.custom){
+      delete c.dataset.auto; c.dataset.custom='1';
+      if(c.innerHTML!==l.html&&c.dataset.k!==focusedK) c.innerHTML=l.html;
+      c.classList.add('rpt-edited');
+    } else {
+      delete c.dataset.custom;
+      c.dataset.auto=l.html;
+      const key='line:'+l.k, over=_rptEdits[key];
+      const want=over!=null?over:l.html;
+      if(c.innerHTML!==want&&c.dataset.k!==focusedK) c.innerHTML=want;
+      c.classList.toggle('rpt-edited',over!=null);
+    }
+  });
+  // Drop overrides for generated lines that no longer exist so the edit count stays accurate
+  const live=new Set(genLines.map(l=>'line:'+l.k));
+  Object.keys(_rptEdits).forEach(k=>{ if(k.startsWith('line:')&&!live.has(k)) delete _rptEdits[k]; });
+}
+// Apply generated HTML to a whole block unless the user has overridden it
 function rptSetAuto(id,html){
   const el=$(id); if(!el) return;
   el.dataset.auto=html;
@@ -4426,57 +4532,96 @@ function rptSetAuto(id,html){
   el.classList.toggle('rpt-edited',_rptEdits[id]!=null);
 }
 function _rptRefreshEditUI(){
-  const btn=$('rpt-reset-btn'); const n=Object.keys(_rptEdits).length;
-  if(btn){ btn.disabled=n===0; btn.textContent=n?`\u21BB Reset text edits (${n})`:'\u21BB Reset text edits'; }
+  const btn=$('rpt-reset-btn');
+  const nCustom=_rptCustom.filter(c=>_rptTxt(c.html)).length;
+  const n=Object.keys(_rptEdits).length+nCustom;
+  if(btn){ btn.disabled=n===0; btn.textContent=n?`↻ Reset text edits (${n})`:'↻ Reset text edits'; }
   _rptEditEls().forEach(el=>el.classList.toggle('rpt-edited',_rptEdits[el.id]!=null));
+  document.querySelectorAll('#rpt-sys-body [data-k]').forEach(el=>{
+    el.classList.toggle('rpt-edited',el.dataset.custom?true:_rptEdits['line:'+el.dataset.k]!=null);
+  });
 }
 function _rptShowBadge(el){
   const badge=$('rpt-edit-badge'), page=$('rpt-page');
   if(!badge||!page) return;
-  if(!el||_rptEdits[el.id]==null){ badge.style.display='none'; return; }
+  const isCustom=!!(el&&el.dataset.custom);
+  const key=el&&(isCustom?'custom:'+el.dataset.k:(el.dataset.k?'line:'+el.dataset.k:el.id));
+  if(!el||(!isCustom&&_rptEdits[key]==null)){ badge.style.display='none'; return; }
+  badge.innerHTML=isCustom?'&#10005; remove this line':'&#8635; reset this block';
   const pr=page.getBoundingClientRect(), er=el.getBoundingClientRect();
-  badge.dataset.target=el.id;
+  badge.dataset.target=key;
   badge.style.display='inline-flex';
   badge.style.left=Math.max(2,Math.round(er.left-pr.left))+'px';
   badge.style.top=Math.max(2,Math.round(er.top-pr.top-15))+'px';
 }
-function rptResetEdit(id){
-  if(!id) return;
-  delete _rptEdits[id];
-  const el=$(id); if(el&&el.dataset.auto!=null) el.innerHTML=el.dataset.auto;
+function rptResetEdit(key){
+  if(!key) return;
+  if(key.startsWith('custom:')){ rptRemoveLine(key.slice(7)); return; }
+  delete _rptEdits[key];
+  const el=key.startsWith('line:')?document.querySelector(`#rpt-sys-body [data-k="${key.slice(5)}"]`):$(key);
+  if(el&&el.dataset.auto!=null){ el.innerHTML=el.dataset.auto; el.classList.remove('rpt-edited'); }
   const badge=$('rpt-edit-badge'); if(badge) badge.style.display='none';
   _rptRefreshEditUI(); renderReport(); saveState();
 }
 function rptResetEdits(){
-  if(!Object.keys(_rptEdits).length) return;
-  _rptEdits={};
+  const nCustom=_rptCustom.filter(c=>_rptTxt(c.html)).length;
+  if(!Object.keys(_rptEdits).length&&!nCustom) return;
+  if(nCustom&&!confirm(`Discard all manual text edits and ${nCustom} added line${nCustom>1?'s':''}?`)) return;
+  _rptEdits={}; _rptCustom=[]; _rptJustAdded=null;
   const badge=$('rpt-edit-badge'); if(badge) badge.style.display='none';
   _rptRefreshEditUI(); renderReport(); saveState();
+}
+function _rptEditBehavior(el,perLine){
+  el.addEventListener('input',e=>{
+    const t=perLine?e.target.closest('[data-k]'):el; if(!t) return;
+    if(t.dataset.custom){
+      const entry=_rptCustom.find(c=>c.k===t.dataset.k);
+      if(entry) entry.html=t.innerHTML;
+      if(_rptJustAdded===t.dataset.k&&t.textContent.trim()) _rptJustAdded=null;
+    } else {
+      const key=perLine?'line:'+t.dataset.k:t.id;
+      if(t.innerHTML===t.dataset.auto) delete _rptEdits[key]; else _rptEdits[key]=t.innerHTML;
+      t.classList.toggle('rpt-edited',_rptEdits[key]!=null);
+    }
+    _rptRefreshEditUI(); _rptShowBadge(t); saveState();
+  });
+  el.addEventListener('focusin',e=>{
+    const t=perLine?e.target.closest('[data-k]'):el;
+    if(_rptJustAdded&&(!t||t.dataset.k!==_rptJustAdded)) _rptJustAdded=null;
+    if(t) _rptShowBadge(t);
+  });
+  el.addEventListener('focusout',e=>{
+    const t=perLine&&e.target&&e.target.closest?e.target.closest('[data-k]'):null;
+    if(t&&t.dataset.custom&&!t.textContent.trim()) setTimeout(()=>{
+      if(document.activeElement!==t){ if(_rptJustAdded===t.dataset.k) _rptJustAdded=null; rptRemoveLine(t.dataset.k); }
+    },130);
+    setTimeout(()=>{ const b=$('rpt-edit-badge'); if(b&&!b.matches(':hover')) b.style.display='none'; },120);
+  });
+  el.addEventListener('keydown',e=>{
+    const t=perLine?e.target.closest('[data-k]'):null;
+    // In the notes list Enter starts a new line aligned with its neighbours;
+    // Shift+Enter is a soft break inside the current line (hanging indent applies).
+    if(e.key==='Enter'&&!e.shiftKey&&perLine&&t){ e.preventDefault(); rptAddLine(t.dataset.k); return; }
+    if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); document.execCommand('insertLineBreak'); }
+    // Backspace in an empty added line removes it
+    if(e.key==='Backspace'&&t&&t.dataset.custom&&!t.textContent.trim()){ e.preventDefault(); rptRemoveLine(t.dataset.k); return; }
+    if(e.key==='Escape'&&document.activeElement&&document.activeElement.blur) document.activeElement.blur();
+  });
+  // Paste as plain text so pasted formatting can't break the report styling
+  el.addEventListener('paste',e=>{
+    e.preventDefault();
+    const txt=(e.clipboardData||window.clipboardData).getData('text/plain');
+    document.execCommand('insertText',false,txt);
+  });
 }
 function _rptInitEditing(){
   if(_rptEditInit) return;
   _rptEditInit=true;
+  const body=$('rpt-sys-body'); if(body) _rptEditBehavior(body,true);
   _rptEditEls().forEach(el=>{
     el.setAttribute('contenteditable','true');
     el.setAttribute('spellcheck','false');
-    el.addEventListener('input',()=>{
-      const html=el.innerHTML;
-      if(html===el.dataset.auto) delete _rptEdits[el.id]; else _rptEdits[el.id]=html;
-      _rptRefreshEditUI(); _rptShowBadge(el); saveState();
-    });
-    el.addEventListener('focus',()=>_rptShowBadge(el));
-    el.addEventListener('blur',()=>{ setTimeout(()=>{ const b=$('rpt-edit-badge'); if(b&&!b.matches(':hover')) b.style.display='none'; },120); });
-    // Enter inserts a line break rather than a new block element
-    el.addEventListener('keydown',e=>{
-      if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); document.execCommand('insertLineBreak'); }
-      if(e.key==='Escape') el.blur();
-    });
-    // Paste as plain text so pasted formatting can't break the report styling
-    el.addEventListener('paste',e=>{
-      e.preventDefault();
-      const txt=(e.clipboardData||window.clipboardData).getData('text/plain');
-      document.execCommand('insertText',false,txt);
-    });
+    _rptEditBehavior(el,false);
   });
   _rptRefreshEditUI();
 }
@@ -4524,60 +4669,57 @@ function renderReport(){
   if(_anPvHourly&&_anPvHourly.length>0) annProdKwh=_anPvHourly.reduce((a,b)=>a+b,0);
   const nze=+gv('rptNzeTarget')||0;
 
-  // Build system info block
+  // Build system info as keyed lines — each line is independently editable, so a manual edit to
+  // one line doesn't freeze the rest of the block. Keys must stay stable across renders.
   const modLabel=[...new Set(arrNs().map(n=>(agv(n,'modModel')||'').trim()).filter(Boolean))].join(' / ')||'—';
-  let info=`<div>Basis of Design Module: ${esc(modLabel)}</div>`;
+  const L=[]; const line=(k,html,cls)=>L.push({k,html,cls:cls||''});
+  line('mod',`Basis of Design Module: ${esc(modLabel)}`);
   if(hasArr2){
-    rArrays.forEach(a=>{ info+=`<div>${esc(a.name)}: ${a.panels.toLocaleString()}&#215; panels, ${a.dcKw.toFixed(1)} kW DC</div>`; });
+    rArrays.forEach(a=>line('arr'+a.n,`${esc(a.name)}: ${a.panels.toLocaleString()}&#215; panels, ${a.dcKw.toFixed(1)} kW DC`));
   } else {
-    info+=`<div>Module count: ${totalPanels.toLocaleString()}&#215; panels</div>`;
+    line('count',`Module count: ${totalPanels.toLocaleString()}&#215; panels`);
   }
   if(canopyChk||biChk){
-    if(roofChk&&roofKw>0) info+=`<div>Roof: ${roofKw.toFixed(1)} kW DC</div>`;
-    if(canopyChk&&canopyKw>0) info+=`<div>Canopy: ${canopyKw.toFixed(1)} kW DC</div>`;
-    if(biChk&&biKw>0) info+=`<div>Building-Integrated: ${biKw.toFixed(1)} kW DC</div>`;
+    if(roofChk&&roofKw>0) line('mt-roof',`Roof: ${roofKw.toFixed(1)} kW DC`);
+    if(canopyChk&&canopyKw>0) line('mt-canopy',`Canopy: ${canopyKw.toFixed(1)} kW DC`);
+    if(biChk&&biKw>0) line('mt-bi',`Building-Integrated: ${biKw.toFixed(1)} kW DC`);
   }
-  info+=`<div>Total System Size: ${totalDcKw.toFixed(1)} kW DC</div>`;
-  info+=`<div>Max AC output: ${totalDispA.toFixed(1)} A (${phaseLabel}) · ${Math.round(totalAcKw)} kW AC</div>`;
-  if(annProdKwh!==null){
-    info+=`<div>Est. Annual Production: ${Math.round(annProdKwh).toLocaleString()} kWh/year</div>`;
-  } else {
-    info+=`<div style="color:#aaa;font-style:italic">Est. Annual Production: run analysis to calculate</div>`;
-  }
-  if(nze>0) info+=`<div>NZE Target: ${nze.toLocaleString()} kWh/year</div>`;
+  line('total',`Total System Size: ${totalDcKw.toFixed(1)} kW DC`);
+  line('acout',`Max AC output: ${totalDispA.toFixed(1)} A (${phaseLabel}) · ${Math.round(totalAcKw)} kW AC`);
+  if(annProdKwh!==null) line('prod',`Est. Annual Production: ${Math.round(annProdKwh).toLocaleString()} kWh/year`);
+  else line('prod','Est. Annual Production: run analysis to calculate','rpt-line-muted');
+  if(nze>0) line('nze',`NZE Target: ${nze.toLocaleString()} kWh/year`);
 
   // PV electrical notes — extra lines under the system info. Everything here is detail the block
   // above doesn't already state (system size, AC output and production live there).
   if(gc('rptElecNotes')){
     const rv=vals();
-    const lines=[];
+    line('eh','<b>PV electrical notes:</b>','rpt-note-head');
     if(hasArr2){
-      lines.push('Inverters:');
-      rArrays.forEach(a=>lines.push(`&nbsp;&nbsp;${esc(a.name)}: ${a.invCount}× ${esc(a.invModel)} (${a.invKw} kW)`));
+      line('inv','Inverters:','rpt-note-line');
+      rArrays.forEach(a=>line('inv'+a.n,`&nbsp;&nbsp;${esc(a.name)}: ${a.invCount}× ${esc(a.invModel)} (${a.invKw} kW)`,'rpt-note-line'));
     } else {
-      lines.push(`Inverters: ${rArrays[0].invCount}× ${esc(rArrays[0].invModel)} (${rArrays[0].invKw} kW)`);
+      line('inv',`Inverters: ${rArrays[0].invCount}× ${esc(rArrays[0].invModel)} (${rArrays[0].invKw} kW)`,'rpt-note-line');
     }
     const strParts=arrNs().map(n=>{
       const str=Math.max(1,+agv(n,'strings')||1), mps=Math.max(1,+agv(n,'mods')||1);
       return `${hasArr2?esc(arrName(n))+': ':''}${str} string${str>1?'s':''} × ${mps} mod${mps>1?'s':''}`;
     });
-    if(hasArr2&&strParts.length>2){ lines.push('String config:'); strParts.forEach(t=>lines.push(`&nbsp;&nbsp;${t}`)); }
-    else lines.push(`String config: ${strParts.join(' · ')}`);
+    if(hasArr2&&strParts.length>2){ line('str','String config:','rpt-note-line'); strParts.forEach((t,i)=>line('str'+(i+1),`&nbsp;&nbsp;${t}`,'rpt-note-line')); }
+    else line('str',`String config: ${strParts.join(' · ')}`,'rpt-note-line');
     const vocs=rv.arrays.map(a=>a.mods*a.voc), iscs=rv.arrays.map(a=>a.strings*a.isc);
-    lines.push(`Array Voc: ${Math.max(...vocs).toFixed(1)} V (max ${(Math.max(...vocs)*1.25).toFixed(0)} V per NEC 690.7) · Isc: ${iscs.reduce((t,x)=>t+x,0).toFixed(1)} A`);
-    lines.push(`PV interconnection: ${+gv('solarBreaker')||0}A breaker into ${+gv('panelA')||0}A service`);
-    info+=`<div class="rpt-note-head"><b>PV electrical notes:</b></div>`;
-    lines.forEach(l=>{ info+=`<div class="rpt-note-line">${l}</div>`; });
+    line('voc',`Array Voc: ${Math.max(...vocs).toFixed(1)} V (max ${(Math.max(...vocs)*1.25).toFixed(0)} V per NEC 690.7) · Isc: ${iscs.reduce((t,x)=>t+x,0).toFixed(1)} A`,'rpt-note-line');
+    line('icx',`PV interconnection: ${+gv('solarBreaker')||0}A breaker into ${+gv('panelA')||0}A service`,'rpt-note-line');
   }
 
   // Conduit notes — same text as the SLD's NEC box (via conduitNoteLines), shown as plain lines
   // under the system info: power conduit, comms conduit, and the DC-by-installer note.
   if(gc('rptConduitNotes')){
     const notes=conduitNoteLines(vals(),gc('showNecLabels')).slice(0,3).map(t=>t.replace(/^\d+\.\s+/,''));
-    info+=`<div class="rpt-note-head"><b>Conduit notes:</b></div>`;
-    info+=`<div class="rpt-note-line">${esc(notes[0])}</div>`;
-    info+=`<div class="rpt-note-line">${esc(notes[1])}</div>`;
-    info+=`<div class="rpt-note-line" style="font-style:italic">${esc(notes[2])}</div>`;
+    line('ch','<b>Conduit notes:</b>','rpt-note-head');
+    line('c1',esc(notes[0]),'rpt-note-line');
+    line('c2',esc(notes[1]),'rpt-note-line');
+    line('c3',esc(notes[2]),'rpt-note-line rpt-line-italic');
   }
 
   // Date M/D/YY
@@ -4590,7 +4732,7 @@ function renderReport(){
   rptSetAuto('rpt-proj-name',esc(projName));
   rptSetAuto('rpt-proj-addr',esc(projAddr).replace(/\n/g,'<br>'));
   rptSetAuto('rpt-sys-head','PV System Information:');
-  rptSetAuto('rpt-sys-body',info);
+  rptSetAutoLines('rpt-sys-body',L);
   rptSetAuto('rpt-date',esc(dateStr));
   _rptRefreshEditUI();
 
@@ -4622,6 +4764,7 @@ async function downloadRptPDF(){
   const ic=$('rpt-img-canvas'), hc=$('rpt-handles-canvas');
   const dateEl=$('rpt-date');
   try{
+    rptFlushBlankLines(); // never export an empty placeholder line
     const page=$('rpt-page');
     page.classList.add('rpt-exporting'); // hide editing outlines / badge in the capture
     const pageRect=page.getBoundingClientRect();
@@ -4746,6 +4889,7 @@ function switchTab(name){
   if(dp) dp.classList.toggle('visible', name==='sld');
   if(name==='analysis'){ syncAnalysisFromSLD(); renderLoadPreview(); scheduleAnalysis(300); }
   if(name==='debug'){ refreshDebugReport(); }
+  if(name!=='report') rptFlushBlankLines();
   if(name==='report'){ renderReport(); }
 }
 
