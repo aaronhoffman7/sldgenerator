@@ -4468,7 +4468,6 @@ function renderReport(){
     } else {
       lines.push(`Inverters: ${rArrays[0].invCount}× ${esc(rArrays[0].invModel)} (${rArrays[0].invKw} kW)`);
     }
-    lines.push(`Inverter output: ${esc(rArrays[0].invV)}${new Set(rArrays.map(a=>a.invV)).size>1?' (see arrays)':''}`);
     const strParts=arrNs().map(n=>{
       const str=Math.max(1,+agv(n,'strings')||1), mps=Math.max(1,+agv(n,'mods')||1);
       return `${hasArr2?esc(arrName(n))+': ':''}${str} string${str>1?'s':''} × ${mps} mod${mps>1?'s':''}`;
