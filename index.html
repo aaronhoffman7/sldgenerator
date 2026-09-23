@@ -151,6 +151,15 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-sys-head{font-size:12px;font-weight:700;color:#111;margin-bottom:8px}
 .rpt-sys-body{font-size:11px;color:#333;line-height:1.85}
 .rpt-spacer{flex:1}
+/* Inline editing — hover/focus affordances are suppressed while exporting (.rpt-exporting) */
+.rpt-edit{outline:1px dashed transparent;outline-offset:3px;border-radius:2px;transition:outline-color .12s,background-color .12s}
+.rpt-page:not(.rpt-exporting) .rpt-edit:hover{outline-color:#b9c6e8;cursor:text}
+.rpt-page:not(.rpt-exporting) .rpt-edit:focus{outline:1px solid #3d8ef8;background:rgba(61,142,248,0.04)}
+.rpt-page:not(.rpt-exporting) .rpt-edit.rpt-edited{outline-color:#f5a742;outline-style:dashed}
+.rpt-edit-badge{position:absolute;z-index:12;display:none;gap:4px;align-items:center;font:600 9px 'Avenir Next','Avenir',sans-serif;
+  background:#fff8ec;border:1px solid #e0b060;color:#8a5a00;border-radius:3px;padding:1px 5px;white-space:nowrap;cursor:pointer;user-select:none}
+.rpt-edit-badge:hover{background:#ffeccd}
+.rpt-page.rpt-exporting .rpt-edit-badge{display:none!important}
 .rpt-date{position:absolute;bottom:14px;right:16px;z-index:10;font-size:10.5px;color:#777;text-align:right;background:rgba(255,255,255,0.88);padding:2px 5px;border-radius:2px;white-space:nowrap}
 /* ── Landscape layout: full-width image below, compact info bar at top ── */
 .rpt-page.rpt-land{flex-direction:column}
@@ -172,6 +181,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-page.rpt-land .rpt-sys-body{font-size:9.5px;line-height:1.7}
 .rpt-page.rpt-land .rpt-spacer{display:none}
 /* Notes blocks may shrink (text wraps) so the brand group always stays on the page */
+.rpt-line-muted{color:#aaa;font-style:italic}
+.rpt-line-italic{font-style:italic}
 .rpt-note-head{margin-top:5px}
 .rpt-note-line{padding-left:12px;text-indent:-12px} /* flush with the lines above; wrapped continuations hang */
 .rpt-page.rpt-land .rpt-grp-sys{max-width:420px}
@@ -618,6 +629,9 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
   <div id="tab-report" class="tab-panel">
     <div class="rpt-toolbar">
       <button class="rpt-dl-btn" id="rpt-dl-btn" onclick="downloadRptPDF()">&#8595; Download PDF</button>
+      <button class="hbtn" id="rpt-reset-btn" onclick="rptResetEdits()" disabled
+        title="Discard manual text edits and restore the auto-generated content"
+        style="padding:5px 12px;font-size:11px">&#8635; Reset text edits</button>
       <select id="rptOrientation" onchange="renderReport()" style="font-size:11px;padding:4px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;font-family:var(--mono)">
         <option value="portrait">Portrait layout</option>
         <option value="landscape">Landscape layout</option>
@@ -641,20 +655,21 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
               <div class="rpt-logo-divider"></div>
               <img id="rpt-logo2" src="dgs_logo.png" alt="DGS" onerror="this.style.display='none'">
             </div>
-            <div class="rpt-pv-label">Solar PV<br>Preliminary Design &amp; Analysis</div>
+            <div class="rpt-pv-label rpt-edit" id="rpt-pv-label">Solar PV<br>Preliminary Design &amp; Analysis</div>
           </div>
           <div class="rpt-grp-project">
-            <div class="rpt-proj-name" id="rpt-proj-name"></div>
-            <div class="rpt-proj-addr" id="rpt-proj-addr"></div>
+            <div class="rpt-proj-name rpt-edit" id="rpt-proj-name"></div>
+            <div class="rpt-proj-addr rpt-edit" id="rpt-proj-addr"></div>
           </div>
           <hr class="rpt-divider">
           <div class="rpt-grp-sys">
-            <div class="rpt-sys-head">PV System Information:</div>
-            <div class="rpt-sys-body" id="rpt-sys-body"></div>
+            <div class="rpt-sys-head rpt-edit" id="rpt-sys-head">PV System Information:</div>
+            <div class="rpt-sys-body rpt-edit" id="rpt-sys-body"></div>
           </div>
           <div class="rpt-spacer"></div>
         </div>
-        <div class="rpt-date" id="rpt-date"></div>
+        <div class="rpt-date rpt-edit" id="rpt-date"></div>
+        <div class="rpt-edit-badge" id="rpt-edit-badge" onmousedown="event.preventDefault()" onclick="rptResetEdit(this.dataset.target)">&#8635; reset this block</div>
       </div>
     </div>
   </div>
@@ -1013,6 +1028,7 @@ function collectInputState(){
   // Persist load analysis state
   state.__pvWattsFetched = !!_anPvWattsData;
   state.__anCsvData      = _anCsvData ? Array.from(_anCsvData) : null;
+  state.__rptEdits = {..._rptEdits};
   // Persist report image crop/pad state (image data itself stored in IDB)
   state.__hasPvLayout = !!_rptLayoutImgOrig;
   state.__cropRect    = _cropRect || null;
@@ -1095,6 +1111,7 @@ function restoreInputState(state){
     if(csvStatus) csvStatus.textContent = `✓ ${state.__anCsvData.length} hours restored`;
   }
 
+  _rptEdits = state.__rptEdits ? {...state.__rptEdits} : {};
   // Restore report image crop/pad state
   _cropRect = state.__cropRect || null;
   if(state.__rptPad) _rptPad = {...state.__rptPad};
@@ -1271,6 +1288,7 @@ function startupNewProject(fromHeader){
   _anCsvData = null;
   _rptCropImg = null;
   _rptLayoutImgOrig = null;
+  _rptEdits = {};
   _cropRect = null;
   _rptPad = {t:20,r:28,b:20,l:28};
   const _nlbl=$('pvlayout-drop-label');
@@ -4392,6 +4410,110 @@ function _rptHitTest(mx,my,W,H,b){
   });
 })();
 
+// ── Inline report editing ────────────────────────────────────────────────────
+// Every .rpt-edit block is contenteditable. Once edited, its HTML is stored in _rptEdits and
+// renderReport() stops overwriting that block, so manual wording survives input changes.
+// Reset (per block or all) drops the override and the block goes back to auto-generated text.
+const RPT_EDIT_IDS=['rpt-pv-label','rpt-proj-name','rpt-proj-addr','rpt-sys-head','rpt-date'];
+let _rptEdits={};
+let _rptEditInit=false;
+
+function _rptEditEls(){ return RPT_EDIT_IDS.map(id=>$(id)).filter(Boolean); }
+// Render a list of keyed lines into a container, each line independently editable.
+// A line the user has edited keeps its text; its siblings keep updating from the inputs.
+function rptSetAutoLines(id,lines){
+  const el=$(id); if(!el) return;
+  const focusedK=(document.activeElement&&el.contains(document.activeElement))?document.activeElement.dataset.k:null;
+  const kids=[...el.children];
+  const sameShape=kids.length===lines.length&&kids.every((c,i)=>c.dataset.k===lines[i].k);
+  if(!sameShape){
+    el.innerHTML=lines.map(l=>`<div class="rpt-line rpt-edit${l.cls?' '+l.cls:''}" data-k="${l.k}" contenteditable="true" spellcheck="false"></div>`).join('');
+  }
+  [...el.children].forEach((c,i)=>{
+    const l=lines[i]; if(!l) return;
+    c.dataset.auto=l.html;
+    c.className=`rpt-line rpt-edit${l.cls?' '+l.cls:''}`;
+    const key='line:'+l.k, over=_rptEdits[key];
+    const want=over!=null?over:l.html;
+    if(c.innerHTML!==want&&c.dataset.k!==focusedK) c.innerHTML=want;
+    c.classList.toggle('rpt-edited',over!=null);
+  });
+  // Drop overrides for lines that no longer exist so the edit count stays accurate
+  const live=new Set(lines.map(l=>'line:'+l.k));
+  Object.keys(_rptEdits).forEach(k=>{ if(k.startsWith('line:')&&!live.has(k)) delete _rptEdits[k]; });
+}
+// Apply generated HTML to a block unless the user has overridden it
+function rptSetAuto(id,html){
+  const el=$(id); if(!el) return;
+  el.dataset.auto=html;
+  if(_rptEdits[id]!=null){ if(el.innerHTML!==_rptEdits[id]) el.innerHTML=_rptEdits[id]; }
+  else if(el.innerHTML!==html) el.innerHTML=html;
+  el.classList.toggle('rpt-edited',_rptEdits[id]!=null);
+}
+function _rptRefreshEditUI(){
+  const btn=$('rpt-reset-btn'); const n=Object.keys(_rptEdits).length;
+  if(btn){ btn.disabled=n===0; btn.textContent=n?`\u21BB Reset text edits (${n})`:'\u21BB Reset text edits'; }
+  _rptEditEls().forEach(el=>el.classList.toggle('rpt-edited',_rptEdits[el.id]!=null));
+  document.querySelectorAll('#rpt-sys-body [data-k]').forEach(el=>el.classList.toggle('rpt-edited',_rptEdits['line:'+el.dataset.k]!=null));
+}
+function _rptShowBadge(el){
+  const badge=$('rpt-edit-badge'), page=$('rpt-page');
+  if(!badge||!page) return;
+  const key=el&&(el.dataset.k?'line:'+el.dataset.k:el.id);
+  if(!el||_rptEdits[key]==null){ badge.style.display='none'; return; }
+  const pr=page.getBoundingClientRect(), er=el.getBoundingClientRect();
+  badge.dataset.target=key;
+  badge.style.display='inline-flex';
+  badge.style.left=Math.max(2,Math.round(er.left-pr.left))+'px';
+  badge.style.top=Math.max(2,Math.round(er.top-pr.top-15))+'px';
+}
+function rptResetEdit(key){
+  if(!key) return;
+  delete _rptEdits[key];
+  const el=key.startsWith('line:')?document.querySelector(`#rpt-sys-body [data-k="${key.slice(5)}"]`):$(key);
+  if(el&&el.dataset.auto!=null){ el.innerHTML=el.dataset.auto; el.classList.remove('rpt-edited'); }
+  const badge=$('rpt-edit-badge'); if(badge) badge.style.display='none';
+  _rptRefreshEditUI(); renderReport(); saveState();
+}
+function rptResetEdits(){
+  if(!Object.keys(_rptEdits).length) return;
+  _rptEdits={};
+  const badge=$('rpt-edit-badge'); if(badge) badge.style.display='none';
+  _rptRefreshEditUI(); renderReport(); saveState();
+}
+function _rptEditBehavior(el,perLine){
+  el.addEventListener('input',e=>{
+    const t=perLine?e.target.closest('[data-k]'):el; if(!t) return;
+    const key=perLine?'line:'+t.dataset.k:t.id;
+    if(t.innerHTML===t.dataset.auto) delete _rptEdits[key]; else _rptEdits[key]=t.innerHTML;
+    t.classList.toggle('rpt-edited',_rptEdits[key]!=null);
+    _rptRefreshEditUI(); _rptShowBadge(t); saveState();
+  });
+  el.addEventListener('focusin',e=>{ const t=perLine?e.target.closest('[data-k]'):el; if(t) _rptShowBadge(t); });
+  el.addEventListener('focusout',()=>{ setTimeout(()=>{ const b=$('rpt-edit-badge'); if(b&&!b.matches(':hover')) b.style.display='none'; },120); });
+  el.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); document.execCommand('insertLineBreak'); }
+    if(e.key==='Escape'&&document.activeElement&&document.activeElement.blur) document.activeElement.blur();
+  });
+  // Paste as plain text so pasted formatting can't break the report styling
+  el.addEventListener('paste',e=>{
+    e.preventDefault();
+    const txt=(e.clipboardData||window.clipboardData).getData('text/plain');
+    document.execCommand('insertText',false,txt);
+  });
+}
+function _rptInitEditing(){
+  if(_rptEditInit) return;
+  _rptEditInit=true;
+  const body=$('rpt-sys-body'); if(body) _rptEditBehavior(body,true);
+  _rptEditEls().forEach(el=>{
+    el.setAttribute('contenteditable','true');
+    el.setAttribute('spellcheck','false');
+    _rptEditBehavior(el,false);
+  });
+  _rptRefreshEditUI();
+}
+
 function renderReport(){
   if(!$('tab-report')) return;
 
@@ -4435,71 +4557,72 @@ function renderReport(){
   if(_anPvHourly&&_anPvHourly.length>0) annProdKwh=_anPvHourly.reduce((a,b)=>a+b,0);
   const nze=+gv('rptNzeTarget')||0;
 
-  // Build system info block
+  // Build system info as keyed lines — each line is independently editable, so a manual edit to
+  // one line doesn't freeze the rest of the block. Keys must stay stable across renders.
   const modLabel=[...new Set(arrNs().map(n=>(agv(n,'modModel')||'').trim()).filter(Boolean))].join(' / ')||'—';
-  let info=`<div>Basis of Design Module: ${esc(modLabel)}</div>`;
+  const L=[]; const line=(k,html,cls)=>L.push({k,html,cls:cls||''});
+  line('mod',`Basis of Design Module: ${esc(modLabel)}`);
   if(hasArr2){
-    rArrays.forEach(a=>{ info+=`<div>${esc(a.name)}: ${a.panels.toLocaleString()}&#215; panels, ${a.dcKw.toFixed(1)} kW DC</div>`; });
+    rArrays.forEach(a=>line('arr'+a.n,`${esc(a.name)}: ${a.panels.toLocaleString()}&#215; panels, ${a.dcKw.toFixed(1)} kW DC`));
   } else {
-    info+=`<div>Module count: ${totalPanels.toLocaleString()}&#215; panels</div>`;
+    line('count',`Module count: ${totalPanels.toLocaleString()}&#215; panels`);
   }
   if(canopyChk||biChk){
-    if(roofChk&&roofKw>0) info+=`<div>Roof: ${roofKw.toFixed(1)} kW DC</div>`;
-    if(canopyChk&&canopyKw>0) info+=`<div>Canopy: ${canopyKw.toFixed(1)} kW DC</div>`;
-    if(biChk&&biKw>0) info+=`<div>Building-Integrated: ${biKw.toFixed(1)} kW DC</div>`;
+    if(roofChk&&roofKw>0) line('mt-roof',`Roof: ${roofKw.toFixed(1)} kW DC`);
+    if(canopyChk&&canopyKw>0) line('mt-canopy',`Canopy: ${canopyKw.toFixed(1)} kW DC`);
+    if(biChk&&biKw>0) line('mt-bi',`Building-Integrated: ${biKw.toFixed(1)} kW DC`);
   }
-  info+=`<div>Total System Size: ${totalDcKw.toFixed(1)} kW DC</div>`;
-  info+=`<div>Max AC output: ${totalDispA.toFixed(1)} A (${phaseLabel}) · ${Math.round(totalAcKw)} kW AC</div>`;
-  if(annProdKwh!==null){
-    info+=`<div>Est. Annual Production: ${Math.round(annProdKwh).toLocaleString()} kWh/year</div>`;
-  } else {
-    info+=`<div style="color:#aaa;font-style:italic">Est. Annual Production: run analysis to calculate</div>`;
-  }
-  if(nze>0) info+=`<div>NZE Target: ${nze.toLocaleString()} kWh/year</div>`;
+  line('total',`Total System Size: ${totalDcKw.toFixed(1)} kW DC`);
+  line('acout',`Max AC output: ${totalDispA.toFixed(1)} A (${phaseLabel}) · ${Math.round(totalAcKw)} kW AC`);
+  if(annProdKwh!==null) line('prod',`Est. Annual Production: ${Math.round(annProdKwh).toLocaleString()} kWh/year`);
+  else line('prod','Est. Annual Production: run analysis to calculate','rpt-line-muted');
+  if(nze>0) line('nze',`NZE Target: ${nze.toLocaleString()} kWh/year`);
 
   // PV electrical notes — extra lines under the system info. Everything here is detail the block
   // above doesn't already state (system size, AC output and production live there).
   if(gc('rptElecNotes')){
     const rv=vals();
-    const lines=[];
+    line('eh','<b>PV electrical notes:</b>','rpt-note-head');
     if(hasArr2){
-      lines.push('Inverters:');
-      rArrays.forEach(a=>lines.push(`&nbsp;&nbsp;${esc(a.name)}: ${a.invCount}× ${esc(a.invModel)} (${a.invKw} kW)`));
+      line('inv','Inverters:','rpt-note-line');
+      rArrays.forEach(a=>line('inv'+a.n,`&nbsp;&nbsp;${esc(a.name)}: ${a.invCount}× ${esc(a.invModel)} (${a.invKw} kW)`,'rpt-note-line'));
     } else {
-      lines.push(`Inverters: ${rArrays[0].invCount}× ${esc(rArrays[0].invModel)} (${rArrays[0].invKw} kW)`);
+      line('inv',`Inverters: ${rArrays[0].invCount}× ${esc(rArrays[0].invModel)} (${rArrays[0].invKw} kW)`,'rpt-note-line');
     }
     const strParts=arrNs().map(n=>{
       const str=Math.max(1,+agv(n,'strings')||1), mps=Math.max(1,+agv(n,'mods')||1);
       return `${hasArr2?esc(arrName(n))+': ':''}${str} string${str>1?'s':''} × ${mps} mod${mps>1?'s':''}`;
     });
-    if(hasArr2&&strParts.length>2){ lines.push('String config:'); strParts.forEach(t=>lines.push(`&nbsp;&nbsp;${t}`)); }
-    else lines.push(`String config: ${strParts.join(' · ')}`);
+    if(hasArr2&&strParts.length>2){ line('str','String config:','rpt-note-line'); strParts.forEach((t,i)=>line('str'+(i+1),`&nbsp;&nbsp;${t}`,'rpt-note-line')); }
+    else line('str',`String config: ${strParts.join(' · ')}`,'rpt-note-line');
     const vocs=rv.arrays.map(a=>a.mods*a.voc), iscs=rv.arrays.map(a=>a.strings*a.isc);
-    lines.push(`Array Voc: ${Math.max(...vocs).toFixed(1)} V (max ${(Math.max(...vocs)*1.25).toFixed(0)} V per NEC 690.7) · Isc: ${iscs.reduce((t,x)=>t+x,0).toFixed(1)} A`);
-    lines.push(`PV interconnection: ${+gv('solarBreaker')||0}A breaker into ${+gv('panelA')||0}A service`);
-    info+=`<div class="rpt-note-head"><b>PV electrical notes:</b></div>`;
-    lines.forEach(l=>{ info+=`<div class="rpt-note-line">${l}</div>`; });
+    line('voc',`Array Voc: ${Math.max(...vocs).toFixed(1)} V (max ${(Math.max(...vocs)*1.25).toFixed(0)} V per NEC 690.7) · Isc: ${iscs.reduce((t,x)=>t+x,0).toFixed(1)} A`,'rpt-note-line');
+    line('icx',`PV interconnection: ${+gv('solarBreaker')||0}A breaker into ${+gv('panelA')||0}A service`,'rpt-note-line');
   }
 
   // Conduit notes — same text as the SLD's NEC box (via conduitNoteLines), shown as plain lines
   // under the system info: power conduit, comms conduit, and the DC-by-installer note.
   if(gc('rptConduitNotes')){
     const notes=conduitNoteLines(vals(),gc('showNecLabels')).slice(0,3).map(t=>t.replace(/^\d+\.\s+/,''));
-    info+=`<div class="rpt-note-head"><b>Conduit notes:</b></div>`;
-    info+=`<div class="rpt-note-line">${esc(notes[0])}</div>`;
-    info+=`<div class="rpt-note-line">${esc(notes[1])}</div>`;
-    info+=`<div class="rpt-note-line" style="font-style:italic">${esc(notes[2])}</div>`;
+    line('ch','<b>Conduit notes:</b>','rpt-note-head');
+    line('c1',esc(notes[0]),'rpt-note-line');
+    line('c2',esc(notes[1]),'rpt-note-line');
+    line('c3',esc(notes[2]),'rpt-note-line rpt-line-italic');
   }
 
   // Date M/D/YY
   const now=new Date();
   const dateStr=`${now.getMonth()+1}/${now.getDate()}/${String(now.getFullYear()).slice(-2)}`;
 
-  // Update DOM
-  const pn=$('rpt-proj-name'); if(pn) pn.textContent=projName;
-  const pa=$('rpt-proj-addr'); if(pa) pa.innerHTML=projAddr.replace(/\n/g,'<br>');
-  const sb=$('rpt-sys-body'); if(sb) sb.innerHTML=info;
-  const dt=$('rpt-date'); if(dt) dt.textContent=dateStr;
+  // Update DOM — manual edits (if any) take precedence over the generated text
+  _rptInitEditing();
+  rptSetAuto('rpt-pv-label','Solar PV<br>Preliminary Design &amp; Analysis');
+  rptSetAuto('rpt-proj-name',esc(projName));
+  rptSetAuto('rpt-proj-addr',esc(projAddr).replace(/\n/g,'<br>'));
+  rptSetAuto('rpt-sys-head','PV System Information:');
+  rptSetAutoLines('rpt-sys-body',L);
+  rptSetAuto('rpt-date',esc(dateStr));
+  _rptRefreshEditUI();
 
   // Orientation class + reset padding defaults when orientation switches
   const page=$('rpt-page');
@@ -4530,6 +4653,7 @@ async function downloadRptPDF(){
   const dateEl=$('rpt-date');
   try{
     const page=$('rpt-page');
+    page.classList.add('rpt-exporting'); // hide editing outlines / badge in the capture
     const pageRect=page.getBoundingClientRect();
     const pagePxW=page.offsetWidth, pagePxH=page.offsetHeight;
     // Hide both image canvases so html2canvas gets a clean white image col
@@ -4555,7 +4679,7 @@ async function downloadRptPDF(){
       scale:SC,useCORS:true,allowTaint:true,
       backgroundColor:'#ffffff',
       width:pagePxW,height:pagePxH,
-      ignoreElements:el=>el.id==='rpt-date'
+      ignoreElements:el=>el.id==='rpt-date'||el.id==='rpt-edit-badge'
     });
     pdf.addImage(layoutCanvas.toDataURL('image/jpeg',0.95),'JPEG',bx,by,boxW,boxH);
 
@@ -4615,6 +4739,7 @@ async function downloadRptPDF(){
   } catch(err){
     alert('PDF generation failed: '+err.message);
   } finally {
+    const _pg=$('rpt-page'); if(_pg) _pg.classList.remove('rpt-exporting');
     if(ic){ic.style.display='';_drawRptImage();}
     if(hc&&_rptCropImg) hc.style.display='';
     if(btn){btn.disabled=false;btn.textContent='↓ Download PDF';}
