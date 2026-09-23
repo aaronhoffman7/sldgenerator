@@ -171,7 +171,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-page.rpt-land .rpt-grp-brand,.rpt-page.rpt-land .rpt-grp-project,.rpt-page.rpt-land .rpt-grp-sys{display:flex;flex-direction:column;justify-content:center}
 .rpt-page.rpt-land .rpt-grp-brand{order:5;flex-shrink:0;margin-left:auto;border-left:1px solid #d8dbe8;border-right:none;padding-left:20px;padding-right:0;margin-right:0}
 .rpt-page.rpt-land .rpt-grp-project{flex-shrink:0;padding-right:20px;margin-right:20px;border-right:1px solid #d8dbe8}
-.rpt-page.rpt-land .rpt-grp-sys{flex-shrink:0}
+.rpt-page.rpt-land .rpt-grp-sys{flex:1 1 auto;min-width:0;padding-right:20px}
 .rpt-page.rpt-land .rpt-logos-row{margin-bottom:8px;justify-content:flex-end}
 .rpt-page.rpt-land .rpt-pv-label{margin-bottom:0}
 .rpt-page.rpt-land .rpt-proj-name{font-size:14px;margin-bottom:3px}
@@ -187,7 +187,6 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-page.rpt-exporting .rpt-line-custom:empty{display:none}
 .rpt-note-head{margin-top:5px}
 .rpt-note-line{padding-left:12px;text-indent:-12px} /* flush with the lines above; wrapped continuations hang */
-.rpt-page.rpt-land .rpt-grp-sys{max-width:420px}
 @media print{
   body>*{display:none!important}
   .rpt-page{display:flex!important;position:fixed;top:0;left:0;width:100vw;height:100vh;box-shadow:none;border:none}
