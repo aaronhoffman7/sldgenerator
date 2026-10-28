@@ -4438,7 +4438,8 @@ function _rptNewCustomKey(){ return 'x'+(++_rptCustomSeq); }
 function _rptRowCls(k){
   const el=k?document.querySelector(`#rpt-sys-body [data-k="${k}"]`):document.querySelector('#rpt-sys-body [data-k]:last-child');
   if(!el) return 'rpt-note-line';
-  const keep=[...el.classList].filter(c=>!['rpt-line','rpt-edit','rpt-edited','rpt-line-custom'].includes(c));
+  // (not italic — that belongs to the pinned DC-by-installer note, which new lines often follow)
+  const keep=[...el.classList].filter(c=>!['rpt-line','rpt-edit','rpt-edited','rpt-line-custom','rpt-line-italic'].includes(c));
   // A heading's own style would make the new line bold; use the note style that follows it
   return keep.map(c=>c==='rpt-note-head'?'rpt-note-line':c).join(' ')||'';
 }
@@ -4459,14 +4460,25 @@ function rptFlushBlankLines(){
   if(_rptPruneEmptyCustom(true)){ renderReport(); _rptRefreshEditUI(); saveState(); }
 }
 // Weave user-added lines into the generated list at their anchors
+// Generated lines flagged `last` (the DC-by-installer note) stay below every added line; lines
+// added after them land just above instead.
 function _rptWeaveCustom(lines){
-  const out=[]; const keys=new Set(lines.map(l=>l.k));
-  lines.forEach(l=>{
-    out.push(l);
-    _rptCustom.filter(c=>(c.after||'')===l.k).forEach(c=>out.push({k:c.k,html:c.html,cls:c.cls||'',custom:true}));
-  });
-  // Anchored to the end, or to a generated line that no longer exists
-  _rptCustom.filter(c=>!c.after||!keys.has(c.after)).forEach(c=>out.push({k:c.k,html:c.html,cls:c.cls||'',custom:true}));
+  const out=[], placed=new Set();
+  const main=lines.filter(l=>!l.last), pinned=lines.filter(l=>l.last);
+  const pinnedKeys=new Set(pinned.map(l=>l.k));
+  const asLine=c=>({k:c.k,html:c.html,cls:c.cls||'',custom:true});
+  // Push a line, then the added lines anchored to it (newest first, so each sits right below its anchor)
+  const emit=l=>{
+    out.push(l); placed.add(l.k);
+    _rptCustom.filter(c=>c.after&&c.after===l.k&&!placed.has(c.k)).reverse().forEach(c=>emit(asLine(c)));
+  };
+  main.forEach(emit);
+  // Anchored to the end, to a pinned line, or to a line that no longer exists
+  const anchors=new Set([...main.map(l=>l.k),..._rptCustom.map(c=>c.k)]);
+  _rptCustom.filter(c=>!placed.has(c.k)&&(!c.after||pinnedKeys.has(c.after)||!anchors.has(c.after))).forEach(c=>emit(asLine(c)));
+  // Anything left is part of a broken anchor chain — still show it rather than lose it
+  _rptCustom.filter(c=>!placed.has(c.k)).forEach(c=>emit(asLine(c)));
+  pinned.forEach(l=>{ out.push(l); placed.add(l.k); });
   return out;
 }
 // Add a note line after `afterKey` (default: end of the block) and focus it
@@ -4719,6 +4731,7 @@ function renderReport(){
     line('c1',esc(notes[0]),'rpt-note-line');
     line('c2',esc(notes[1]),'rpt-note-line');
     line('c3',esc(notes[2]),'rpt-note-line rpt-line-italic');
+    L[L.length-1].last=true; // always the bottom note, below any added lines
   }
 
   // Date M/D/YY
