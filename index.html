@@ -186,7 +186,6 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-line-custom:empty::before{content:'New note line…';color:#b5bcc9}
 .rpt-page.rpt-exporting .rpt-line-custom:empty,.rpt-page.rpt-exporting .rpt-line-muted{display:none}
 .rpt-note-head{margin-top:5px}
-.rpt-note-line{padding-left:12px;text-indent:-12px} /* flush with the lines above; wrapped continuations hang */
 @media print{
   body>*{display:none!important}
   .rpt-page{display:flex!important;position:fixed;top:0;left:0;width:100vw;height:100vh;box-shadow:none;border:none}
@@ -4688,7 +4687,7 @@ function _rptEditBehavior(el,perLine){
   el.addEventListener('keydown',e=>{
     const t=perLine?e.target.closest('[data-k]'):null;
     // In the notes list Enter starts a new line aligned with its neighbours;
-    // Shift+Enter is a soft break inside the current line (hanging indent applies).
+    // Shift+Enter is a soft break inside the current line.
     if(e.key==='Enter'&&!e.shiftKey&&perLine&&t){ e.preventDefault(); rptAddLine(t.dataset.k); return; }
     if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); document.execCommand('insertLineBreak'); }
     // Backspace in an empty added line removes it
