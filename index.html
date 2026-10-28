@@ -184,7 +184,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
 .rpt-line-muted{color:#aaa;font-style:italic}
 .rpt-line-italic{font-style:italic}
 .rpt-line-custom:empty::before{content:'New note line…';color:#b5bcc9}
-.rpt-page.rpt-exporting .rpt-line-custom:empty{display:none}
+.rpt-page.rpt-exporting .rpt-line-custom:empty,.rpt-page.rpt-exporting .rpt-line-muted{display:none}
 .rpt-note-head{margin-top:5px}
 .rpt-note-line{padding-left:12px;text-indent:-12px} /* flush with the lines above; wrapped continuations hang */
 @media print{
@@ -325,8 +325,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
     <div class="trow"><span>Include combiner box</span><label class="tog"><input type="checkbox" id="hasCombiner" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <label>Max DC voltage rating</label>
     <select id="combV" onchange="combVChanged()"><option value="600">600 VDC</option><option value="1000" selected>1000 VDC</option><option value="1500">1500 VDC</option></select>
-    <label>String fuse (A)</label>
-    <input type="number" id="combFuse" value="15" min="5" max="60" oninput="render()">
+    <label>String fuse (A) <span style="font-size:9px;color:var(--muted);font-weight:400">← auto</span></label>
+    <input type="number" id="combFuse" value="15" min="5" max="60" readonly tabindex="-1" style="opacity:0.7;cursor:default">
     <div id="fuse-check" class="cnote"></div>
     <div class="stitle" style="margin-top:12px">Inverter 1</div>
     <label>Type</label>
@@ -442,7 +442,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <div><label>SOC max (%)</label><input type="number" id="battSocMax" value="90" min="50" max="100" oninput="render()"></div>
     </div>
     <div class="row2">
-      <div><label>DC fuse / CB (A)</label><input type="number" id="battDcFuse" value="200" min="1" max="2000" oninput="render()"></div>
+      <div><label>DC fuse / CB (A) <span style="font-size:9px;color:var(--muted);font-weight:400">← auto</span></label><input type="number" id="battDcFuse" value="200" min="1" max="2000" readonly tabindex="-1" style="opacity:0.7;cursor:default"></div>
     </div>
     <div id="batt-fuse-calc" class="cnote"></div>
     <label>Comms protocol</label>
@@ -507,8 +507,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       </div>
     </div>
     <div class="row2">
-      <div><label>Panel size (A)</label>
-        <select id="panelA" onchange="render()"><option value="20">20A</option><option value="40">40A</option><option value="60">60A</option><option value="80">80A</option><option value="100">100A</option><option value="200" selected>200A</option><option value="300">300A</option><option value="400">400A</option><option value="500">500A</option><option value="600">600A</option><option value="700">700A</option><option value="800">800A</option><option value="900">900A</option><option value="1000">1000A</option><option value="1100">1100A</option><option value="1200">1200A</option><option value="1300">1300A</option><option value="1400">1400A</option><option value="1500">1500A</option><option value="1600">1600A</option><option value="1700">1700A</option><option value="1800">1800A</option><option value="1900">1900A</option><option value="2000">2000A</option><option value="2500">2500A</option><option value="3000">3000A</option><option value="4000">4000A</option></select>
+      <div><label>Panel size (A) <span style="font-size:9px;color:var(--muted);font-weight:400">← auto</span></label>
+        <select id="panelA" disabled style="opacity:0.7;cursor:default"><option value="20">20A</option><option value="40">40A</option><option value="60">60A</option><option value="80">80A</option><option value="100">100A</option><option value="200" selected>200A</option><option value="300">300A</option><option value="400">400A</option><option value="500">500A</option><option value="600">600A</option><option value="700">700A</option><option value="800">800A</option><option value="900">900A</option><option value="1000">1000A</option><option value="1100">1100A</option><option value="1200">1200A</option><option value="1300">1300A</option><option value="1400">1400A</option><option value="1500">1500A</option><option value="1600">1600A</option><option value="1700">1700A</option><option value="1800">1800A</option><option value="1900">1900A</option><option value="2000">2000A</option><option value="2500">2500A</option><option value="3000">3000A</option><option value="4000">4000A</option></select>
       </div>
     </div>
     <div class="row2">
@@ -624,6 +624,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
       <span class="stat">Array Isc: <b id="s-isc">--</b></span>
       <span class="stat w">Battery: <b id="s-batt">--</b></span>
       <span class="stat">NEC 690 max Voc: <b id="s-nec">--</b></span>
+      <span class="stat" id="s-warn" style="display:none;color:#f5a742"></span>
     </div>
   </div>
   <!-- ── Project Report Tab ─────────────────────────────────────────────── -->
@@ -720,7 +721,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column}
             <option value="2">1-Axis tracking</option>
             <option value="4">2-Axis tracking</option>
           </select>
-          <button class="run-btn" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);margin-top:8px" onclick="fetchPVWatts()">&#8595; Fetch PVWatts Data</button>
+          <button class="run-btn" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);margin-top:8px" id="an-pvw-btn" onclick="fetchPVWatts()">&#8595; Fetch PVWatts Data</button>
           <div id="an-pvw-status" style="font-size:10px;color:var(--muted);margin-top:6px;min-height:14px;line-height:1.5"></div>
           <label style="margin-top:8px">Target yield (kWh/kW/yr) <span style="font-size:9px;color:var(--muted);font-weight:400">blank = as modeled</span></label>
           <input type="number" id="an-targetYield" value="" placeholder="e.g. 1250" step="10" min="0" oninput="anTargetYieldChanged()">
@@ -1195,8 +1196,8 @@ function renderProjectsList(){
   el.innerHTML = projects.map(p => `
     <div class="proj-item">
       <div class="proj-item-info">
-        <div class="proj-item-name" title="${p.name}">${p.name}</div>
-        <div class="proj-item-meta">${p.date}${p.savedBy?' &bull; '+p.savedBy:''}${p.hasDae?' &bull; &#127760; 3D model':''}${p.hasPvLayout?' &bull; &#128247; PV layout':''}</div>
+        <div class="proj-item-name" title="${escAttr(p.name)}">${esc(p.name)}</div>
+        <div class="proj-item-meta">${p.date}${p.savedBy?' &bull; '+esc(p.savedBy):''}${p.hasDae?' &bull; &#127760; 3D model':''}${p.hasPvLayout?' &bull; &#128247; PV layout':''}</div>
       </div>
       <div class="proj-item-btns">
         <button class="hbtn" style="padding:4px 10px;font-size:10px" onclick="loadProject('${p.key}')">Load</button>
@@ -1205,23 +1206,34 @@ function renderProjectsList(){
     </div>`).join('');
 }
 
+// Clear all non-form project state (3D import, analysis data, report image and edits) so nothing
+// from the previous project leaks into the next one. restoreInputState refills what was saved.
+function resetProjectRuntimeState(){
+  clearDaeImport();
+  _anPvWattsData = null; _anPvWattsParams = null; _anPvwSeq++;
+  _anCsvData = null; _anPvHourly = null;
+  const csvSt=$('an-csv-status'); if(csvSt) csvSt.textContent='';
+  const pvwSt=$('an-pvw-status'); if(pvwSt) pvwSt.textContent='';
+  const anRes=$('an-results'); if(anRes) anRes.style.display='none';
+  _rptCropImg = null; _rptLayoutImgOrig = null; _cropRect = null;
+  _rptEdits = {};
+  _rptCustom = []; _rptCustomSeq = 0; _rptJustAdded = null;
+  _rptPad = {t:20,r:28,b:20,l:28}; _rptLastOrient = null;
+  const _nlbl=$('pvlayout-drop-label');
+  if(_nlbl) _nlbl.innerHTML='Drop .png/.jpg here<br><span style="font-size:9px">or click to browse</span>';
+  const _ic=$('rpt-img-canvas'),_hc=$('rpt-handles-canvas'),_ph=$('rpt-img-placeholder');
+  if(_ic) _ic.style.display='none'; if(_hc) _hc.style.display='none'; if(_ph) _ph.style.display='';
+}
+
 async function loadProject(key){
   try {
     const data = JSON.parse(localStorage.getItem(key) || 'null');
     if(!data || !data.inputs) return;
     _currentProjectKey = key;
 
-    // Reset PV layout state before restoring (avoids stale image from previous project)
-    _rptCropImg = null; _rptLayoutImgOrig = null;
-    const _lic=$('rpt-img-canvas'),_lhc=$('rpt-handles-canvas'),_lph=$('rpt-img-placeholder');
-    if(_lic) _lic.style.display='none'; if(_lhc) _lhc.style.display='none'; if(_lph) _lph.style.display='';
-    const _llbl=$('pvlayout-drop-label');
-    if(_llbl) _llbl.innerHTML='&#128247;<br>Upload PV layout image<br>in the File Import section';
-
+    resetProjectRuntimeState();
     restoreInputState(data.inputs);
-    toggleBattFields(true);
-    toggleMvFields();
-    toggleProtRelayFields();
+    syncConditionalUI();
     if(data.hasDae){
       try {
         const xml = await idbGet(key);
@@ -1263,8 +1275,8 @@ function _renderStartupModal(){
       const hasPV = p.inputs && p.inputs.__pvWattsFetched;
       return `<div class="proj-item">
         <div class="proj-item-info">
-          <div class="proj-item-name" title="${p.name}">${p.name}</div>
-          <div class="proj-item-meta">${p.date}${p.savedBy?' &bull; '+p.savedBy:''}${hasPV?' &bull; PVWatts':''}</div>
+          <div class="proj-item-name" title="${escAttr(p.name)}">${esc(p.name)}</div>
+          <div class="proj-item-meta">${p.date}${p.savedBy?' &bull; '+esc(p.savedBy):''}${hasPV?' &bull; PVWatts':''}</div>
         </div>
         <button class="hbtn" style="padding:4px 10px;font-size:10px" onclick="loadProject('${p.key}')">Open</button>
       </div>`;
@@ -1274,7 +1286,7 @@ function _renderStartupModal(){
 function startupNewProject(fromHeader){
   if(fromHeader && !confirm('Start a new project? Any unsaved changes will be lost.')) return;
   // Reset all form inputs to their HTML default values
-  document.querySelectorAll('input[id],select[id]').forEach(el => {
+  document.querySelectorAll('input[id],select[id],textarea[id]').forEach(el => {
     if(el.type === 'checkbox') el.checked = el.defaultChecked;
     else el.value = el.defaultValue;
   });
@@ -1287,25 +1299,9 @@ function startupNewProject(fromHeader){
   setArrayCount(1, { silent:true });
   for(let n=1;n<=ARR_MAX;n++){ _lastAutoInvKw[n]=_lastAutoInvV[n]=_lastAutoInvCount[n]=_lastAutoInvModel[n]=_lastAutoCombV[n]=null; }
   _lastAutoComms = null;
-  _lastDaeXml = null;
-  _daeCounts = {};
-  _daeDismissed = new Set();
-  _daeArrayAssign = {};
-  _anPvWattsData = null;
-  _anCsvData = null;
-  _rptCropImg = null;
-  _rptLayoutImgOrig = null;
-  _rptEdits = {};
-  _rptCustom = []; _rptCustomSeq = 0; _rptJustAdded = null;
-  _cropRect = null;
-  _rptPad = {t:20,r:28,b:20,l:28};
-  const _nlbl=$('pvlayout-drop-label');
-  if(_nlbl) _nlbl.innerHTML='Drop .png/.jpg here<br><span style="font-size:9px">or click to browse</span>';
-  const _ic=$('rpt-img-canvas'),_hc=$('rpt-handles-canvas'),_ph=$('rpt-img-placeholder');
-  if(_ic) _ic.style.display='none'; if(_hc) _hc.style.display='none'; if(_ph) _ph.style.display='';
-  toggleBattFields(true);
-  toggleMvFields();
-  toggleProtRelayFields();
+  _lastAutoPlatform = _lastAutoPoiKv = _lastAutoMvSecV = null;
+  resetProjectRuntimeState();
+  syncConditionalUI();
   $('startup-modal').classList.remove('open');
   render();
 }
@@ -1463,8 +1459,8 @@ function arrSectionHtml(n){
     <div class="trow"><span>Include combiner box</span><label class="tog"><input type="checkbox" id="${a}hasCombiner" checked onchange="render()"><div class="ttrack"><div class="tthumb"></div></div></label></div>
     <label>Max DC voltage rating</label>
     <select id="${a}combV" onchange="arrCombVChanged(${n})"><option value="600">600 VDC</option><option value="1000" selected>1000 VDC</option><option value="1500">1500 VDC</option></select>
-    <label>String fuse (A)</label>
-    <input type="number" id="${a}combFuse" value="15" min="5" max="60" oninput="render()">
+    <label>String fuse (A) <span style="font-size:9px;color:var(--muted);font-weight:400">← auto</span></label>
+    <input type="number" id="${a}combFuse" value="15" min="5" max="60" readonly tabindex="-1" style="opacity:0.7;cursor:default">
     <div class="stitle" style="margin-top:12px">Inverter ${n}</div>
     <label>Type</label>
     <select id="${a}invType" onchange="render()">
@@ -1532,6 +1528,7 @@ function _arrWatchEdits(n){
 }
 function _arrRefreshAddBtn(){
   const b=$('add-array-btn'); if(b){ b.disabled=_arrCount>=ARR_MAX; b.textContent=_arrCount>=ARR_MAX?`Maximum ${ARR_MAX} arrays`:'+ Add array'; }
+  _renderDaeArrBtns();
 }
 // Ensure exactly `count` array sections exist (creates/removes generated sections as needed)
 function setArrayCount(count,opts={}){
@@ -1882,7 +1879,7 @@ function vals(){
     hasBatt:gc('hasBatt')||_bessMode,hasIslanding:gc('hasIslanding'),battCouple:gv('battCouple'),battKwh:+gv('battKwh')||13.5,
     battKw:+gv('battKw')||5,battQty:Math.max(1,+gv('battQty')||1),pcsKva:+gv('pcsKva')||5,
     battV:gv('battV'),battChem:gv('battChem'),battModel:gv('battModel'),
-    battSocMin:+gv('battSocMin')||10,battSocMax:+gv('battSocMax')||90,
+    battSocMin:isNaN(parseFloat(gv('battSocMin')))?10:+gv('battSocMin'),battSocMax:+gv('battSocMax')||90,
     battDcFuse:+gv('battDcFuse')||200,battComms:gv('battComms')||'Modbus TCP',
     hasProtRelay:gc('hasProtRelay'),interconnStd:gv('interconnStd')||'IEEE 1547-2018',
     utilityName:gv('utilityName')||'Utility',poiKv:+gv('poiKv')||0.48,
@@ -1913,6 +1910,7 @@ function vals(){
 }
 
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const escAttr=s=>esc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
 // IEC-style PV string symbol: rect with diagonal, +/- terminals top & bottom
 // cx,cy = center of module body; w,h = symbol size
@@ -2111,7 +2109,7 @@ function skpFileSelected(file){
     $('skp-results').innerHTML = `<div class="cnote" style="color:#f5a742">Please upload a Collada .dae file (File → Export → 3D Model → Collada in SketchUp).</div>`;
     return;
   }
-  $('skp-results').innerHTML = `<div class="cnote">Reading ${file.name}…</div>`;
+  $('skp-results').innerHTML = `<div class="cnote">Reading ${esc(file.name)}…</div>`;
   $('dae-overlay').style.display = 'none';
   _daeDismissed = new Set(); // reset dismissed only on fresh file upload
   _daeArrayAssign = {};
@@ -2237,8 +2235,8 @@ function parseDaeText(xml){
 let _daeCounts = {};
 let _daeArrayAssign = {}; // componentName → arrayNumber (1 or 2)
 
-const DAE_ARR_COLOR = { 1: '#3a6bc0', 2: '#1e8a60' };
-const DAE_ARR_THREE = { 1: 0x3a6bc0, 2: 0x1e8a60 };
+const DAE_ARR_COLOR = { 1: '#3a6bc0', 2: '#1e8a60', 3: '#b8662a', 4: '#7a4fb5' };
+const DAE_ARR_THREE = Object.fromEntries(Object.entries(DAE_ARR_COLOR).map(([n,c])=>[n,parseInt(c.slice(1),16)]));
 
 function renderDaeResults(counts){
   _daeCounts = counts;
@@ -2250,20 +2248,26 @@ function renderDaeResults(counts){
   let html = '';
   entries.forEach(([name, count]) => {
     const key = encodeURIComponent(name);
-    html += `<div id="dae-row-${key}" style="margin-top:7px">
+    html += `<div id="dae-row-${key}" data-key="${escAttr(key)}" data-count="${count}" style="margin-top:7px">
       <div style="display:flex;align-items:center;justify-content:space-between">
-        <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1" title="${name}">${name}</div>
-        <button onclick="daeDismiss('${key}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:0 0 0 6px;flex-shrink:0" title="Remove">×</button>
+        <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1" title="${escAttr(name)}">${esc(name)}</div>
+        <button onclick="daeDismiss(this.closest('[data-key]').dataset.key)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:0 0 0 6px;flex-shrink:0" title="Remove">×</button>
       </div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
         <span style="font-size:13px;font-weight:600;color:var(--green);font-family:var(--mono)">${count} modules</span>
-        <button class="hbtn" style="font-size:10px;padding:3px 8px" onclick="applySkpCount(1,${count},'${key}')">→ Array 1</button>
-        <button class="hbtn" style="font-size:10px;padding:3px 8px" onclick="applySkpCount(2,${count},'${key}')">→ Array 2</button>
+        <span class="dae-arr-btns" style="display:contents"></span>
         <span id="dae-badge-${key}" style="font-size:9px;font-weight:600;padding:1px 6px;border-radius:3px;display:none"></span>
       </div>
     </div>`;
   });
   el.innerHTML = html;
+  _renderDaeArrBtns();
+}
+// One "→ Array n" button per existing array, plus one that creates the next array
+function _renderDaeArrBtns(){
+  const btn=(n,label)=>`<button class="hbtn" style="font-size:10px;padding:3px 8px" onclick="const r=this.closest('[data-key]');applySkpCount(${n},+r.dataset.count,r.dataset.key)">${label}</button>`;
+  const html=arrNs().map(n=>btn(n,`→ Array ${n}`)).join('')+(_arrCount<ARR_MAX?btn(_arrCount+1,'+ New array'):'');
+  document.querySelectorAll('#skp-results .dae-arr-btns').forEach(s=>{ s.innerHTML=html; });
 }
 
 function daeDismiss(key){
@@ -2321,6 +2325,9 @@ function recolorDaeScene(){
 }
 
 function applySkpCount(n, totalModules, key){
+  if(n>_arrCount){ if(n>ARR_MAX) return; setArrayCount(n); }
+  // An imported module count is this array's own — stop mirroring Array 1 or the next sync reverts it
+  if(n>1&&arrMirrored(n)) _arrSetMirror(n,false);
   const modW = +agv(n,'modW') || 550;
   const voc  = +agv(n,'voc')  || 49.9;
   const combV= +agv(n,'combV')|| 1000;
@@ -2378,13 +2385,32 @@ function refitCamera(){
   _daeControls.update();
 }
 
+// Release the 3D preview: stop the loop, detach OrbitControls' canvas listeners, free GPU buffers
+function _disposeDae3d(){
+  if(_daeAnimFrame){ cancelAnimationFrame(_daeAnimFrame); _daeAnimFrame=null; }
+  if(_daeControls) _daeControls.dispose();
+  if(_daeScene) _daeScene.traverse(obj=>{
+    if(obj.geometry) obj.geometry.dispose();
+    const mats=obj.material?(Array.isArray(obj.material)?obj.material:[obj.material]):[];
+    mats.forEach(m=>{ Object.values(m).forEach(v=>{ if(v&&v.isTexture) v.dispose(); }); m.dispose(); });
+  });
+  if(_daeRenderer){ _daeRenderer.dispose(); _daeRenderer=null; }
+  _daeScene = null; _daeCamera = null; _daeControls = null;
+}
+// Remove the 3D model and its component list entirely (new project / loading another project)
+function clearDaeImport(){
+  if(typeof THREE !== 'undefined') _disposeDae3d();
+  _lastDaeXml = null; _daeCounts = {}; _daeDismissed = new Set(); _daeArrayAssign = {};
+  toggleDaePreview(false);
+  const res=$('skp-results'); if(res) res.innerHTML='';
+  const toggleRow=$('skp-preview-toggle-row'); if(toggleRow) toggleRow.style.display='none';
+}
+
 function renderDaePreview(xmlText){
   if(typeof THREE === 'undefined') return;
 
   // Tear down previous renderer
-  if(_daeAnimFrame){ cancelAnimationFrame(_daeAnimFrame); _daeAnimFrame=null; }
-  if(_daeRenderer){ _daeRenderer.dispose(); _daeRenderer=null; }
-  _daeScene = null; _daeCamera = null; _daeControls = null;
+  _disposeDae3d();
   // _daeDismissed / _daeArrayAssign are NOT reset here — reset in skpFileSelected (fresh upload)
   // or pre-populated by restoreInputState (project load)
 
@@ -2454,6 +2480,8 @@ function renderDaePreview(xmlText){
 
     function animate(){
       _daeAnimFrame = requestAnimationFrame(animate);
+      // Skip the work while the overlay or the SLD tab is hidden
+      if(wrap.style.display==='none'||!$('tab-sld').classList.contains('active')) return;
       controls.update();
       renderer.render(scene, camera);
     }
@@ -2569,8 +2597,8 @@ function autoFillCombV(n){
   if(_lastAutoCombV[n]===null||+el.value===_lastAutoCombV[n]){
     el.value=auto;
     _arrPropagateCombV(n,auto);
+    _lastAutoCombV[n]=auto;
   }
-  _lastAutoCombV[n]=auto;
 }
 function arrSystemKwChanged(n){
   const systemKw=+agv(n,'systemKw');
@@ -2817,7 +2845,7 @@ function telemetryToggled(){
   if(f) f.style.display=on?'block':'none';
   render();
 }
-function gridNetworkChanged(){
+function _gridNetworkUI(){
   const nw=gv('gridNetwork')||'radial';
   const isSanSsn=nw==='san'||nw==='ssn';
   const sanWrap=$('san-strategy-wrap');
@@ -2831,6 +2859,22 @@ function gridNetworkChanged(){
       note.textContent='';
     }
   }
+  const ff=$('feeder-fields');
+  if(ff) ff.style.display=isSanSsn&&(gv('interconnType')||'radial-feeder')==='radial-feeder'?'block':'none';
+  return isSanSsn;
+}
+// After a project load / reset: show or hide every conditional sidebar block to match the
+// restored values, without the auto-changes the individual change handlers make
+function syncConditionalUI(){
+  toggleBattFields(true);
+  toggleMvFields();
+  toggleProtRelayFields();
+  _gridNetworkUI();
+  const tf=$('telemetry-fields'); if(tf) tf.style.display=gc('hasTelemetry')?'block':'none';
+  const cw=$('customNotesWrap'); if(cw) cw.style.display=gc('showCustomNotes')?'block':'none';
+}
+function gridNetworkChanged(){
+  const isSanSsn=_gridNetworkUI();
   if(!isSanSsn){
     // Only reset MV transformer (SAN/SSN-specific); leave telemetry as-is since it's on by default
     const mvCb=$('hasMvXfmr');
@@ -3226,28 +3270,28 @@ function render(){
         el.push(`<line x1="${BX2+10}" y1="${contTop+divY1}" x2="${BX2+BW2-10}" y2="${contTop+divY1}" stroke="#1e8a60" stroke-width="0.8" stroke-dasharray="4 2"/>`);
         el.push(`<text x="${BATTCX}" y="${contTop+14}" class="sld-lbl" text-anchor="middle">PCS / Inverter</text>`);
         el.push(`<text x="${BATTCX}" y="${contTop+27}" class="sld-sub" text-anchor="middle">${v.battKw} kW / ${v.pcsKva} kVA</text>`);
-        el.push(`<text x="${BATTCX}" y="${contTop+40}" class="sld-sub" text-anchor="middle">${v.battModel}</text>`);
-        el.push(`<text x="${BATTCX}" y="${contTop+divY1-4}" class="sld-note" text-anchor="middle" style="fill:#1e8a60">DC: ${v.battV}</text>`);
+        el.push(`<text x="${BATTCX}" y="${contTop+40}" class="sld-sub" text-anchor="middle">${esc(v.battModel)}</text>`);
+        el.push(`<text x="${BATTCX}" y="${contTop+divY1-4}" class="sld-note" text-anchor="middle" style="fill:#1e8a60">DC: ${esc(v.battV)}</text>`);
         el.push(`<line x1="${BX2+10}" y1="${contTop+divY2}" x2="${BX2+BW2-10}" y2="${contTop+divY2}" stroke="#1e8a60" stroke-width="0.8" stroke-dasharray="4 2"/>`);
         el.push(`<text x="${BATTCX}" y="${contTop+divY1+12}" class="sld-note" text-anchor="middle" style="font-style:italic">DC Fuse / Contactor: ${v.battDcFuse}A</text>`);
       }
       const bankY = isDc ? contTop : contTop+divY2;
       el.push(`<text x="${BATTCX}" y="${bankY+14}" class="sld-lbl" text-anchor="middle">Battery Bank</text>`);
       if(isDc){
-        el.push(`<text x="${BATTCX}" y="${bankY+26}" class="sld-sub" text-anchor="middle">${v.battModel}</text>`);
+        el.push(`<text x="${BATTCX}" y="${bankY+26}" class="sld-sub" text-anchor="middle">${esc(v.battModel)}</text>`);
         el.push(`<text x="${BATTCX}" y="${bankY+38}" class="sld-sub" text-anchor="middle">${v.battKwh} kWh · ${dur}h · ${cRate}C</text>`);
         el.push(`<text x="${BATTCX}" y="${bankY+50}" class="sld-sub" text-anchor="middle">${usableKwh} kWh usable · SOC ${v.battSocMin}–${v.battSocMax}%</text>`);
-        el.push(`<text x="${BATTCX}" y="${bankY+62}" class="sld-sub" text-anchor="middle">${v.battChem} · DC: ${v.battV}</text>`);
+        el.push(`<text x="${BATTCX}" y="${bankY+62}" class="sld-sub" text-anchor="middle">${esc(v.battChem)} · DC: ${esc(v.battV)}</text>`);
       } else {
         el.push(`<text x="${BATTCX}" y="${bankY+27}" class="sld-sub" text-anchor="middle">${v.battKwh} kWh · ${dur}h · ${cRate}C</text>`);
         el.push(`<text x="${BATTCX}" y="${bankY+40}" class="sld-sub" text-anchor="middle">${usableKwh} kWh usable · SOC ${v.battSocMin}–${v.battSocMax}%</text>`);
-        el.push(`<text x="${BATTCX}" y="${bankY+54}" class="sld-sub" text-anchor="middle">${v.battChem}</text>`);
+        el.push(`<text x="${BATTCX}" y="${bankY+54}" class="sld-sub" text-anchor="middle">${esc(v.battChem)}</text>`);
       }
       const commsY = isDc ? bankY+38 : bankY+27;
       const commsX=BX2;
       el.push(`<line x1="${commsX}" y1="${commsY}" x2="${commsX-48}" y2="${commsY}" stroke="#7a84a0" stroke-width="1" stroke-dasharray="4 2"/>`);
       el.push(`<text x="${commsX-51}" y="${commsY-3}" class="sld-note" text-anchor="end" style="fill:#7a84a0;font-style:italic">COMMS</text>`);
-      el.push(`<text x="${commsX-51}" y="${commsY+9}" class="sld-note" text-anchor="end" style="fill:#7a84a0">${v.battComms}</text>`);
+      el.push(`<text x="${commsX-51}" y="${commsY+9}" class="sld-note" text-anchor="end" style="fill:#7a84a0">${esc(v.battComms)}</text>`);
     }
 
   if(v.battCouple==='ac'){
@@ -3608,7 +3652,7 @@ function render(){
     const poiLabel=v.poiKv>=1?`${v.poiKv} kV`:`${(v.poiKv*1000).toFixed(0)}V`;
     el.push(wireAC(MCX,y,MCX,y+W)); y+=W;
     const gridBoxTitle=v.gridNetwork==='san'?'Secondary Area Bus':v.gridNetwork==='ssn'?'Spot Network Bus':'GRID';
-    el.push(compBox(BX,y,BW,36,'#f5f7fc','#a0aac8',gridBoxTitle,poiLabel+' · '+esc(v.utilityName)));
+    el.push(compBox(BX,y,BW,36,'#f5f7fc','#a0aac8',gridBoxTitle,poiLabel+' · '+v.utilityName));
     if(v.gridNetwork==='radial') [0,1,2].forEach(i=>{const lx=BX+BW-24,ly=y+10+i*8;el.push(`<line x1="${lx}" y1="${ly}" x2="${lx+16}" y2="${ly}" stroke="#a0aac8" stroke-width="${2-i*0.5}"/>`);});
     y+=36;
     if(v.gridNetwork==='san'||v.gridNetwork==='ssn'){
@@ -4028,7 +4072,7 @@ function render(){
 
   // ── NEC 705.12(D)(2) backfeed breaker validation ──────────────────────────
   // Solar breaker ≤ (busbar × 120%) − main breaker
-  const activeBusbar = v.busbarA || activePanel;
+  const activeBusbar = activePanel; // busbar rated at the panel size computed above
   const maxBackfeed = Math.floor(activeBusbar * 1.20) - activePanel;
   const bcEl = $('breaker-check');
   const bfEl = $('backfeed-check');
@@ -4040,6 +4084,25 @@ function render(){
   } else {
     bcEl.className='cok'; bcEl.textContent=`✓ NEC 705.12(D)(2): max ${maxBackfeed}A`;
     bfEl.textContent='';
+  }
+
+  // ── Design limits the auto-sizing can't satisfy ───────────────────────────
+  const designWarn=[];
+  const wireMaxA=WIRE_AMP[WIRE_AMP.length-1].amps, bkrMaxA=STANDARD_BREAKERS[STANDARD_BREAKERS.length-1];
+  const arrTag=a=>v.hasArr2?`${a.name}: `:'';
+  v.arrays.forEach((a,i)=>{
+    const vocNec=a.mods*a.voc*1.25;
+    if(vocNec>a.combV) designWarn.push(`${arrTag(a)}string Voc ×1.25 = ${Math.ceil(vocNec)} V exceeds ${a.combV} VDC rating`);
+    const c=cArr[i];
+    if(c.perInvAcA>wireMaxA) designWarn.push(`${arrTag(a)}AC output ${c.perInvAcA.toFixed(0)} A per inverter exceeds largest conductor (${wireMaxA} A) — parallel sets required`);
+    if(c.dcA>wireMaxA) designWarn.push(`${arrTag(a)}DC ${c.dcA.toFixed(0)} A per inverter exceeds largest conductor (${wireMaxA} A) — parallel sets required`);
+  });
+  if(totalInvAcA*1.25>bkrMaxA) designWarn.push(`PV breaker requirement ${(totalInvAcA*1.25).toFixed(0)} A exceeds ${bkrMaxA} A — use switchgear / supply-side connection`);
+  const warnEl=$('s-warn');
+  if(warnEl){
+    warnEl.style.display=designWarn.length?'':'none';
+    warnEl.textContent=designWarn.length?`⚠ ${designWarn[0]}${designWarn.length>1?` (+${designWarn.length-1} more)`:''}`:'';
+    warnEl.title=designWarn.join('\n');
   }
 
   // ── Combiner fuse minimum per NEC 690.8(A)+(B) ───────────────────────────
@@ -4058,11 +4121,16 @@ function exportSVG(){
   const v=vals();
   const svg=$('sld-svg');
   const hdr='<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n';
-  const blob=new Blob([hdr+svg.outerHTML],{type:'image/svg+xml'});
+  // Standalone file needs the SVG namespace (inline HTML SVG doesn't carry it) and XML serialisation
+  const svgClone=svg.cloneNode(true);
+  svgClone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  svgClone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
+  const blob=new Blob([hdr+new XMLSerializer().serializeToString(svgClone)],{type:'image/svg+xml'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download=(v.projName||'sld').replace(/[^a-z0-9]/gi,'_')+'_SLD.svg';
   a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
 }
 
 function exportPDF(){
@@ -4448,8 +4516,14 @@ function _rptPruneEmptyCustom(force){
   const ae=document.activeElement;
   const focusedK=(!force&&ae&&ae.dataset)?ae.dataset.k:null;
   const n=_rptCustom.length;
-  _rptCustom=_rptCustom.filter(c=>(!force&&(c.k===focusedK||c.k===_rptJustAdded))||_rptTxt(c.html).length>0);
+  _rptCustom.filter(c=>!((!force&&(c.k===focusedK||c.k===_rptJustAdded))||_rptTxt(c.html).length>0)).forEach(_rptDropCustom);
   return n!==_rptCustom.length;
+}
+// Remove an added line; lines anchored to it move up to its anchor so they keep their place
+function _rptDropCustom(entry){
+  const i=_rptCustom.indexOf(entry); if(i<0) return;
+  _rptCustom.forEach(c=>{ if(c.after===entry.k) c.after=entry.after||''; });
+  _rptCustom.splice(i,1);
 }
 // Clear the grace period and drop blank added lines (leaving the tab / exporting)
 function rptFlushBlankLines(){
@@ -4496,7 +4570,7 @@ function rptAddLine(afterKey){
 function rptRemoveLine(k){
   const i=_rptCustom.findIndex(c=>c.k===k); if(i<0) return;
   if(_rptJustAdded===k) _rptJustAdded=null;
-  _rptCustom.splice(i,1);
+  _rptDropCustom(_rptCustom[i]);
   const badge=$('rpt-edit-badge'); if(badge) badge.style.display='none';
   renderReport(); saveState(); _rptRefreshEditUI();
 }
@@ -4530,9 +4604,12 @@ function rptSetAutoLines(id,genLines){
       c.classList.toggle('rpt-edited',over!=null);
     }
   });
-  // Drop overrides for generated lines that no longer exist so the edit count stays accurate
-  const live=new Set(genLines.map(l=>'line:'+l.k));
-  Object.keys(_rptEdits).forEach(k=>{ if(k.startsWith('line:')&&!live.has(k)) delete _rptEdits[k]; });
+  // Overrides for lines not shown right now (section toggled off, NZE cleared…) are kept so they
+  // come back with the line; _rptLiveEditCount only counts the visible ones.
+}
+function _rptLiveEditCount(){
+  const live=new Set([...document.querySelectorAll('#rpt-sys-body [data-k]')].map(el=>'line:'+el.dataset.k));
+  return Object.keys(_rptEdits).filter(k=>RPT_EDIT_IDS.includes(k)||live.has(k)).length;
 }
 // Apply generated HTML to a whole block unless the user has overridden it
 function rptSetAuto(id,html){
@@ -4545,7 +4622,7 @@ function rptSetAuto(id,html){
 function _rptRefreshEditUI(){
   const btn=$('rpt-reset-btn');
   const nCustom=_rptCustom.filter(c=>_rptTxt(c.html)).length;
-  const n=Object.keys(_rptEdits).length+nCustom;
+  const n=_rptLiveEditCount()+nCustom;
   if(btn){ btn.disabled=n===0; btn.textContent=n?`↻ Reset text edits (${n})`:'↻ Reset text edits'; }
   _rptEditEls().forEach(el=>el.classList.toggle('rpt-edited',_rptEdits[el.id]!=null));
   document.querySelectorAll('#rpt-sys-body [data-k]').forEach(el=>{
@@ -4577,7 +4654,7 @@ function rptResetEdit(key){
 function rptResetEdits(){
   const nCustom=_rptCustom.filter(c=>_rptTxt(c.html)).length;
   if(!Object.keys(_rptEdits).length&&!nCustom) return;
-  if(nCustom&&!confirm(`Discard all manual text edits and ${nCustom} added line${nCustom>1?'s':''}?`)) return;
+  if(!confirm(nCustom?`Discard all manual text edits and ${nCustom} added line${nCustom>1?'s':''}?`:'Discard all manual text edits?')) return;
   _rptEdits={}; _rptCustom=[]; _rptJustAdded=null;
   const badge=$('rpt-edit-badge'); if(badge) badge.style.display='none';
   _rptRefreshEditUI(); renderReport(); saveState();
@@ -4804,7 +4881,7 @@ async function downloadRptPDF(){
       scale:SC,useCORS:true,allowTaint:true,
       backgroundColor:'#ffffff',
       width:pagePxW,height:pagePxH,
-      ignoreElements:el=>el.id==='rpt-date'||el.id==='rpt-edit-badge'
+      ignoreElements:el=>el.id==='rpt-date'||el.id==='rpt-edit-badge'||el.id==='rpt-img-placeholder'
     });
     pdf.addImage(layoutCanvas.toDataURL('image/jpeg',0.95),'JPEG',bx,by,boxW,boxH);
 
@@ -4865,7 +4942,7 @@ async function downloadRptPDF(){
     alert('PDF generation failed: '+err.message);
   } finally {
     const _pg=$('rpt-page'); if(_pg) _pg.classList.remove('rpt-exporting');
-    if(ic){ic.style.display='';_drawRptImage();}
+    if(ic&&_rptCropImg){ic.style.display='';_drawRptImage();}
     if(hc&&_rptCropImg) hc.style.display='';
     if(btn){btn.disabled=false;btn.textContent='↓ Download PDF';}
   }
@@ -4878,6 +4955,8 @@ let _anSweepResults=[],_anPeakCurtDay=0,_anPeakDayIsExport=false,_anPvSrc='',_an
 let _chartMonthly=null,_chartSizing=null,_chartDispatch=null;
 let _anPvWattsData=null; // hourly kW array fetched from NREL PVWatts API
 let _anPvWattsParams=null; // input snapshot the PVWatts data corresponds to (stale-check)
+// Number input with a default only when it's blank/invalid — 0 is a real value (azimuth 0° = north, tilt 0° = flat)
+function anNum(id,dflt){ const v=parseFloat(gv(id)); return isNaN(v)?dflt:v; }
 function anPvWattsParamKey(){
   return ['an-pvKw','an-dcAc','an-losses','an-lat','an-lon','an-tilt','an-azimuth','an-array-type'].map(id=>(gv(id)||'').trim()).join('|');
 }
@@ -4900,6 +4979,7 @@ function switchTab(name){
   const dp=$('display-panel');
   if(dp) dp.classList.toggle('visible', name==='sld');
   if(name==='analysis'){ syncAnalysisFromSLD(); renderLoadPreview(); scheduleAnalysis(300); }
+  else if(_anDirty&&_anResultsVisible()) scheduleAnalysis(0);
   if(name==='debug'){ refreshDebugReport(); }
   if(name!=='report') rptFlushBlankLines();
   if(name==='report'){ renderReport(); }
@@ -4936,7 +5016,7 @@ function syncAnalysisFromSLD(){
     const qty=Math.max(1,parseInt(gv('battQty'))||1);
     const kw=(parseFloat(gv('battKw'))||0)*qty;
     const kwh=(parseFloat(gv('battKwh'))||0)*qty;
-    const socMin=parseFloat(gv('battSocMin'))||10;
+    const socMin=anNum('battSocMin',10);
     const socMax=parseFloat(gv('battSocMax'))||90;
     const usable=kwh*(socMax-socMin)/100;
     const chem=gv('battChem')||'LFP';
@@ -5057,10 +5137,26 @@ function anCsvFile(file){
   reader.onload=function(ev){
     const lines=ev.target.result.split(/[\r\n]+/).filter(l=>l.trim());
     const vals=lines.map(l=>{const p=l.split(',');return parseFloat(p[p.length-1]);}).filter(v=>!isNaN(v));
-    if(vals.length<8760){$('an-csv-status').textContent=`⚠ Only ${vals.length} values (need ≥8760)`;_anCsvData=null;return;}
-    _anCsvData=new Float32Array(vals.slice(0,8760));
-    $('an-csv-status').textContent=`✓ ${vals.length} hours loaded`;
+    const st=$('an-csv-status');
+    // Accept one year of hourly or 15-minute data; leap years drop Feb 29 so every day stays aligned
+    const LEAP_FEB29=59*24; // first hour of Feb 29
+    let hourly=null, fmt='';
+    if(vals.length===8760){ hourly=vals; fmt='hourly'; }
+    else if(vals.length===8784){ hourly=vals.slice(0,LEAP_FEB29).concat(vals.slice(LEAP_FEB29+24)); fmt='hourly, leap year — Feb 29 removed'; }
+    else if(vals.length===35040||vals.length===35136){
+      // 15-min interval kWh → hourly kWh (= average kW over the hour)
+      const h=[]; for(let i=0;i+3<vals.length;i+=4) h.push(vals[i]+vals[i+1]+vals[i+2]+vals[i+3]);
+      hourly=h.length===8784?h.slice(0,LEAP_FEB29).concat(h.slice(LEAP_FEB29+24)):h;
+      fmt=`15-min intervals summed to hourly${h.length===8784?', Feb 29 removed':''}`;
+    }
+    if(!hourly){
+      st.textContent=`⚠ ${vals.length.toLocaleString()} values — need one year of hourly (8760/8784) or 15-min (35040/35136) data`;
+      _anCsvData=null; renderLoadPreview(); scheduleAnalysis(300); return;
+    }
+    _anCsvData=new Float32Array(hourly);
+    st.textContent=`✓ 8760 hours loaded (${fmt})`;
     renderLoadPreview();
+    scheduleAnalysis(300);
   };
   reader.readAsText(file);
 }
@@ -5091,13 +5187,17 @@ function anTargetYieldChanged(){
 }
 
 // ── PVWatts API Fetch ────────────────────────────────────────────────────────
+let _anPvwSeq=0;
 async function fetchPVWatts(){
-  const statusEl=$('an-pvw-status');
+  const statusEl=$('an-pvw-status'), btn=$('an-pvw-btn');
   statusEl.style.color='var(--muted)';statusEl.textContent='Fetching from NREL…';
+  // Snapshot the inputs now: the response belongs to these, not to whatever is typed while it loads
+  const seq=++_anPvwSeq, key=anPvWattsParamKey(), pvKwFetched=anNum('an-pvKw',0);
+  if(btn) btn.disabled=true;
   try{
     const params=new URLSearchParams({
       system_capacity:gv('an-pvKw'),
-      azimuth:parseFloat(gv('an-azimuth'))||180,
+      azimuth:anNum('an-azimuth',180),
       tilt:gv('an-tilt'),
       array_type:gv('an-array-type'),
       module_type:0,
@@ -5108,26 +5208,30 @@ async function fetchPVWatts(){
       dc_ac_ratio:gv('an-dcAc'),
     });
     const resp=await fetch(`/api/pvwatts?${params}`);
-    if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data=await resp.json();
-    if(data.errors&&data.errors.length) throw new Error(data.errors[0]);
+    let data=null; try{ data=await resp.json(); }catch(_){}
+    if(seq!==_anPvwSeq) return; // a newer fetch superseded this one
+    if(data&&data.errors&&data.errors.length) throw new Error(data.errors[0]);
+    if(!resp.ok||!data) throw new Error((data&&data.error)||`HTTP ${resp.status}`);
     const ac=data.outputs&&data.outputs.ac;
     if(!ac||ac.length<8760) throw new Error('Incomplete hourly data in response');
     _anPvWattsData=new Float32Array(ac.slice(0,8760).map(v=>v/1000)); // W → kW
-    _anPvWattsParams=anPvWattsParamKey();
+    _anPvWattsParams=key;
     const si=data.station_info||{};
     const annualMwh=(ac.reduce((a,b)=>a+b,0)/1e6).toFixed(2);
     statusEl.style.color='var(--green)';
-    const pvKwFetched=parseFloat(gv('an-pvKw'))||0;
     const yieldStr=pvKwFetched>0?` · ${(anSum(_anPvWattsData)/pvKwFetched).toFixed(0)} kWh/kW`:'';
     statusEl.textContent=`✓ ${[si.city,si.state].filter(Boolean).join(', ')||'Loaded'} · ${annualMwh} MWh/yr${yieldStr}`;
     anTargetYieldChanged();
     _anCanAutoRun=true;
+    anCheckPvWattsStale(); // inputs edited while it loaded → flag it now rather than at the next run
     scheduleAnalysis(300);
   }catch(e){
+    if(seq!==_anPvwSeq) return;
     statusEl.style.color='#f5a742';
     statusEl.textContent='⚠ '+e.message;
     _anPvWattsData=null;
+  }finally{
+    if(seq===_anPvwSeq&&btn) btn.disabled=false;
   }
 }
 
@@ -5418,11 +5522,17 @@ function simulate(pv,load,exportLimKw,battKw,battKwh,rte){
 }
 
 // ── Auto-run plumbing ────────────────────────────────────────────────────────
-let _anRunTimer=null, _anRunning=false, _anCanAutoRun=false;
+let _anRunTimer=null, _anRunning=false, _anCanAutoRun=false, _anRerun=false, _anDirty=false;
+// Tabs that show analysis results (the report and debug tabs use annual production / sim output)
+function _anResultsVisible(){ return ['analysis','report','debug'].some(t=>$('tab-'+t)&&$('tab-'+t).classList.contains('active')); }
 function scheduleAnalysis(ms=900){
   if(!_anCanAutoRun) return;
+  // Nothing on screen uses the results — defer the ~25 full-year simulations until a tab that does is opened
+  if(!_anResultsVisible()){ _anDirty=true; return; }
+  _anDirty=false;
   clearTimeout(_anRunTimer);
-  _anRunTimer=setTimeout(()=>{ if(!_anRunning) runAnalysis(); }, ms);
+  // An input changed mid-run: run again once this one finishes so results never lag the inputs
+  _anRunTimer=setTimeout(()=>{ if(_anRunning) _anRerun=true; else runAnalysis(); }, ms);
 }
 
 // ── Main Analysis Runner ─────────────────────────────────────────────────────
@@ -5433,20 +5543,26 @@ async function runAnalysis(){
   try{
     const pvKw=parseFloat(gv('an-pvKw'))||13;
     const dcAcRatio=parseFloat(gv('an-dcAc'))||1.2;
-    const losses=parseFloat(gv('an-losses'))||14;
+    const losses=anNum('an-losses',14);
     const lat=parseFloat(gv('an-lat'))||39.9;
-    const tilt=parseFloat(gv('an-tilt'))||20;
+    const tilt=anNum('an-tilt',20);
     const exportLimKw=anExportLimitKw(); // Infinity = net metering (no curtailment)
     const peakKw=parseFloat(gv('an-peakKw'))||50;
     const minKwh=Math.max(0,parseFloat(gv('an-minKwh'))||0);
     const maxKwh=parseFloat(gv('an-maxKwh'))||200;
     const battDurHr=Math.max(0.5,parseFloat(gv('battDuration'))||2);
     const rte=parseFloat(gv('an-rte'))/100||0.90;
-    const rate=parseFloat(gv('an-rate'))/100||0.15;
+    const rate=anNum('an-rate',15)/100;
     const loadType=gv('an-loadType');
+    if(loadType==='csv'&&!_anCsvData){
+      // No silent stand-in load: results would look real but describe a flat profile
+      $('an-results').style.display='none';
+      $('an-status').textContent='Upload an 8760 load CSV to run the analysis.';
+      return;
+    }
 
     anCheckPvWattsStale();
-    const azimuth=parseFloat(gv('an-azimuth'))||180;
+    const azimuth=anNum('an-azimuth',180);
     const pvRaw=_anPvWattsData||makeSolarProfile(pvKw,dcAcRatio,losses,lat,tilt,azimuth);
     const yt=applyYieldTarget(pvRaw,pvKw);
     const pv=yt.pv;
@@ -5454,7 +5570,7 @@ async function runAnalysis(){
     _anYieldTarget=yt;
     anTargetYieldChanged();
     const loadOpts=getLoadOpts();
-    const load=(loadType==='csv'&&_anCsvData)?_anCsvData:makeLoadProfile(loadType,peakKw,loadOpts);
+    const load=loadType==='csv'?_anCsvData:makeLoadProfile(loadType,peakKw,loadOpts);
 
     $('an-status').textContent='Running baseline…';
     await new Promise(r=>setTimeout(r,5));
@@ -5576,6 +5692,7 @@ async function runAnalysis(){
     console.error(e);
   }finally{
     _anRunning=false;
+    if(_anRerun){ _anRerun=false; scheduleAnalysis(0); }
     // Update report tab if it's active (annual production just changed)
     if($('tab-report')&&$('tab-report').classList.contains('active')) renderReport();
   }
@@ -5840,7 +5957,7 @@ function applyBattToSLD(){
   // Sweep sizes are usable kWh; the SLD holds nameplate per unit × qty with a SOC window
   // (syncAnalysisFromSLD applies the same window in reverse, so this round-trips exactly)
   const qty=Math.max(1,parseInt(gv('battQty'))||1);
-  const socMin=parseFloat(gv('battSocMin'))||10, socMax=parseFloat(gv('battSocMax'))||90;
+  const socMin=anNum('battSocMin',10), socMax=parseFloat(gv('battSocMax'))||90;
   const socWin=Math.max(0.05,(socMax-socMin)/100);
   $('battKw').value=Math.round(s.kw/qty*10)/10;
   $('battKwh').value=Math.round(s.kwh/socWin/qty*10)/10;
@@ -6028,7 +6145,16 @@ document.querySelector('aside').addEventListener('change', e=>{ syncAnalysisFrom
 document.querySelector('.analysis-aside').addEventListener('input', e=>{ if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); maybeRefreshDebug(); saveState(); });
 document.querySelector('.analysis-aside').addEventListener('change', e=>{ if(_LOAD_PREVIEW_IDS.has(e.target.id)) renderLoadPreview(); scheduleAnalysis(); maybeRefreshDebug(); saveState(); });
 
+// Autosave is debounced — it serialises the whole project (incl. 8760-value CSV) and is
+// requested several times per keystroke. Flushed when the page is hidden/closed.
+let _saveStateT=null;
 function saveState(){
+  clearTimeout(_saveStateT);
+  _saveStateT=setTimeout(_saveStateNow,400);
+}
+window.addEventListener('pagehide',()=>{ if(_saveStateT){ clearTimeout(_saveStateT); _saveStateNow(); } });
+function _saveStateNow(){
+  _saveStateT=null;
   try{
     const state=collectInputState();
     state.__activeTab=document.querySelector('.tab-btn.active')?.id?.replace('tab-btn-','') || 'sld';
